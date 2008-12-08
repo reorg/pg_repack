@@ -4,7 +4,7 @@
 	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
-<head>
+	<head>
 	<link rel="icon" type="image/png" href="http://pgfoundry.org/images/elephant-icon.png" />
 	<link rel="stylesheet" type="text/css" href="style.css" />
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -17,22 +17,10 @@
 <h1>Welcome to the pg_reorg Project Home Page</h1>
 <hr />
 </center>
-
 <p>
-This project provides two tools for PostgreSQL; <strong>pg_reorg</strong> and <strong>pg_batch</strong>.
-</p>
-
-<p>
-<strong>pg_reorg</strong> can re-organize tables on a postgres database without any locks so that you can retrieve or update rows in tables being reorganized.
+pg_reorg can re-organize tables on a postgres database without any locks so that you can retrieve or update rows in tables being reorganized.
 The module is developed to be a better alternative of CLUSTER and VACUUM FULL.
 </p>
-
-<p>
-<strong>pg_batch</strong> is a SQL job executor program for PostgreSQL.
-It generates job list from an external SQL script file, and execute the jobs in serial or parallel.
-It can be used as "a better vacuumdb" with the attached script to run VACUUM.
-</p>
-
 <p>
 The pg_reorg project is a <a href="http://www.postgresql.org">PostgreSQL</a> Community project that is a part of the <a href="http://pgfoundry.org">pgFoundry</a>.
 </p>
@@ -45,96 +33,21 @@ where you can find <a href="http://pgfoundry.org/frs/?group_id=1000411">download
 </div>
 <hr />
 
-<h2>Documentation</h2>
-
-<ul>
-<li><a href="pg_reorg.html">pg_reorg 1.1 documentation</a></li>
-<li><a href="pg_batch.html">pg_batch 1.2 documentation</a></li>
-</ul>
-
-<h2>Execution time</h2>
 <p>
-Here is a comparison between pg_reorg and clusterdb.
-Clusterdb is faster on not fragmented conditions, but pg_reorg is faster on fully fragmented conditions.
-Since reorganization is needed only if tables are fragmented, pg_reorg should be faster than clusterdb.
+<a href="pg_reorg.html">Documentations here</a>.
 </p>
-
-<center>
-<div style="margin: 2em">
-<img src="result.png" />
-</div>
-
-<table border="1">
-<caption>Configuration</caption>
-<tr>
-	<th>Category</th>
-	<th>Item</th>
-	<th>Details</th>
-</tr>
-<tr>
-	<td rowspan="3">Hardware</td>
-	<td>CPU</td>
-	<td>2 * Xeon 5160 3.00GHz (Dual core)</td>
-</tr>
-<tr>
-	<td>Memory</td>
-	<td>2GB</td>
-</tr>
-<tr>
-	<td>Storage</td>
-	<td>Ultra320 SCSI, 15000rpm (220GB)</td>
-</tr>
-<tr>
-	<td rowspan="4">Software</td>
-	<td>OS</td>
-	<td>RHEL 5.2 (64bit) 2.6.18-92.el5</td>
-</tr>
-<tr>
-	<td>DB</td>
-	<td>PostgreSQL 8.3.3</td>
-</tr>
-<tr>
-	<td>pg_reorg</td>
-	<td>1.0.0</td>
-</tr>
-<tr>
-	<td>clusterdb</td>
-	<td>clusterdb (PostgreSQL) 8.3.3</td>
-</tr>
-<tr>
-	<td rowspan="2">Data</td>
-	<td>Scheme</td>
-	<td><code><pre>CREATE TABLE tbl (
- id bigserial PRIMARY KEY,
- seqkey timestamp NOT NULL,
- rndkey timestamp NOT NULL,
- filler char(75) NOT NULL
-);
-CREATE INDEX idx_seq ON tbl (seqkey);
-CREATE INDEX idx_rnd ON tbl (rndkey);</pre></code></td>
-</tr>
-<tr>
-	<td>Rows</td>
-	<td>16.5 M rows (2GB)</td>
-</tr>
-</table>
-
-</center>
 
 <hr />
-<p class="footer">
-Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION<br />
-Portions Copyright (c) 2011, Itagaki Takahiro
-</p>
+<div align="right">
+Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+</div>
 
-<script type="text/javascript">
-var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
-document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
-</script>
-<script type="text/javascript">
-try {
-var pageTracker = _gat._getTracker("UA-10244036-4");
-pageTracker._trackPageview();
-} catch(err) {}</script>
+<!-- PLEASE LEAVE "Powered By GForge" on your site -->
+<br />
+<center>
+<a href="http://gforge.org/"><img src="http://gforge.org/images/pow-gforge.png" 
+alt="Powered By GForge Collaborative Development Environment" border="0" /></a>
+</center>
+
 </body>
 </html>

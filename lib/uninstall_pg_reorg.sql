@@ -1,8 +1,7 @@
 /*
  * pg_reorg: lib/uninstall_reorg.sql
  *
- * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
- * Portions Copyright (c) 2011, Itagaki Takahiro
+ * Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  */
 
 DROP SCHEMA IF EXISTS reorg CASCADE;

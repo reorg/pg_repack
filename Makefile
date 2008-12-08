@@ -1,37 +1,26 @@
 #
 # pg_reorg: Makefile
 #
-#  Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
-#  Portions Copyright (c) 2011, Itagaki Takahiro
+#    Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #
-ifndef USE_PGXS
-top_builddir = ../..
-makefile_global = $(top_builddir)/src/Makefile.global
-ifeq "$(wildcard $(makefile_global))" ""
-USE_PGXS = 1	# use pgxs if not in contrib directory
-endif
-endif
+.PHONY: all install clean
 
-ifdef USE_PGXS
-PG_CONFIG = pg_config
-PGXS := $(shell $(PG_CONFIG) --pgxs)
-include $(PGXS)
-else
-subdir = pg_reorg
-include $(makefile_global)
-include $(top_srcdir)/contrib/contrib-global.mk
-endif
+all: 
+	make -C bin
+	make -C lib
 
-SUBDIRS = bin lib
+install: 
+	make -C bin install
+	make -C lib install
 
-all install installdirs uninstall distprep clean distclean maintainer-clean debug:
-	@for dir in $(SUBDIRS); do \
-		$(MAKE) -C $$dir $@ || exit; \
-	done
+clean:
+	make -C bin clean
+	make -C lib clean
 
-# We'd like check operations to run all the subtests before failing.
-check installcheck:
-	@CHECKERR=0; for dir in $(SUBDIRS); do \
-		$(MAKE) -C $$dir $@ || CHECKERR=$$?; \
-	done; \
-	exit $$CHECKERR
+debug:
+	make -C bin DEBUG_REORG=enable
+	make -C lib DEBUG_REORG=enable
+
+uninstall: 
+	make -C bin uninstall
+	make -C lib uninstall

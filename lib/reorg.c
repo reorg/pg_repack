@@ -1,71 +1,54 @@
 /*
  * pg_reorg: lib/reorg.c
  *
- * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
- * Portions Copyright (c) 2011, Itagaki Takahiro
+ * Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ */
+
+/**
+ * @brief Core Modules
  */
 
 #include "postgres.h"
-
-#include <unistd.h>
-
-#include "access/genam.h"
-#include "access/transam.h"
-#include "access/xact.h"
-#include "catalog/dependency.h"
-#include "catalog/indexing.h"
 #include "catalog/namespace.h"
-#include "catalog/pg_namespace.h"
-#include "catalog/pg_opclass.h"
-#include "catalog/pg_type.h"
-#include "commands/tablecmds.h"
 #include "commands/trigger.h"
+#include "executor/spi.h"
 #include "miscadmin.h"
-#include "utils/builtins.h"
 #include "utils/lsyscache.h"
-#include "utils/rel.h"
-#include "utils/relcache.h"
-#include "utils/syscache.h"
 
-#include "pgut/pgut-spi.h"
-#include "pgut/pgut-be.h"
-
-/* htup.h was reorganized for 9.3, so now we need this header */
-#if PG_VERSION_NUM >= 90300
-#include "access/htup_details.h"
+#ifdef PG_MODULE_MAGIC
+PG_MODULE_MAGIC;
 #endif
 
-PG_MODULE_MAGIC;
+#if PG_VERSION_NUM < 80300
+#if PG_VERSION_NUM < 80300
+#define SET_VARSIZE(PTR, len)	(VARATT_SIZEP((PTR)) = (len))
+typedef void *SPIPlanPtr;
+#endif
+#endif
 
-extern Datum PGUT_EXPORT reorg_version(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_trigger(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_apply(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_get_index_keys(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_indexdef(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_swap(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_drop(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_disable_autovacuum(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(reorg_version);
+Datum reorg_trigger(PG_FUNCTION_ARGS);
+Datum reorg_apply(PG_FUNCTION_ARGS);
+Datum reorg_get_index_keys(PG_FUNCTION_ARGS);
+Datum reorg_indexdef(PG_FUNCTION_ARGS);
+Datum reorg_swap(PG_FUNCTION_ARGS);
+Datum reorg_drop(PG_FUNCTION_ARGS);
+
 PG_FUNCTION_INFO_V1(reorg_trigger);
 PG_FUNCTION_INFO_V1(reorg_apply);
 PG_FUNCTION_INFO_V1(reorg_get_index_keys);
 PG_FUNCTION_INFO_V1(reorg_indexdef);
 PG_FUNCTION_INFO_V1(reorg_swap);
 PG_FUNCTION_INFO_V1(reorg_drop);
-PG_FUNCTION_INFO_V1(reorg_disable_autovacuum);
 
 static void	reorg_init(void);
 static SPIPlanPtr reorg_prepare(const char *src, int nargs, Oid *argtypes);
-static const char *get_quoted_relname(Oid oid);
-static const char *get_quoted_nspname(Oid oid);
-static void swap_heap_or_index_files(Oid r1, Oid r2);
+static void reorg_execp(SPIPlanPtr plan, Datum *values, const char *nulls, int expected);
+static void reorg_execf(int expexted, const char *format, ...)
+__attribute__((format(printf, 2, 3)));
 
-#define copy_tuple(tuple, desc) \
-	PointerGetDatum(SPI_returntuple((tuple), (desc)))
-
-#define IsToken(c) \
-	(IS_HIGHBIT_SET((c)) || isalnum((unsigned char) (c)) || (c) == '_')
+#define copy_tuple(tuple, tupdesc) \
+	PointerGetDatum(SPI_returntuple((tuple), (tupdesc)))
 
 /* check access authority */
 static void
@@ -75,30 +58,36 @@ must_be_superuser(const char *func)
 		elog(ERROR, "must be superuser to use %s function", func);
 }
 
-
-/* Include an implementation of RenameRelationInternal for old
- * versions which don't have one.
- */
 #if PG_VERSION_NUM < 80400
-static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId);
-#endif
-
-
-/* The API of RenameRelationInternal() was changed in 9.2.
- * Use the RENAME_REL macro for compatibility across versions.
- */
-#if PG_VERSION_NUM < 90200
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
-#else
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
-#endif
-
-
-Datum
-reorg_version(PG_FUNCTION_ARGS)
+static int
+SPI_execute_with_args(const char *src,
+					  int nargs, Oid *argtypes,
+					  Datum *values, const char *nulls,
+					  bool read_only, long tcount)
 {
-	return CStringGetTextDatum("pg_reorg 1.1.6");
+	SPIPlanPtr	plan;
+	int			ret;
+
+	plan = SPI_prepare(src, nargs, argtypes);
+	if (plan == NULL)
+		return SPI_result;
+	ret = SPI_execute_plan(plan, values, nulls, read_only, tcount);
+	SPI_freeplan(plan);
+	return ret;
 }
+
+static text *
+cstring_to_text(const char * s)
+{
+	int			len = strlen(s);
+	text	   *result = palloc(len + VARHDRSZ);
+
+	SET_VARSIZE(result, len + VARHDRSZ);
+	memcpy(VARDATA(result), s, len);
+
+	return result;
+}
+#endif
 
 /**
  * @fn      Datum reorg_trigger(PG_FUNCTION_ARGS)
@@ -112,12 +101,13 @@ Datum
 reorg_trigger(PG_FUNCTION_ARGS)
 {
 	TriggerData	   *trigdata = (TriggerData *) fcinfo->context;
-	TupleDesc		desc;
+	TupleDesc		tupdesc;
 	HeapTuple		tuple;
 	Datum			values[2];
-	bool			nulls[2] = { 0, 0 };
+	char			nulls[2] = { ' ', ' ' };
 	Oid				argtypes[2];
 	const char	   *sql;
+	int				ret;
 
 	/* authority check */
 	must_be_superuser("reorg_trigger");
@@ -131,7 +121,7 @@ reorg_trigger(PG_FUNCTION_ARGS)
 
 	/* retrieve parameters */
 	sql = trigdata->tg_trigger->tgargs[0];
-	desc = RelationGetDescr(trigdata->tg_relation);
+	tupdesc = RelationGetDescr(trigdata->tg_relation);
 	argtypes[0] = argtypes[1] = trigdata->tg_relation->rd_rel->reltype;
 
 	/* connect to SPI manager */
@@ -141,26 +131,28 @@ reorg_trigger(PG_FUNCTION_ARGS)
 	{
 		/* INSERT: (NULL, newtup) */
 		tuple = trigdata->tg_trigtuple;
-		nulls[0] = true;
-		values[1] = copy_tuple(tuple, desc);
+		nulls[0] = 'n';
+		values[1] = copy_tuple(tuple, tupdesc);
 	}
 	else if (TRIGGER_FIRED_BY_DELETE(trigdata->tg_event))
 	{
 		/* DELETE: (oldtup, NULL) */
 		tuple = trigdata->tg_trigtuple;
-		values[0] = copy_tuple(tuple, desc);
-		nulls[1] = true;
+		values[0] = copy_tuple(tuple, tupdesc);
+		nulls[1] = 'n';
 	}
 	else
 	{
 		/* UPDATE: (oldtup, newtup) */
 		tuple = trigdata->tg_newtuple;
-		values[0] = copy_tuple(trigdata->tg_trigtuple, desc);
-		values[1] = copy_tuple(tuple, desc);
+		values[0] = copy_tuple(trigdata->tg_trigtuple, tupdesc);
+		values[1] = copy_tuple(tuple, tupdesc);
 	}
 
 	/* INSERT INTO reorg.log VALUES ($1, $2) */
-	execute_with_args(SPI_OK_INSERT, sql, 2, argtypes, values, nulls);
+	ret = SPI_execute_with_args(sql, 2, argtypes, values, nulls, false, 1);
+	if (ret < 0)
+		elog(ERROR, "reorg_trigger: SPI_execp returned %d", ret);
 
 	SPI_finish();
 
@@ -184,7 +176,7 @@ reorg_trigger(PG_FUNCTION_ARGS)
 Datum
 reorg_apply(PG_FUNCTION_ARGS)
 {
-#define DEFAULT_PEEK_COUNT	1000
+#define NUMBER_OF_PROCESSING	1000
 
 	const char *sql_peek = PG_GETARG_CSTRING(0);
 	const char *sql_insert = PG_GETARG_CSTRING(1);
@@ -199,9 +191,13 @@ reorg_apply(PG_FUNCTION_ARGS)
 	SPIPlanPtr		plan_update = NULL;
 	SPIPlanPtr		plan_pop = NULL;
 	uint32			n, i;
+	TupleDesc		tupdesc;
+	Oid				argtypes[3];	/* id, pk, row */
+	Datum			values[3];		/* id, pk, row */
+	char			nulls[3];		/* id, pk, row */
 	Oid				argtypes_peek[1] = { INT4OID };
 	Datum			values_peek[1];
-	bool			nulls_peek[1] = { 0 };
+	char			nulls_peek[1] = { ' ' };
 
 	/* authority check */
 	must_be_superuser("reorg_apply");
@@ -216,65 +212,65 @@ reorg_apply(PG_FUNCTION_ARGS)
 	{
 		int				ntuples;
 		SPITupleTable  *tuptable;
-		TupleDesc		desc;
-		Oid				argtypes[3];	/* id, pk, row */
-		Datum			values[3];		/* id, pk, row */
-		bool			nulls[3];		/* id, pk, row */
 
 		/* peek tuple in log */
 		if (count == 0)
-			values_peek[0] = Int32GetDatum(DEFAULT_PEEK_COUNT);
+			values_peek[0] = Int32GetDatum(NUMBER_OF_PROCESSING);
 		else
-			values_peek[0] = Int32GetDatum(Min(count - n, DEFAULT_PEEK_COUNT));
-
-		execute_plan(SPI_OK_SELECT, plan_peek, values_peek, nulls_peek);
+			values_peek[0] = Int32GetDatum(Min(count - n, NUMBER_OF_PROCESSING));
+		
+		reorg_execp(plan_peek, values_peek, nulls_peek, SPI_OK_SELECT);
 		if (SPI_processed <= 0)
 			break;
 
 		/* copy tuptable because we will call other sqls. */
 		ntuples = SPI_processed;
 		tuptable = SPI_tuptable;
-		desc = tuptable->tupdesc;
-		argtypes[0] = SPI_gettypeid(desc, 1);	/* id */
-		argtypes[1] = SPI_gettypeid(desc, 2);	/* pk */
-		argtypes[2] = SPI_gettypeid(desc, 3);	/* row */
+		tupdesc = tuptable->tupdesc;
+		argtypes[0] = SPI_gettypeid(tupdesc, 1);	/* id */
+		argtypes[1] = SPI_gettypeid(tupdesc, 2);	/* pk */
+		argtypes[2] = SPI_gettypeid(tupdesc, 3);	/* row */
 
 		for (i = 0; i < ntuples; i++, n++)
 		{
 			HeapTuple	tuple;
-
+			bool		isnull;
+		
 			tuple = tuptable->vals[i];
-			values[0] = SPI_getbinval(tuple, desc, 1, &nulls[0]);
-			values[1] = SPI_getbinval(tuple, desc, 2, &nulls[1]);
-			values[2] = SPI_getbinval(tuple, desc, 3, &nulls[2]);
-
-			if (nulls[1])
+			values[0] = SPI_getbinval(tuple, tupdesc, 1, &isnull);
+			nulls[0] = ' ';
+			values[1] = SPI_getbinval(tuple, tupdesc, 2, &isnull);
+			nulls[1] = (isnull ? 'n' : ' ');
+			values[2] = SPI_getbinval(tuple, tupdesc, 3, &isnull);
+			nulls[2] = (isnull ? 'n' : ' ');
+		
+			if (nulls[1] == 'n')
 			{
 				/* INSERT */
 				if (plan_insert == NULL)
 					plan_insert = reorg_prepare(sql_insert, 1, &argtypes[2]);
-				execute_plan(SPI_OK_INSERT, plan_insert, &values[2], &nulls[2]);
+				reorg_execp(plan_insert, &values[2], &nulls[2], SPI_OK_INSERT);
 			}
-			else if (nulls[2])
+			else if (nulls[2] == 'n')
 			{
 				/* DELETE */
 				if (plan_delete == NULL)
 					plan_delete = reorg_prepare(sql_delete, 1, &argtypes[1]);
-				execute_plan(SPI_OK_DELETE, plan_delete, &values[1], &nulls[1]);
+				reorg_execp(plan_delete, &values[1], &nulls[1], SPI_OK_DELETE);
 			}
 			else
 			{
 				/* UPDATE */
 				if (plan_update == NULL)
 					plan_update = reorg_prepare(sql_update, 2, &argtypes[1]);
-				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], &nulls[1]);
+				reorg_execp(plan_update, &values[1], &nulls[1], SPI_OK_UPDATE);
 			}
 		}
 
 		/* delete tuple in log */
 		if (plan_pop == NULL)
 			plan_pop = reorg_prepare(sql_pop, 1, argtypes);
-		execute_plan(SPI_OK_DELETE, plan_pop, values, nulls);
+		reorg_execp(plan_pop, values, nulls, SPI_OK_DELETE);
 
 		SPI_freetuptable(tuptable);
 	}
@@ -285,7 +281,7 @@ reorg_apply(PG_FUNCTION_ARGS)
 }
 
 /*
- * Parsed CREATE INDEX statement. You can rebuild sql using 
+ * Deparsed create index sql. You can rebuild sql using 
  * sprintf(buf, "%s %s ON %s USING %s (%s)%s",
  *		create, index, table type, columns, options)
  */
@@ -300,7 +296,7 @@ typedef struct IndexDef
 } IndexDef;
 
 static char *
-get_relation_name(Oid relid)
+generate_relation_name(Oid relid)
 {
 	Oid		nsp = get_rel_namespace(relid);
 	char   *nspname;
@@ -317,7 +313,7 @@ get_relation_name(Oid relid)
 static char *
 parse_error(Oid index)
 {
-	elog(ERROR, "unexpected index definition: %s", pg_get_indexdef_string(index));
+	elog(ERROR, "Unexpected indexdef: %s", pg_get_indexdef_string(index));
 	return NULL;
 }
 
@@ -340,49 +336,24 @@ skip_const(Oid index, char *sql, const char *arg1, const char *arg2)
 static char *
 skip_ident(Oid index, char *sql)
 {
-	while (*sql && isspace((unsigned char) *sql))
-		sql++;
-
-	if (*sql == '"')
+	sql = strchr(sql, ' ');
+	if (sql)
 	{
-		sql++;
-		for (;;)
-		{
-			char *end = strchr(sql, '"');
-			if (end == NULL)
-				return parse_error(index);
-			else if (end[1] != '"')
-			{
-				end[1] = '\0';
-				return end + 2;
-			}
-			else	/* escaped quote ("") */
-				sql = end + 2;
-		}
-	}
-	else
-	{
-		while (*sql && IsToken(*sql))
-			sql++;
 		*sql = '\0';
-		return sql + 1;
+		return sql + 2;
 	}
 
 	/* error */
 	return parse_error(index);
 }
 
-/*
- * Skip until 'end' character found. The 'end' character is replaced with \0.
- * Returns the next character of the 'end', or NULL if 'end' is not found.
- */
 static char *
-skip_until(Oid index, char *sql, char end)
+skip_columns(Oid index, char *sql)
 {
 	char	instr = 0;
-	int		nopen = 0;
+	int		nopen = 1;
 
-	for (; *sql && (nopen > 0 || instr != 0 || *sql != end); sql++)
+	for (; *sql && nopen > 0; sql++)
 	{
 		if (instr)
 		{
@@ -394,7 +365,9 @@ skip_until(Oid index, char *sql, char end)
 					instr = 0;
 			}
 			else if (sql[0] == '\\')
-				sql++;	/* next char is always string */
+			{
+				sql++;	// next char is always string
+			}
 		}
 		else
 		{
@@ -414,15 +387,10 @@ skip_until(Oid index, char *sql, char end)
 		}
 	}
 
-	if (nopen == 0 && instr == 0)
+	if (nopen == 0)
 	{
-		if (*sql)
-		{
-			*sql = '\0';
-			return sql + 1;
-		}
-		else
-			return NULL;
+		sql[-1] = '\0';
+		return sql;
 	}
 
 	/* error */
@@ -433,8 +401,8 @@ static void
 parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 {
 	char *sql = pg_get_indexdef_string(index);
-	const char *idxname = get_quoted_relname(index);
-	const char *tblname = get_relation_name(table);
+	const char *idxname = quote_identifier(get_rel_name(index));
+	const char *tblname = generate_relation_name(table);
 
 	/* CREATE [UNIQUE] INDEX */
 	stmt->create = sql;
@@ -450,15 +418,11 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 	/* USING */
 	sql = skip_const(index, sql, "USING", NULL);
 	/* type */
-	stmt->type = sql;
+	stmt->type= sql;
 	sql = skip_ident(index, sql);
 	/* (columns) */
-	if ((sql = strchr(sql, '(')) == NULL)
-		parse_error(index);
-	sql++;
 	stmt->columns = sql;
-	if ((sql = skip_until(index, sql, ')')) == NULL)
-		parse_error(index);
+	sql = skip_columns(index, sql);
 	/* options */
 	stmt->options = sql;
 }
@@ -472,9 +436,6 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
  * @param	index	Oid of target index.
  * @param	table	Oid of table of the index.
  * @retval			Create index DDL for temp table.
- *
- * FIXME: this function is named get_index_keys, but actually returns
- * an expression for ORDER BY clause. get_order_by() might be a better name.
  */
 Datum
 reorg_get_index_keys(PG_FUNCTION_ARGS)
@@ -482,94 +443,10 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 	Oid				index = PG_GETARG_OID(0);
 	Oid				table = PG_GETARG_OID(1);
 	IndexDef		stmt;
-	char		   *token;
-	char		   *next;
-	StringInfoData	str;
-	Relation		indexRel = NULL;
-	int				nattr;
 
 	parse_indexdef(&stmt, index, table);
-	elog(DEBUG2, "indexdef.create  = %s", stmt.create);
-	elog(DEBUG2, "indexdef.index   = %s", stmt.index);
-	elog(DEBUG2, "indexdef.table   = %s", stmt.table);
-	elog(DEBUG2, "indexdef.type    = %s", stmt.type);
-	elog(DEBUG2, "indexdef.columns = %s", stmt.columns);
-	elog(DEBUG2, "indexdef.options = %s", stmt.options);
 
-	/*
-	 * FIXME: this is very unreliable implementation but I don't want to
-	 * re-implement customized versions of pg_get_indexdef_string...
-	 *
-	 * TODO: Support ASC/DESC and NULL FIRST/LAST.
-	 */
-
-	initStringInfo(&str);
-	for (nattr = 0, next = stmt.columns; next; nattr++)
-	{
-		char *opcname;
-
-		token = next;
-		while (isspace((unsigned char) *token))
-			token++;
-		next = skip_until(index, next, ',');
-		opcname = skip_until(index, token, ' ');
-		if (opcname)
-		{
-			/* lookup default operator name from operator class */
-
-			Oid				opclass;
-			Oid				oprid;
-			int16			strategy = BTLessStrategyNumber;
-#if PG_VERSION_NUM >= 80300
-			Oid				opcintype;
-			Oid				opfamily;
-			HeapTuple		tp;
-			Form_pg_opclass	opclassTup;
-#endif
-			
-			opclass = OpclassnameGetOpcid(BTREE_AM_OID, opcname);
-
-#if PG_VERSION_NUM >= 80300
-			/* Retrieve operator information. */
-			tp = SearchSysCache(CLAOID, ObjectIdGetDatum(opclass), 0, 0, 0);
-			if (!HeapTupleIsValid(tp))
-				elog(ERROR, "cache lookup failed for opclass %u", opclass);
-			opclassTup = (Form_pg_opclass) GETSTRUCT(tp);
-			opfamily = opclassTup->opcfamily;
-			opcintype = opclassTup->opcintype;
-			ReleaseSysCache(tp);
-
-			if (!OidIsValid(opcintype))
-			{
-				if (indexRel == NULL)
-					indexRel = index_open(index, NoLock);
-
-				opcintype = RelationGetDescr(indexRel)->attrs[nattr]->atttypid;
-			}
-
-			oprid = get_opfamily_member(opfamily, opcintype, opcintype, strategy);
-			if (!OidIsValid(oprid))
-				elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
-					 strategy, opcintype, opcintype, opfamily);
-#else
-			oprid = get_opclass_member(opclass, 0, strategy);
-			if (!OidIsValid(oprid))
-				elog(ERROR, "missing operator %d for %s", strategy, opcname);
-#endif
-
-				opcname[-1] = '\0';
-			appendStringInfo(&str, "%s USING %s", token, get_opname(oprid));
-		}
-		else
-			appendStringInfoString(&str, token);
-		if (next)
-			appendStringInfoString(&str, ", ");
-	}
-
-	if (indexRel != NULL)
-		index_close(indexRel, NoLock);
-
-	PG_RETURN_TEXT_P(cstring_to_text(str.data));
+	PG_RETURN_TEXT_P(cstring_to_text(stmt.columns));
 }
 
 /**
@@ -598,30 +475,42 @@ reorg_indexdef(PG_FUNCTION_ARGS)
 	PG_RETURN_TEXT_P(cstring_to_text(str.data));
 }
 
-static Oid
-getoid(HeapTuple tuple, TupleDesc desc, int column)
-{
-	bool	isnull;
-	Datum	datum = SPI_getbinval(tuple, desc, column, &isnull);
-	return isnull ? InvalidOid : DatumGetObjectId(datum);
-}
-
-static int16
-getint16(HeapTuple tuple, TupleDesc desc, int column)
-{
-	bool	isnull;
-	Datum	datum = SPI_getbinval(tuple, desc, column, &isnull);
-	return isnull ? 0 : DatumGetInt16(datum);
-}
+#define SQL_GET_SWAPINFO "\
+SELECT X.oid, X.relfilenode, X.relfrozenxid, Y.oid, Y.relfilenode, Y.relfrozenxid \
+FROM pg_class X, pg_class Y \
+WHERE X.oid = $1\
+ AND Y.oid = ('reorg.table_' || X.oid)::regclass \
+UNION ALL \
+SELECT T.oid, T.relfilenode, T.relfrozenxid, U.oid, U.relfilenode, U.relfrozenxid \
+FROM pg_class X, pg_class T, pg_class Y, pg_class U \
+WHERE X.oid = $1\
+ AND T.oid = X.reltoastrelid\
+ AND Y.oid = ('reorg.table_' || X.oid)::regclass\
+ AND U.oid = Y.reltoastrelid \
+UNION ALL \
+SELECT I.oid, I.relfilenode, I.relfrozenxid, J.oid, J.relfilenode, J.relfrozenxid \
+FROM pg_class X, pg_class T, pg_class I, pg_class Y, pg_class U, pg_class J \
+WHERE X.oid = $1\
+ AND T.oid = X.reltoastrelid\
+ AND I.oid = T.reltoastidxid\
+ AND Y.oid = ('reorg.table_' || X.oid)::regclass\
+ AND U.oid = Y.reltoastrelid\
+ AND J.oid = U.reltoastidxid \
+UNION ALL \
+SELECT X.oid, X.relfilenode, X.relfrozenxid, Y.oid, Y.relfilenode, Y.relfrozenxid \
+FROM pg_index I, pg_class X, pg_class Y \
+WHERE I.indrelid = $1\
+ AND I.indexrelid = X.oid\
+ AND Y.oid = ('reorg.index_' || X.oid)::regclass\
+ ORDER BY 1\
+"
 
 /**
  * @fn      Datum reorg_swap(PG_FUNCTION_ARGS)
- * @brief   Swapping relfilenode of tables and relation ids of toast tables
- *          and toast indexes.
+ * @brief   Swapping relfilenode of table, toast, toast index
+ *          and table indexes on target table and temp table mutually.
  *
  * reorg_swap(oid, relname)
- *
- * TODO: remove useless CommandCounterIncrement().
  *
  * @param	oid		Oid of table of target.
  * @retval			None.
@@ -630,26 +519,13 @@ Datum
 reorg_swap(PG_FUNCTION_ARGS)
 {
 	Oid				oid = PG_GETARG_OID(0);
-	const char	   *relname = get_quoted_relname(oid);
-	const char	   *nspname = get_quoted_nspname(oid);
-	Oid 			argtypes[1] = { OIDOID };
-	bool	 		nulls[1] = { 0 };
-	Datum	 		values[1];
-	SPITupleTable  *tuptable;
-	TupleDesc		desc;
-	HeapTuple		tuple;
-	uint32			records;
-	uint32			i;
 
-	Oid				reltoastrelid1;
-	Oid				reltoastidxid1;
-	Oid				oid2;
-	Oid				reltoastrelid2;
-	Oid				reltoastidxid2;
-	Oid				owner1;
-	Oid				owner2;
-	int16			natts1;
-	int16			natts2;
+	SPIPlanPtr		plan_swapinfo;
+	SPIPlanPtr		plan_swap;
+	Oid 			argtypes[3] = { OIDOID, OIDOID, XIDOID };
+	char 			nulls[3] = { ' ', ' ', ' ' };
+	Datum 			values[3];
+	int				record;
 
 	/* authority check */
 	must_be_superuser("reorg_swap");
@@ -657,136 +533,47 @@ reorg_swap(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	reorg_init();
 
-	/* swap relfilenode and dependencies for tables. */
+	/* parepare */
+	plan_swapinfo = reorg_prepare(
+		SQL_GET_SWAPINFO,
+		1, argtypes);
+	plan_swap = reorg_prepare(
+		"UPDATE pg_class SET relfilenode = $2, relfrozenxid = $3 WHERE oid = $1",
+		3, argtypes);
+
+	/* swap relfilenode */
 	values[0] = ObjectIdGetDatum(oid);
-	execute_with_args(SPI_OK_SELECT,
-		"SELECT X.reltoastrelid, TX.reltoastidxid, X.relowner,"
-		"       Y.oid, Y.reltoastrelid, TY.reltoastidxid, Y.relowner,"
-		"       X.relnatts, Y.relnatts"
-		"  FROM pg_catalog.pg_class X LEFT JOIN pg_catalog.pg_class TX"
-		"         ON X.reltoastrelid = TX.oid,"
-		"       pg_catalog.pg_class Y LEFT JOIN pg_catalog.pg_class TY"
-		"         ON Y.reltoastrelid = TY.oid"
-		" WHERE X.oid = $1"
-		"   AND Y.oid = ('reorg.table_' || X.oid)::regclass",
-		1, argtypes, values, nulls);
+	reorg_execp(plan_swapinfo, values, nulls, SPI_OK_SELECT);
+	
+	record = SPI_processed;
 
-	tuptable = SPI_tuptable;
-	desc = tuptable->tupdesc;
-	records = SPI_processed;
-
-	if (records == 0)
-		elog(ERROR, "reorg_swap : no swap target");
-
-	tuple = tuptable->vals[0];
-
-	reltoastrelid1 = getoid(tuple, desc, 1);
-	reltoastidxid1 = getoid(tuple, desc, 2);
-	owner1 = getoid(tuple, desc, 3);
-	oid2 = getoid(tuple, desc, 4);
-	reltoastrelid2 = getoid(tuple, desc, 5);
-	reltoastidxid2 = getoid(tuple, desc, 6);
-	owner2 = getoid(tuple, desc, 7);
-	natts1 = getint16(tuple, desc, 8);
-	natts2 = getint16(tuple, desc, 9);;
-
-	/* change owner of new relation to original owner */
-	if (owner1 != owner2)
+	if (record > 0)
 	{
-		ATExecChangeOwner(oid2, owner1, true, AccessExclusiveLock);
-		CommandCounterIncrement();
+		SPITupleTable	*tuptable;
+		TupleDesc		tupdesc;
+		HeapTuple		tuple;
+		char			isnull;
+		int				i;
+	
+		tuptable = SPI_tuptable;
+		tupdesc = tuptable->tupdesc;
+	
+		for (i = 0; i < record; i++)
+		{
+			tuple = tuptable->vals[i];
+		
+			/* target -> temp */
+			values[0] = SPI_getbinval(tuple, tupdesc, 4, &isnull);
+			values[1] = SPI_getbinval(tuple, tupdesc, 2, &isnull);
+			values[2] = SPI_getbinval(tuple, tupdesc, 3, &isnull);
+			reorg_execp(plan_swap, values, nulls, SPI_OK_UPDATE);
+			/* temp -> target */
+			values[0] = SPI_getbinval(tuple, tupdesc, 1, &isnull);
+			values[1] = SPI_getbinval(tuple, tupdesc, 5, &isnull);
+			values[2] = SPI_getbinval(tuple, tupdesc, 6, &isnull);
+			reorg_execp(plan_swap, values, nulls, SPI_OK_UPDATE);
+		}
 	}
-
-	/* swap tables. */
-	swap_heap_or_index_files(oid, oid2);
-	CommandCounterIncrement();
-
-	/* swap indexes. */
-	values[0] = ObjectIdGetDatum(oid);
-	execute_with_args(SPI_OK_SELECT,
-		"SELECT X.oid, Y.oid"
-		"  FROM pg_catalog.pg_index I,"
-		"       pg_catalog.pg_class X,"
-		"       pg_catalog.pg_class Y"
-		" WHERE I.indrelid = $1"
-		"   AND I.indexrelid = X.oid"
-		"   AND Y.oid = ('reorg.index_' || X.oid)::regclass",
-		1, argtypes, values, nulls);
-
-	tuptable = SPI_tuptable;
-	desc = tuptable->tupdesc;
-	records = SPI_processed;
-
-	for (i = 0; i < records; i++)
-	{
-		Oid		idx1, idx2;
-
-		tuple = tuptable->vals[i];
-		idx1 = getoid(tuple, desc, 1);
-		idx2 = getoid(tuple, desc, 2);
-		swap_heap_or_index_files(idx1, idx2);
-
-		CommandCounterIncrement();
-	}
-
-	/* swap names for toast tables and toast indexes */
-	if (reltoastrelid1 == InvalidOid)
-	{
-		if (reltoastidxid1 != InvalidOid ||
-			reltoastrelid2 != InvalidOid ||
-			reltoastidxid2 != InvalidOid)
-			elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
-				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
-		/* do nothing */
-	}
-	else if (reltoastrelid2 == InvalidOid)
-	{
-		char	name[NAMEDATALEN];
-
-		if (reltoastidxid1 == InvalidOid ||
-			reltoastidxid2 != InvalidOid)
-			elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
-				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
-
-		/* rename X to Y */
-		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
-		RENAME_REL(reltoastrelid1, name);
-		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
-		CommandCounterIncrement();
-	}
-	else if (reltoastrelid1 != InvalidOid)
-	{
-		char	name[NAMEDATALEN];
-		int		pid = getpid();
-
-		/* rename X to TEMP */
-		snprintf(name, NAMEDATALEN, "pg_toast_pid%d", pid);
-		RENAME_REL(reltoastrelid1, name);
-		snprintf(name, NAMEDATALEN, "pg_toast_pid%d_index", pid);
-		RENAME_REL(reltoastidxid1, name);
-		CommandCounterIncrement();
-
-		/* rename Y to X */
-		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid);
-		RENAME_REL(reltoastrelid2, name);
-		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid);
-		RENAME_REL(reltoastidxid2, name);
-		CommandCounterIncrement();
-
-		/* rename TEMP to Y */
-		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
-		RENAME_REL(reltoastrelid1, name);
-		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
-		CommandCounterIncrement();
-	}
-
-	/* drop reorg trigger */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS z_reorg_trigger ON %s.%s CASCADE",
-		nspname, relname);
 
 	SPI_finish();
 
@@ -806,8 +593,8 @@ Datum
 reorg_drop(PG_FUNCTION_ARGS)
 {
 	Oid			oid = PG_GETARG_OID(0);
-	const char *relname = get_quoted_relname(oid);
-	const char *nspname = get_quoted_nspname(oid);
+	const char *relname = quote_identifier(get_rel_name(oid));
+	const char *nspname = quote_identifier(get_namespace_name(get_rel_namespace(oid)));
 
 	/* authority check */
 	must_be_superuser("reorg_drop");
@@ -815,70 +602,29 @@ reorg_drop(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	reorg_init();
 
-	/*
-	 * drop reorg trigger: We have already dropped the trigger in normal
-	 * cases, but it can be left on error.
-	 */
-	execute_with_format(
+	/* drop reorg trigger */
+	reorg_execf(
 		SPI_OK_UTILITY,
 		"DROP TRIGGER IF EXISTS z_reorg_trigger ON %s.%s CASCADE",
 		nspname, relname);
 
-#if PG_VERSION_NUM < 80400
-	/* delete autovacuum settings */
-	execute_with_format(
-		SPI_OK_DELETE,
-		"DELETE FROM pg_catalog.pg_autovacuum v"
-		" USING pg_class c, pg_namespace n"
-		" WHERE relname IN ('log_%u', 'table_%u')"
-		"   AND n.nspname = 'reorg'"
-		"   AND c.relnamespace = n.oid"
-		"   AND v.vacrelid = c.oid",
-		oid, oid);
-#endif
-
 	/* drop log table */
-	execute_with_format(
+	reorg_execf(
 		SPI_OK_UTILITY,
 		"DROP TABLE IF EXISTS reorg.log_%u CASCADE",
 		oid);
 
 	/* drop temp table */
-	execute_with_format(
+	reorg_execf(
 		SPI_OK_UTILITY,
 		"DROP TABLE IF EXISTS reorg.table_%u CASCADE",
 		oid);
 
 	/* drop type for log table */
-	execute_with_format(
+	reorg_execf(
 		SPI_OK_UTILITY,
 		"DROP TYPE IF EXISTS reorg.pk_%u CASCADE",
 		oid);
-
-	SPI_finish();
-
-	PG_RETURN_VOID();
-}
-
-Datum
-reorg_disable_autovacuum(PG_FUNCTION_ARGS)
-{
-	Oid			oid = PG_GETARG_OID(0);
-
-	/* connect to SPI manager */
-	reorg_init();
-
-#if PG_VERSION_NUM >= 80400
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"ALTER TABLE %s SET (autovacuum_enabled = off)",
-		get_relation_name(oid));
-#else
-	execute_with_format(
-		SPI_OK_INSERT,
-		"INSERT INTO pg_catalog.pg_autovacuum VALUES (%u, false, -1, -1, -1, -1, -1, -1, -1, -1)",
-		oid);
-#endif
 
 	SPI_finish();
 
@@ -904,214 +650,28 @@ reorg_prepare(const char *src, int nargs, Oid *argtypes)
 	return plan;
 }
 
-static const char *
-get_quoted_relname(Oid oid)
-{
-	return quote_identifier(get_rel_name(oid));
-}
-
-static const char *
-get_quoted_nspname(Oid oid)
-{
-	return quote_identifier(get_namespace_name(get_rel_namespace(oid)));
-}
-
-/*
- * This is a copy of swap_relation_files in cluster.c, but it also swaps
- * relfrozenxid.
- */
+/* execute prepared plan */
 static void
-swap_heap_or_index_files(Oid r1, Oid r2)
+reorg_execp(SPIPlanPtr plan, Datum *values, const char *nulls, int expected)
 {
-	Relation	relRelation;
-	HeapTuple	reltup1,
-				reltup2;
-	Form_pg_class relform1,
-				relform2;
-	Oid			swaptemp;
-	CatalogIndexState indstate;
-
-	/* We need writable copies of both pg_class tuples. */
-	relRelation = heap_open(RelationRelationId, RowExclusiveLock);
-
-	reltup1 = SearchSysCacheCopy(RELOID,
-								 ObjectIdGetDatum(r1),
-								 0, 0, 0);
-	if (!HeapTupleIsValid(reltup1))
-		elog(ERROR, "cache lookup failed for relation %u", r1);
-	relform1 = (Form_pg_class) GETSTRUCT(reltup1);
-
-	reltup2 = SearchSysCacheCopy(RELOID,
-								 ObjectIdGetDatum(r2),
-								 0, 0, 0);
-	if (!HeapTupleIsValid(reltup2))
-		elog(ERROR, "cache lookup failed for relation %u", r2);
-	relform2 = (Form_pg_class) GETSTRUCT(reltup2);
-
-	Assert(relform1->relkind == relform2->relkind);
-
-	/*
-	 * Actually swap the fields in the two tuples
-	 */
-	swaptemp = relform1->relfilenode;
-	relform1->relfilenode = relform2->relfilenode;
-	relform2->relfilenode = swaptemp;
-
-	swaptemp = relform1->reltablespace;
-	relform1->reltablespace = relform2->reltablespace;
-	relform2->reltablespace = swaptemp;
-
-	swaptemp = relform1->reltoastrelid;
-	relform1->reltoastrelid = relform2->reltoastrelid;
-	relform2->reltoastrelid = swaptemp;
-
-	/* set rel1's frozen Xid to larger one */
-	if (TransactionIdIsNormal(relform1->relfrozenxid))
-	{
-		if (TransactionIdFollows(relform1->relfrozenxid,
-								 relform2->relfrozenxid))
-			relform1->relfrozenxid = relform2->relfrozenxid;
-		else
-			relform2->relfrozenxid = relform1->relfrozenxid;
-	}
-
-	/* swap size statistics too, since new rel has freshly-updated stats */
-	{
-#if PG_VERSION_NUM >= 90300
-		int32		swap_pages;
-#else
-		int4		swap_pages;
-#endif
-		float4		swap_tuples;
-
-		swap_pages = relform1->relpages;
-		relform1->relpages = relform2->relpages;
-		relform2->relpages = swap_pages;
-
-		swap_tuples = relform1->reltuples;
-		relform1->reltuples = relform2->reltuples;
-		relform2->reltuples = swap_tuples;
-	}
-
-	/* Update the tuples in pg_class */
-	simple_heap_update(relRelation, &reltup1->t_self, reltup1);
-	simple_heap_update(relRelation, &reltup2->t_self, reltup2);
-
-	/* Keep system catalogs current */
-	indstate = CatalogOpenIndexes(relRelation);
-	CatalogIndexInsert(indstate, reltup1);
-	CatalogIndexInsert(indstate, reltup2);
-	CatalogCloseIndexes(indstate);
-
-	/*
-	 * If we have toast tables associated with the relations being swapped,
-	 * change their dependency links to re-associate them with their new
-	 * owning relations.  Otherwise the wrong one will get dropped ...
-	 *
-	 * NOTE: it is possible that only one table has a toast table; this can
-	 * happen in CLUSTER if there were dropped columns in the old table, and
-	 * in ALTER TABLE when adding or changing type of columns.
-	 *
-	 * NOTE: at present, a TOAST table's only dependency is the one on its
-	 * owning table.  If more are ever created, we'd need to use something
-	 * more selective than deleteDependencyRecordsFor() to get rid of only the
-	 * link we want.
-	 */
-	if (relform1->reltoastrelid || relform2->reltoastrelid)
-	{
-		ObjectAddress baseobject,
-					toastobject;
-		long		count;
-
-		/* Delete old dependencies */
-		if (relform1->reltoastrelid)
-		{
-			count = deleteDependencyRecordsFor(RelationRelationId,
-											   relform1->reltoastrelid,
-											   false);
-			if (count != 1)
-				elog(ERROR, "expected one dependency record for TOAST table, found %ld",
-					 count);
-		}
-		if (relform2->reltoastrelid)
-		{
-			count = deleteDependencyRecordsFor(RelationRelationId,
-											   relform2->reltoastrelid,
-											   false);
-			if (count != 1)
-				elog(ERROR, "expected one dependency record for TOAST table, found %ld",
-					 count);
-		}
-
-		/* Register new dependencies */
-		baseobject.classId = RelationRelationId;
-		baseobject.objectSubId = 0;
-		toastobject.classId = RelationRelationId;
-		toastobject.objectSubId = 0;
-
-		if (relform1->reltoastrelid)
-		{
-			baseobject.objectId = r1;
-			toastobject.objectId = relform1->reltoastrelid;
-			recordDependencyOn(&toastobject, &baseobject, DEPENDENCY_INTERNAL);
-		}
-
-		if (relform2->reltoastrelid)
-		{
-			baseobject.objectId = r2;
-			toastobject.objectId = relform2->reltoastrelid;
-			recordDependencyOn(&toastobject, &baseobject, DEPENDENCY_INTERNAL);
-		}
-	}
-
-	/*
-	 * Blow away the old relcache entries now.	We need this kluge because
-	 * relcache.c keeps a link to the smgr relation for the physical file, and
-	 * that will be out of date as soon as we do CommandCounterIncrement.
-	 * Whichever of the rels is the second to be cleared during cache
-	 * invalidation will have a dangling reference to an already-deleted smgr
-	 * relation.  Rather than trying to avoid this by ordering operations just
-	 * so, it's easiest to not have the relcache entries there at all.
-	 * (Fortunately, since one of the entries is local in our transaction,
-	 * it's sufficient to clear out our own relcache this way; the problem
-	 * cannot arise for other backends when they see our update on the
-	 * non-local relation.)
-	 */
-	RelationForgetRelation(r1);
-	RelationForgetRelation(r2);
-
-	/* Clean up. */
-	heap_freetuple(reltup1);
-	heap_freetuple(reltup2);
-
-	heap_close(relRelation, RowExclusiveLock);
+	int	ret = SPI_execute_plan(plan, values, nulls, false, 0);
+	if (ret != expected)
+		elog(ERROR, "pg_reorg: reorg_execp failed (code=%d, expected=%d)", ret, expected);
 }
 
-#if PG_VERSION_NUM < 80400
-
-/* XXX: You might need to add PGDLLIMPORT into your miscadmin.h. */
-extern PGDLLIMPORT bool allowSystemTableMods;
-
+/* execute sql with format */
 static void
-RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId)
+reorg_execf(int expected, const char *format, ...)
 {
-	bool	save_allowSystemTableMods = allowSystemTableMods;
+	va_list			ap;
+	StringInfoData	sql;
+	int				ret;
 
-	allowSystemTableMods = true;
-	PG_TRY();
-	{
-		renamerel(myrelid, newrelname
-#if PG_VERSION_NUM >= 80300
-			, OBJECT_TABLE
-#endif
-			);
-		allowSystemTableMods = save_allowSystemTableMods;
-	}
-	PG_CATCH();
-	{
-		allowSystemTableMods = save_allowSystemTableMods;
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
+	initStringInfo(&sql);
+	va_start(ap, format);
+	appendStringInfoVA(&sql, format, ap);
+	va_end(ap);
+
+	if ((ret = SPI_exec(sql.data, 0)) != expected)
+		elog(ERROR, "pg_reorg: reorg_execf failed (sql=%s, code=%d, expected=%d)", sql.data, ret, expected);
 }
-#endif
