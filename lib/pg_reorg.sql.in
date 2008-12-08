@@ -1,0 +1,158 @@
+/*
+ * pg_reorg: lib/pg_reorg.sql.in
+ *
+ * Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ */
+
+-- Adjust this setting to control where the objects get created.
+SET search_path = public;
+
+BEGIN;
+
+CREATE SCHEMA reorg;
+
+CREATE AGGREGATE reorg.array_accum (
+    sfunc = array_append,
+    basetype = anyelement,
+    stype = anyarray,
+    initcond = '{}'
+);
+
+CREATE FUNCTION reorg.get_index_columns(oid, text) RETURNS text AS
+$$
+  SELECT array_to_string(reorg.array_accum(quote_ident(attname)), $2)
+    FROM pg_attribute,
+         (SELECT indrelid,
+                 indkey,
+                 generate_series(0, indnatts-1) AS i
+            FROM pg_index
+           WHERE indexrelid = $1
+         ) AS keys
+   WHERE attrelid = indrelid
+     AND attnum = indkey[i];
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_index_keys(oid, oid) RETURNS text AS
+'MODULE_PATHNAME', 'reorg_get_index_keys'
+LANGUAGE 'C' STABLE STRICT;
+
+CREATE FUNCTION reorg.get_create_index_type(oid, name) RETURNS text AS
+$$
+  SELECT 'CREATE TYPE ' || $2 || ' AS (' ||
+         array_to_string(reorg.array_accum(quote_ident(attname) || ' ' ||
+           pg_catalog.format_type(atttypid, atttypmod)), ', ') || ')'
+    FROM pg_attribute,
+         (SELECT indrelid,
+                 indkey,
+                 generate_series(0, indnatts-1) AS i
+            FROM pg_index
+           WHERE indexrelid = $1
+         ) AS keys
+   WHERE attrelid = indrelid
+     AND attnum = indkey[i];
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_create_trigger(relid oid, pkid oid)
+  RETURNS text AS
+$$
+  SELECT 'CREATE TRIGGER z_reorg_trigger' ||
+         ' BEFORE INSERT OR DELETE OR UPDATE ON ' || $1::regclass ||
+         ' FOR EACH ROW EXECUTE PROCEDURE reorg.reorg_trigger(' ||
+         '''INSERT INTO reorg.log_' || $1 || '(pk, row) VALUES(' ||
+         ' CASE WHEN $1 IS NULL THEN NULL ELSE (ROW($1.' ||
+         reorg.get_index_columns($2, ', $1.') || ')::reorg.pk_' ||
+         $1 || ') END, $2)'')';
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_assign(oid, text) RETURNS text AS
+$$
+  SELECT '(' || array_to_string(reorg.array_accum(attname), ', ') ||
+         ') = (' || $2 || '.' ||
+         array_to_string(reorg.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
+    FROM (SELECT attname FROM pg_attribute
+           WHERE attrelid = $1 AND attnum > 0
+           ORDER BY attnum) tmp;
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_compare_pkey(oid, text)
+  RETURNS text AS
+$$
+  SELECT '(' || array_to_string(reorg.array_accum(quote_ident(attname)), ', ') ||
+         ') = (' || $2 || '.' ||
+         array_to_string(reorg.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
+    FROM pg_attribute,
+         (SELECT indrelid,
+                 indkey,
+                 generate_series(0, indnatts-1) AS i
+            FROM pg_index
+           WHERE indexrelid = $1
+         ) AS keys
+   WHERE attrelid = indrelid
+     AND attnum = indkey[i];
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE VIEW reorg.tables AS
+  SELECT R.oid::regclass AS relname,
+         R.oid AS relid,
+         R.reltoastrelid AS reltoastrelid,
+         CASE WHEN R.reltoastrelid = 0 THEN 0 ELSE (SELECT reltoastidxid FROM pg_class WHERE oid = R.reltoastrelid) END AS reltoastidxid,
+         PK.indexrelid AS pkid,
+         CK.indexrelid AS ckid,
+         reorg.get_create_index_type(PK.indexrelid, 'reorg.pk_' || R.oid) AS create_pktype,
+         'CREATE TABLE reorg.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk reorg.pk_' || R.oid || ', row ' || R.oid::regclass || ')' AS create_log,
+         reorg.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
+         'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || R.relhasoids), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT * FROM ONLY ' || R.oid::regclass AS create_table,
+         'DELETE FROM reorg.log_' || R.oid AS delete_log,
+         'LOCK TABLE ' || R.oid::regclass || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
+         reorg.get_index_keys(CK.indexrelid, R.oid) AS ckey,
+         'SELECT * FROM reorg.log_' || R.oid || ' ORDER BY id LIMIT $1' AS sql_peek,
+         'INSERT INTO reorg.table_' || R.oid || ' VALUES ($1.*)' AS sql_insert,
+         'DELETE FROM reorg.table_' || R.oid || ' WHERE ' || reorg.get_compare_pkey(PK.indexrelid, '$1') AS sql_delete,
+         'UPDATE reorg.table_' || R.oid || ' SET ' || reorg.get_assign(R.oid, '$2') || ' WHERE ' || reorg.get_compare_pkey(PK.indexrelid, '$1') AS sql_update,
+         'DELETE FROM reorg.log_' || R.oid || ' WHERE id <= $1' AS sql_pop
+    FROM pg_class R
+         LEFT JOIN pg_class T ON R.reltoastrelid = T.oid
+         LEFT JOIN (SELECT * FROM pg_index WHERE indisprimary) PK
+                ON R.oid = PK.indrelid
+         LEFT JOIN (SELECT CKI.* FROM pg_index CKI, pg_class CKT
+                    WHERE CKI.indexrelid = CKT.oid AND CKI.indisclustered AND CKT.relam = 403) CK
+                ON R.oid = CK.indrelid
+         LEFT JOIN pg_namespace N ON N.oid = R.relnamespace
+         LEFT JOIN pg_tablespace S ON S.oid = R.reltablespace
+   WHERE R.relkind = 'r'
+     AND N.nspname NOT IN ('pg_catalog', 'information_schema')
+     AND N.nspname NOT LIKE E'pg\\_temp\\_%';
+
+CREATE FUNCTION reorg.reorg_indexdef(oid, oid) RETURNS text AS
+'MODULE_PATHNAME', 'reorg_indexdef'
+LANGUAGE 'C' STABLE STRICT;
+
+CREATE FUNCTION reorg.reorg_trigger() RETURNS trigger AS
+'MODULE_PATHNAME', 'reorg_trigger'
+LANGUAGE 'C' VOLATILE STRICT SECURITY DEFINER;
+
+CREATE FUNCTION reorg.reorg_apply(
+  sql_peek      cstring,
+  sql_insert    cstring,
+  sql_delete    cstring,
+  sql_update    cstring,
+  sql_pop       cstring,
+  count         integer)
+RETURNS integer AS
+'MODULE_PATHNAME', 'reorg_apply'
+LANGUAGE 'C' VOLATILE;
+
+CREATE FUNCTION reorg.reorg_swap(oid) RETURNS void AS
+'MODULE_PATHNAME', 'reorg_swap'
+LANGUAGE 'C' VOLATILE STRICT;
+
+CREATE FUNCTION reorg.reorg_drop(oid) RETURNS void AS
+'MODULE_PATHNAME', 'reorg_drop'
+LANGUAGE 'C' VOLATILE STRICT;
+
+COMMIT;

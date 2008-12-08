@@ -1,0 +1,275 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD html 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<title>pg_reorg</title>
+<link rel="home" title="pg_reorg " href="index.html">
+<link rel="stylesheet" TYPE="text/css"href="style.css">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+<h1><a name="pg_reorg"></a>pg_reorg</h1>
+
+<div><a name="name"></a>
+<h2>Name</h2>
+pg_reorg -- Reorganize tables in PostgreSQL databases without any locks.
+</div>
+
+<div><a name="synopsis"></a>
+<h2>Synopsis</h2>
+<p>
+<tt>pg_reorg</tt> [<tt><i>connection-options</i></tt>...]  [<tt><i>message-options</i></tt>...]  [<tt><i>order-options</i></tt>...]  [<tt><i>target-options</i></tt>...]
+</p>
+<p>There 4 option categories.
+See also <a href="#options">options</a> for details.</p>
+<dl>
+ <dt><tt>connection-options</tt></dt>
+  <dd><tt>-h</tt> [<tt>--host</tt>] <tt><i>host</i></tt></dd>
+  <dd><tt>-p</tt> [<tt>--port</tt>] <tt><i>port</i></tt></dd>
+  <dd><tt>-U</tt> [<tt>--username</tt>] <tt><i>username</i></tt></dd>
+  <dd><tt>-W</tt> [<tt>--password</tt>]</dd>
+ <dt><tt>message-options</tt></dt>
+  <dd><tt>-e</tt> [<tt>--echo</tt>]</dd>
+  <dd><tt>-q</tt> [<tt>--quiet</tt>]</dd>
+  <dd><tt>-v</tt> [<tt>--verbose</tt>]</dd>
+ <dt><tt>order-options</tt></dt>
+  <dd><tt>-o</tt> [<tt>--order-by</tt>]  <tt><i>columns [,...]</i></tt></dd>
+  <dd><tt>-n</tt> [<tt>--no-order</tt>]</dd>
+ <dt><tt>target-options</tt></dt>
+  <dd><tt>-a</tt> [<tt>--all</tt>]</dd>
+  <dd><tt>-d</tt> [<tt>--dbname</tt>] <tt><i>dbname</i></tt></dd>
+  <dd><tt>-t</tt> [<tt>--table</tt>] <tt><i>table</i></tt></dd>
+</dl>
+</div>
+
+<div>
+<a name="description"></a>
+<h2>Description</h2>
+<p>pg_reorg is an utility program to reorganize tables in PostgreSQL databases.
+Unlike <a href="http://www.postgresql.jp/document/current/html/app-clusterdb.html"><tt>clusterdb</tt></a>, it doesn't block any selections and updates during reorganization.
+You can choose one of the following methods to reorganize.</p>
+<ul>
+<li>Online CLUSTER (ordered by cluster index)</li>
+<li>Ordered by specified columns</li>
+<li>Online VACUUM FULL (packing rows only)</li>
+</ul>
+<p>NOTICE:</p>
+<ul>
+<li>Only superusers can use the utility.</li>
+<li>Target table must have PRIMARY KEY.</li>
+<li>You'd better to do <tt><a href="http://www.postgresql.jp/document/current/html/sql-analyze.html">ANALYZE</a></tt> after pg_reorg is completed.</li>
+</ul>
+</div>
+
+<div><a name="examples"></a>
+<h2>Examples</h2>
+<p>Execute the following command to do online CLUSTER to all tables in <tt>test</tt> database.</p>
+<PRE><SAMP>$ </SAMP><KBD>pg_reorg test</KBD></PRE>
+<p>Execute the following command to do online VACUUM FULL to <tt>foo</tt> table in <tt>test</tt> database.</p>
+<PRE><SAMP>$ </SAMP><KBD>pg_reorg --no-order --table foo -d test</KBD></PRE><p>
+</p></div>
+
+<div><a name="options"></a>
+<h2>Options</h2>
+<p>pg_reorg has command line options in 4 categolies.</p>
+<div>
+<dl>
+
+<h3>connection-options</h3>
+<p>Parameters to connect PostgreSQL.</p>
+
+<div>
+<dl>
+<dt><tt>-h <tt><i>host</i></tt><br />
+<tt>--host <tt><i>host</i></tt></dt>
+<dd>Specifies the host name of the machine on which the server is running. If the value begins with a slash, it is used as the directory for the Unix domain socket. </dd>
+
+<dt><tt>-p <tt><i>port</i></tt><br />
+<tt>--port <tt><i>port</i></tt></dt>
+<dd>Specifies the TCP port or local Unix domain socket file extension on which the server is listening for connections.</dd>
+
+<dt><tt>-U <tt><i>username</i></tt><br />
+<tt>--username <tt><i>username</i></tt></dt>
+<dd>User name to connect as. </dd>
+
+<dt><tt>-W</tt><br /><tt>--password</tt></dt>
+<dd>Force pg_reorg to prompt for a password before connecting to a database.</dd>
+<dd>This option is never essential, since pg_reorg will automatically prompt for a password if the server demands password authentication. However, vacuumdb will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing <tt>-W</tt> to avoid the extra connection attempt. </dd>
+</dl>
+</div>
+
+<h3>message-options</h3>
+<p>Specifies message output by pg_reorg.
+<tt>--quiet</tt> is ignored if some of the other options are specified.</p>
+
+<dl>
+<dt><tt>-e</tt><br /><tt>--echo</tt></dt>
+<dd>Echo the commands that pg_reorg generates and sends to the server.</dd>
+<dt><tt>-q</tt><br /><tt>--quiet</tt></dt>
+<dd>Do not display progress messages. </dd>
+<dt><tt>-v</tt><br /><tt>--verbose</tt></dt>
+<dd>Print detailed information during processing.</dd>
+</dl>
+
+<h3>order-options</h3>
+<p>Options to order rows.
+If not specified, pg_reorg do online CLUSTER using cluster indexes.
+Only one option can be specified.
+</p>
+
+<dl>
+<dt><tt>-n</tt><br /><tt>--no-order</tt></dt>
+<dd>Do online VACUUM FULL.</dd>
+
+<dt><tt>-o</tt> <tt><i>columns [,...]</i></tt><br />
+<tt>--order-by</tt> <tt><i>columns [,...]</i></tt></dt>
+<dd>Do online CLUSTER ordered by specified columns.</dd>
+</dl>
+
+
+<h3>target-options</h3>
+<p>
+Options to specify target tables or databases.
+You cannot use <tt>--all</tt> and <tt>--dbname</tt> or <tt>--table</tt> together.
+</p>
+
+<dl>
+<dt><tt>-a</tt><br /><tt>--all</tt></dt>
+<dd>Reorganize all databases.</dd>
+
+<dt>
+<tt>-d <tt><i>dbname</i></tt><br />
+<tt>--dbname <tt><i>dbname</i></tt>
+</dt>
+<dd>Specifies the name of the database to be reorganized. If this is not specified and <tt>-a</tt> (or <tt>--all</tt>) is not used, the database name is read from the environment variable <tt>PGDATABASE</tt>. If that is not set, the user name specified for the connection is used. </dd>
+
+<dt>
+<tt>-t</tt> <tt><i>table</i></tt><br />
+<tt>--table</tt> <tt><i>table</i></tt>
+</dt>
+<dd>Reorganize <tt><i>table</i></tt> only. If you don't specify this option, all tables in specified databases are reorganized.</dd>
+</dl>
+</div>
+
+<div><a name="environment"></a>
+	<h2>Environment</h2>	<div>
+		<dl>
+			<dt>
+				<tt>PGDATABASE</tt><br />
+				<tt>PGHOST</tt><br />
+				<tt>PGPORT</tt><br />
+				<tt>PGUSER</tt>
+			</dt>
+			<dd>Default connection parameters</dd>
+		</dl>
+	</div>
+	<p>This utility, like most other PostgreSQL utilities, also uses the environment variables supported by libpq  (see <a href="http://developer.postgresql.org/pgdocs/postgres/libpq-envars.html">Environment Variables</a>).</p>
+</div>
+
+<div><a name="diagnostics"></a>
+<h2>Diagnostics</h2>
+<p>Error messages are reported when pg_reorg fails.
+The following list shows the cause of errors.</p>
+<p>You need to cleanup by hand after fatal erros.
+To cleanup, execute $PGHOME/share/contrib/uninstall_pg_reorg.sql to the database where the error occured and then execute $PGHOME/share/contrib/pg_reorg.sql. (Do uninstall and reinstall.)</p>
+
+<dl>
+<dt>pg_reorg : reorg database "template1" ... skipped</dt>
+<dd>pg_reorg is not installed in the database when <tt>--all</tt> option is specified.</dd>
+<dd>Do register pg_reorg to the database.</dd>
+
+<dt>ERROR: pg_reorg is not installed</dt>
+<dd>pg_reorg is not installed in the database specified by <tt>--dbname</tt>.</dd>
+<dd>Do register pg_reorg to the database.</dd>
+
+<dt>ERROR: relation "table" has no primary key</dt>
+<dd>The target table doesn't have PRIMARY KEY.</dd>
+<dd>Define PRIMARY KEY to the table. (ALTER TABLE ADD PRIMARY KEY)</dd>
+
+<dt>ERROR: relation "table" has no cluster key</dt>
+<dd>The target table doesn't have CLUSTER KEY.</dd>
+<dd>Define CLUSTER KEY to the table. (ALTER TABLE CLUSTER)</dd>
+
+<dt>pg_reorg : query failed: ERROR:  column "col" does not exist</dt>
+<dd>The target table doesn't have columns specified by <tt>--order-by</tt> option.</dd>
+<dd>Specify existing columns.</dd>
+
+<dt>ERROR: permission denied for schema reorg</dt>
+<dd>Permission error.</dd>
+<dd>pg_reorg must be executed by superusers.</dd>
+
+<dt>pg_reorg : query failed: ERROR:  trigger "z_reorg_trigger" for relation "tbl" already exists</dt>
+<dd>The target table already has a trigger named "z_reorg_trigger".</dd>
+<dd>Delete or rename the trigger.</dd>
+
+<dt>pg_reorg : trigger conflicted for tbl</dt>
+<dd>The target table already has a trigger which follows by "z_reorg_trigger" in alphabetical order.</dd>
+<dd>Delete or rename the trigger.</dd>
+</dl>
+</div>
+
+<div><a name="restrictions"></a>
+<h2>Restrictions</h2>
+<p>pg_reorg has the following restrictions.
+Be careful to avoid data corruptions.</p>
+
+<h3>Temp tables</h3>
+<p>pg_reorg cannot reorganize temp tables.</p>
+
+<h3>GiST indexes</h3>
+<p>pg_reorg cannot reorganize tables using GiST indexes.</p>
+
+<h3>DDL commands</h3>
+<p>You cannot do DDL commands <strong>except</strong> <tt>VACUUM</tt> and <tt>ANALYZE</tt> during pg_reorg.
+In many case pg_reorg would fail and rollback collectly, but there are some cases ending with data-corruption .</p>
+
+<dl>
+<dt><tt>TRUNCATE</tt></dt>
+<dd><tt>TRUNCATE</tt> is lost. Deleted rows still exist after pg_reorg.</dd>
+
+<dt><tt>CREATE INDEX</tt></dt>
+<dd><tt>CREATE INDEX</tt> causes index corruptions.</dd>
+
+<dt><tt>ADD COLUMN</tt></dt>
+<dd><tt>ADD COLUMN</tt> causes lost of data. Newly added columns are initialized with NULLs.</dd>
+
+<dt><tt>ALTER COLUMN TYPE</tt></dt>
+<dd><tt>ALTER COLUMN TYPE</tt> cases data coruuptions.</dd>
+
+<dt><tt>ALTER TABLE SET TABLESPACE</tt></dt>
+<dd><tt>ALTER TABLE SET TABLE SPACE</tt> cases data corruptions by wrong relfilenode.</dd>
+</dl>
+</div>
+
+<div><a name="install"></a>
+<h2>Installations</h2>
+<p>pg_reorg can be installed like standard contrib modules.</p>
+<h3>Build from source</h3>
+<p>Place pg_reorg to $PGHOME/contrib/ and input make, make install.</p>
+<h3>Register to database</h3>
+<p>Start PostgreSQL and execute pg_reorg.sql in $PGHOME/share/contrib.</p>
+</div>
+
+<div><a name="requirement"></a>
+<h2>Requirements</h2>
+<dl>
+<dt>PostgreSQL version</dt><dd>PostgreSQL 8.3</dd>
+<dt>OS</dt><dd>RHEL 5.2, Windows XP SP3</dd>
+<dt>Disks</dt><dd>Requires amount of disks twice larger than target table and indexes.</dd>
+</dl>
+</div>
+
+<div><a name="seealso"></a>
+<h2>See Also</h2>
+<a href="http://developer.postgresql.org/pgdocs/postgres/app-clusterdb.html"><i><tt>clusterdb</tt></i></a>,
+<a href="http://developer.postgresql.org/pgdocs/postgres/app-vacuumdb.html"><i><tt>vacuumdb</tt></i></a>
+</div>
+
+<hr>
+
+<p align="right"><font size="2">
+Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+</font></p>
+
+</body>
+</html>

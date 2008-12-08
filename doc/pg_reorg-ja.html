@@ -1,0 +1,291 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD html 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<title>pg_reorg</title>
+<link rel="home" title="pg_reorg " href="index.html">
+<link rel="stylesheet" TYPE="text/css"href="style.css">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+
+<body>
+<h1><a name="pg_reorg"></a>pg_reorg</h1>
+
+<div><a name="name"></a>
+<h2>名前</h2>
+pg_reorg -- PostgreSQLデータベース内のテーブルに対して、参照/更新処理をブロックせずに再編成を行います。
+</div>
+
+<div>
+<a name="synopsis"></a>
+<h2>概要</h2>
+<p>
+<tt>pg_reorg</tt> [<tt><i>connection-options</i></tt>...]  [<tt><i>message-options</i></tt>...]  [<tt><i>order-options</i></tt>...]  [<tt><i>target-options</i></tt>...]
+</p>
+<p>指定できるオプションには4つのカテゴリがあります。
+詳細は<a href="#options">オプション</a>を参照してください。</p>
+<dl>
+ <dt><tt>connection-options</tt> : 接続パラメータ</dt>
+  <dd><tt>-h</tt> [<tt>--host</tt>] <tt><i>host</i></tt></dd>
+  <dd><tt>-p</tt> [<tt>--port</tt>] <tt><i>port</i></tt></dd>
+  <dd><tt>-U</tt> [<tt>--username</tt>] <tt><i>username</i></tt></dd>
+  <dd><tt>-W</tt> [<tt>--password</tt>]</dd>
+ <dt><tt>message-options</tt> : 出力メッセージ</dt>
+  <dd><tt>-e</tt> [<tt>--echo</tt>]</dd>
+  <dd><tt>-q</tt> [<tt>--quiet</tt>]</dd>
+  <dd><tt>-v</tt> [<tt>--verbose</tt>]</dd>
+ <dt><tt>order-options</tt> : 並び替えの基準</dt>
+  <dd><tt>-o</tt> [<tt>--order-by</tt>]  <tt><i>columns [,...]</i></tt></dd>
+  <dd><tt>-n</tt> [<tt>--no-order</tt>]</dd>
+ <dt><tt>target-options</tt> : 処理対象</dt>
+  <dd><tt>-a</tt> [<tt>--all</tt>]</dd>
+  <dd><tt>-d</tt> [<tt>--dbname</tt>] <tt><i>dbname</i></tt></dd>
+  <dd><tt>-t</tt> [<tt>--table</tt>] <tt><i>table</i></tt></dd>
+</dl>
+</div>
+
+<div><a name="description"></a>
+<h2>説明</h2>
+<p>pg_reorg は、PostgreSQLデータベース内のテーブルを再編成(行の並び替え)するユーティリティです。
+<a href="http://www.postgresql.jp/document/current/html/app-clusterdb.html"><tt>clusterdb</tt></a> と異なり、参照/更新処理をブロックしません。
+再編成の方式として、以下のいずれか1つを選択できます。</p>
+<ul>
+<li>オンライン CLUSTER (cluster index順に行を並び替える)</li>
+<li>ユーザの指定した順に行を並び替える</li>
+<li>オンライン VACUUM FULL (行の詰め合わせを行う)</li>
+</ul>
+<p>このユーティリティを使用するためには、以下のことに注意をしてください。</p>
+<ul>
+<li>このユーティリティは、スーパーユーザのみが実行することができます。</li>
+<li>対象のテーブルはPRIMARY KEYを持っている必要があります。</li>
+<li>pg_reorg 実行後のデータの状態は、統計情報に反映されていません。統計情報を最新化するため、pg_reorg 実行後に<tt><a href="http://www.postgresql.jp/document/current/html/sql-analyze.html">ANALYZE</a></tt>を実行してください。</li>
+</ul>
+</div>
+
+<div><a name="examples"></a>
+<h2>例</h2>
+<p><tt>test</tt>というデータベースをオンライン CLUSTER するには、下記のコマンドを実行します。</p>
+<PRE><SAMP>$ </SAMP><KBD>pg_reorg test</KBD></PRE>
+<p><tt>test</tt>という名前のデータベースの<tt>foo</tt>という1つのテーブルに対してオンライン VACUUM FULL を行うには、下記のコマンドを実行します。</p>
+<PRE><SAMP>$ </SAMP><KBD>pg_reorg --no-order --table foo -d test</KBD></PRE><p>
+</p>
+</div>
+
+<div><a name="options"></a>
+<h2>オプション</h2>
+<p>pg_reorg では、下記の4種類のコマンドライン引数を指定できます。</p>
+<div>
+<dl>
+
+<h3>connection-options</h3>
+<p>PostgreSQLに接続するためのパラメータです。</p>
+
+<div>
+<dl>
+<dt><tt>-h <tt><i>host</i></tt><br />
+<tt>--host <tt><i>host</i></tt></dt>
+<dd>サーバが稼働しているマシンのホスト名を指定します。ホスト名がスラッシュから始まる場合、Unixドメインソケット用のディレクトリとして使用されます。</dd>
+
+<dt><tt>-p <tt><i>port</i></tt><br />
+<tt>--port <tt><i>port</i></tt></dt>
+<dd>サーバが接続を監視するTCPポートもしくはUnixドメインソケットファイルの拡張子を指定します。</dd>
+
+<dt><tt>-U <tt><i>username</i></tt><br />
+<tt>--username <tt><i>username</i></tt></dt>
+<dd>接続するユーザ名を指定します。</dd>
+
+<dt><tt>-W</tt><br /><tt>--password</tt></dt>
+<dd>データベースに接続する前に、pg_reorg は強制的にパスワード入力を促します。</dd>
+<dd>サーバがパスワード認証を要求する場合 pg_reorg は自動的にパスワード入力を促しますので、これが重要になることはありません。
+しかし、pg_reorg は、サーバにパスワードが必要かどうかを判断するための接続試行を無駄に行います。
+こうした余計な接続試行を防ぐために<tt>-W</tt>の入力が有意となる場合もあります。</dd>
+</dl>
+</div>
+
+<h3>message-options</h3>
+<p>
+pg_reorg を実行した際に任意のメッセージを出力するためのパラメータです。
+<tt>--quiet</tt>と他の2つのオプションを同時に指定した場合は、<tt>--quiet</tt>のオプションは無視されます。
+</p>
+
+<dl>
+<dt><tt>-e</tt><br /><tt>--echo</tt></dt>
+<dd>pg_reorg が生成し、サーバに送るコマンドをエコー表示します。</dd>
+<dt><tt>-q</tt><br /><tt>--quiet</tt></dt>
+<dd>進行メッセージを表示しません。</dd>
+<dt><tt>-v</tt><br /><tt>--verbose</tt></dt>
+<dd>処理中に詳細な情報を表示します。</dd>
+</dl>
+
+<h3>order-options</h3>
+<p>pg_reorg を実行する際の並び替えの基準を指定するパラメータです。
+何も指定されていない場合は、cluster index順にオンライン CLUSTER を行います。
+この2つを同時に指定することはできません。
+</p>
+
+<dl>
+<dt><tt>-n</tt><br /><tt>--no-order</tt></dt>
+<dd>オンライン VACUUM FULL の処理を行います。</dd>
+
+<dt><tt>-o</tt> <tt><i>columns [,...]</i></tt><br />
+<tt>--order-by</tt> <tt><i>columns [,...]</i></tt></dt>
+<dd>指定したカラムをキーにオンライン CLUSTER を行います。</dd>
+</dl>
+
+<h3>target-options</h3>
+<p>
+pg_reorg を実行する対象を指定するパラメータです。
+<tt>--all</tt>と<tt>--dbname</tt>または<tt>--table</tt>を同時に指定することはできません。
+</p>
+
+<dl>
+<dt><tt>-a</tt><br /><tt>--all</tt></dt>
+<dd>対象となる全てのデータベースに対してオンライン CLUSTER、または、オンラインVACUUM  FULLを行います。</dd>
+
+<dt>
+<tt>-d <tt><i>dbname</i></tt><br />
+<tt>--dbname <tt><i>dbname</i></tt>
+</dt>
+<dd>オンライン CLUSTER、または、オンライン VACUUM FULL を行うデータベース名を指定します。
+データベース名が指定されておらず、<tt>-a</tt>（または<tt>--all</tt>）も指定されていない場合、
+データベース名は<tt>PGDATABASE</tt>環境変数から読み取られます。この変数も設定されていない場合は、接続時に指定したユーザ名が使用されます。
+</dd>
+
+<dt>
+<tt>-t</tt> <tt><i>table</i></tt><br />
+<tt>--table</tt> <tt><i>table</i></tt>
+</dt>
+<dd>オンライン CLUSTER 、または、オンライン VACUUM FULL を行うテーブルを指定します。
+このオプションが指定されていない場合は、対象となったデータベースに存在する全ての対象テーブルに対して処理を行います。
+</dd>
+</dl>
+</div>
+
+<div><a name="environment"></a>
+	<h2>環境変数</h2>	<div>
+		<dl>
+			<dt>
+				<tt>PGDATABASE</tt><br />
+				<tt>PGHOST</tt><br />
+				<tt>PGPORT</tt><br />
+				<tt>PGUSER</tt>
+			</dt>
+			<dd>デフォルトの接続パラメータです。</dd>
+		</dl>
+	</div>
+	<p>また、このユーティリティは、他のほとんどの PostgreSQL ユーティリティと同様、
+		libpq でサポートされる環境変数を使用します。詳細については、<a href="http://www.postgresql.jp/document/current/html/libpq-envars.html">環境変数の項目</a>を参照してください。
+	</p>
+</div>
+
+<div><a name="diagnostics"></a>
+<h2>トラブルシューティング</h2>
+<p>pg_reorg の実行に失敗した場合にエラーが表示されます。
+想像されるエラー原因と対処を示します。</p>
+<p>致命的なエラーで終了した場合、手動によるクリーンアップを行う必要があります。
+クリーンアップは、エラーが発生したデータベースに対して、$PGHOME/share/contrib/uninstall_pg_reorg.sql を実行し、その後、$PGHOME/share/contrib/pg_reorg.sql を実行します。</p>
+
+<dl>
+<dt>pg_reorg : reorg database "template1" ... skipped</dt>
+<dd><tt>--all</tt>オプションを指定した際に、pg_reorg がインストールされていないデータベースに対して表示されます。</dd>
+<dd>pg_reorg スキーマのインストールを行ってください。</dd>
+
+<dt>ERROR: pg_reorg is not installed</dt>
+<dd><tt>--dbname</tt>で指定したデータベースにpg_reorg がインストールされていません。</dd>
+<dd>pg_reorg のインストールを行ってください。</dd>
+
+<dt>ERROR: relation "table" has no primary key</dt>
+<dd>指定したテーブルにPRIMARY KEYが存在していません。</dd>
+<dd>対象のテーブルにPRIMARY KEYの作成を行ってください。(ALTER TABLE ADD PRIMARY KEY)</dd>
+
+<dt>ERROR: relation "table" has no cluster key</dt>
+<dd>指定したテーブルに CLUSTER KEYが存在していません。</dd>
+<dd>対象のテーブルに CLUSTER KEYの作成を行ってください。(ALTER TABLE CLUSTER)</dd>
+
+<dt>pg_reorg : query failed: ERROR:  column "col" does not exist</dt>
+<dd><tt>--order-by</tt> で指定したカラムが対象のテーブルに存在していません。</dd>
+<dd>対象のテーブルに存在するカラムを指定してください。</dd>
+
+<dt>ERROR: permission denied for schema reorg</dt>
+<dd>操作を行おうとした対象に権限がありません。</dd>
+<dd>スーパーユーザで操作を行ってください。</dd>
+
+<dt>pg_reorg : query failed: ERROR:  trigger "z_reorg_trigger" for relation "tbl" already exists</dt>
+<dd>操作を行おうとした対象にpg_reorg が処理のために作成するトリガと同名のものが存在しています。</dd>
+<dd>トリガの改名か削除を行ってください。</dd>
+
+<dt>pg_reorg : trigger conflicted for tbl</dt>
+<dd>操作を行おうとした対象にpg_reorg が処理のために作成するトリガより後に実行されるトリガが存在しています。</dd>
+<dd>トリガの改名か削除を行ってください。</dd>
+</dl>
+</div>
+
+<div><a name="restrictions"></a>
+<h2>制約</h2>
+<p>pg_reorg を使用する際には、以下の制約があります。以下の制約に関する操作を行った場合の動作は保証されません。注意してください。</p>
+
+<h3>一時テーブルへの操作</h3>
+<p>pg_reorg では、一時テーブルは操作の対象外です。</p>
+
+<h3>GiSTインデックスの使用</h3>
+<p>インデックス種別がGiSTとなっているインデックスがクラスタインデックスとなっている
+テーブルはpg_reorg コマンドを使用して操作を行うことはできません。
+これは、GiSTインデックスのソート順序は一意ではないため、<tt>ORDER BY</tt>による
+ソートが行えないためです。</p>
+
+<h3>DDLコマンドの発行</h3>
+<p>
+pg_reorg の実行中には、<tt>VACUUM</tt> と <tt>ANALYZE</tt> <STRONG>以外</STRONG> のDDL操作は行わないでください。
+多くの場合、pg_reorg は失敗しロールバックされます。
+しかし、以下の操作ではデータが破損するため、非常に危険です。
+</p>
+
+<dl>
+<dt><tt>TRUNCATE</tt></dt>
+<dd><tt>TRUNCATE</tt>により削除した行が、pg_reorg 実行後には復元しています。操作結果が消失します。</dd>
+
+<dt><tt>CREATE INDEX</tt></dt>
+<dd><tt>CREATE INDEX</tt>は、スワップされない索引が残る可能性があります。データの不整合が生じます。</dd>
+
+<dt><tt>ADD COLUMN</tt></dt>
+<dd><tt>ADD COLUMN</tt>は、追加された値が全てNULLに置換されてしまう可能性があります。データが消失します。</dd>
+
+<dt><tt>ALTER COLUMN TYPE</tt></dt>
+<dd><tt>ALTER COLUMN TYPE</tt>は、実行するとスキーマで定義された型と実際の格納状態に齟齬をきたします。データの不整合が生じます。</dd>
+
+<dt><tt>ALTER TABLE SET TABLESPACE</tt></dt>
+<dd><tt>ALTER TABLE SET TABLE SPACE</tt>は、pg_reorg 実行後にrelfilenodeとの不整合が起こるため、対象のテーブルに対する参照/更新操作時にエラーが発生します。</dd>
+</dl>
+</div>
+
+<div><a name="install"></a>
+<h2>インストール方法</h2>
+<p>pg_reorg のインストールは、標準のcontribモジュールと同様です。</p>
+<h3>ビルド</h3>
+<p>pg_reorg のフォルダを$PGHOME/contrib/に配置し、make, make installを行ってください。</p>
+<h3>データベースへの登録</h3>
+<p>PostgreSQLを起動し、対象のデータベースに対して $PGHOME/share/contrib にある pg_reorg.sql を実行し、インストールを行ってください。</p>
+</div>
+
+<div><a name="requirement"></a>
+<h2>動作環境</h2>
+<dl>
+<dt>PostgreSQLバージョン</dt><dd>PostgreSQL 8.3</dd>
+<dt>OS</dt><dd>RHEL 5.2, Windows XP SP3</dd>
+<dt>ディスク容量</dt><dd>処理対象のテーブル、インデックスサイズの2倍以上のディスク空き容量</dd>
+</dl>
+</div>
+
+<div><a name="seealso"></a>
+<h2>関連項目</h2>
+<a href="http://www.postgresql.jp/document/current/html/app-clusterdb.html"><i><tt>clusterdb</tt></i></a>,
+<a href="http://www.postgresql.jp/document/current/html/app-vacuumdb.html"><i><tt>vacuumdb</tt></i></a>
+</div>
+
+<hr>
+
+<p align="right"><font size="2">
+Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+</font></p>
+
+</body>
+</html>
