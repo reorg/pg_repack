@@ -234,10 +234,10 @@ In many case pg_reorg would fail and rollback collectly, but there are some case
 <dd><tt>ADD COLUMN</tt> causes lost of data. Newly added columns are initialized with NULLs.</dd>
 
 <dt><tt>ALTER COLUMN TYPE</tt></dt>
-<dd><tt>ALTER COLUMN TYPE</tt> cases data coruuptions.</dd>
+<dd><tt>ALTER COLUMN TYPE</tt> causes data corruptions.</dd>
 
 <dt><tt>ALTER TABLE SET TABLESPACE</tt></dt>
-<dd><tt>ALTER TABLE SET TABLE SPACE</tt> cases data corruptions by wrong relfilenode.</dd>
+<dd><tt>ALTER TABLE SET TABLE SPACE</tt> causes data corruptions by wrong relfilenode.</dd>
 </dl>
 </div>
 
@@ -268,7 +268,7 @@ In many case pg_reorg would fail and rollback collectly, but there are some case
 <hr>
 
 <p align="right"><font size="2">
-Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 </font></p>
 
 </body>

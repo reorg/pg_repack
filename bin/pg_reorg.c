@@ -1,7 +1,7 @@
 /*
  * pg_reorg.c: bin/pg_reorg.c
  *
- * Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  */
 
 /**
@@ -15,7 +15,7 @@
 #include <signal.h>
 
 
-#define REORG_VERSION	"1.0.2"
+#define REORG_VERSION	"1.0.3"
 #define REORG_URL		"http://reorg.projects.postgresql.org/"
 #define REORG_EMAIL		"reorg-general@lists.pgfoundry.org"
 
@@ -579,6 +579,8 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 		fprintf(stderr, "---- copy tuples ----\n");
 
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
+	/* SET work_mem = maintenance_work_mem */
+	command("SELECT set_config('work_mem', current_setting('maintenance_work_mem'), true)", 0, NULL);
 	if (orderby && !orderby[0])
 		command("SET LOCAL synchronize_seqscans = off", 0, NULL);
 	res = execute(SQL_XID_SNAPSHOT, 0, NULL);
@@ -650,18 +652,29 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	}
 
 	/*
-	 * 5. Cleanup.
+	 * 5. Swap.
 	 */
 	if (verbose)
-		fprintf(stderr, "---- cleanup ----\n");
+		fprintf(stderr, "---- swap ----\n");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 	command(table->lock_table, 0, NULL);
 	apply_log(table, 0);
 	params[0] = utoa(table->target_oid, buffer);
 	command("SELECT reorg.reorg_swap($1)", 1, params);
+	command("COMMIT", 0, NULL);
+
+	/*
+	 * 6. Drop.
+	 */
+	if (verbose)
+		fprintf(stderr, "---- drop ----\n");
+
+	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+	params[0] = utoa(table->target_oid, buffer);
 	command("SELECT reorg.reorg_drop($1)", 1, params);
 	command("COMMIT", 0, NULL);
+
 	current_table = NULL;
 
 	free(vxid);
@@ -709,7 +722,7 @@ exit_with_cleanup(int exitcode)
 			PGresult *res;
 			res = PQexec(current_conn, "ROLLBACK");
 			if (PQresultStatus(res) != PGRES_COMMAND_OK)
-				exit(1);	// fatal error
+				exit(1);	/* fatal error */
 			PQclear(res);
 		}
 

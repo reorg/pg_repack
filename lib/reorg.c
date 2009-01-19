@@ -1,7 +1,7 @@
 /*
  * pg_reorg: lib/reorg.c
  *
- * Copyright (c) 2008, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  */
 
 /**
@@ -10,9 +10,11 @@
 
 #include "postgres.h"
 #include "catalog/namespace.h"
+#include "catalog/pg_type.h"
 #include "commands/trigger.h"
 #include "executor/spi.h"
 #include "miscadmin.h"
+#include "utils/builtins.h"
 #include "utils/lsyscache.h"
 
 #ifdef PG_MODULE_MAGIC
@@ -46,6 +48,8 @@ static SPIPlanPtr reorg_prepare(const char *src, int nargs, Oid *argtypes);
 static void reorg_execp(SPIPlanPtr plan, Datum *values, const char *nulls, int expected);
 static void reorg_execf(int expexted, const char *format, ...)
 __attribute__((format(printf, 2, 3)));
+static const char *get_quoted_relname(Oid oid);
+static const char *get_quoted_nspname(Oid oid);
 
 #define copy_tuple(tuple, tupdesc) \
 	PointerGetDatum(SPI_returntuple((tuple), (tupdesc)))
@@ -401,7 +405,7 @@ static void
 parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 {
 	char *sql = pg_get_indexdef_string(index);
-	const char *idxname = quote_identifier(get_rel_name(index));
+	const char *idxname = get_quoted_relname(index);
 	const char *tblname = generate_relation_name(table);
 
 	/* CREATE [UNIQUE] INDEX */
@@ -518,14 +522,16 @@ WHERE I.indrelid = $1\
 Datum
 reorg_swap(PG_FUNCTION_ARGS)
 {
-	Oid				oid = PG_GETARG_OID(0);
+	Oid			oid = PG_GETARG_OID(0);
+	const char *relname = get_quoted_relname(oid);
+	const char *nspname = get_quoted_nspname(oid);
 
-	SPIPlanPtr		plan_swapinfo;
-	SPIPlanPtr		plan_swap;
-	Oid 			argtypes[3] = { OIDOID, OIDOID, XIDOID };
-	char 			nulls[3] = { ' ', ' ', ' ' };
-	Datum 			values[3];
-	int				record;
+	SPIPlanPtr	plan_swapinfo;
+	SPIPlanPtr	plan_swap;
+	Oid 		argtypes[3] = { OIDOID, OIDOID, XIDOID };
+	char 		nulls[3] = { ' ', ' ', ' ' };
+	Datum 		values[3];
+	int			record;
 
 	/* authority check */
 	must_be_superuser("reorg_swap");
@@ -575,6 +581,12 @@ reorg_swap(PG_FUNCTION_ARGS)
 		}
 	}
 
+	/* drop reorg trigger */
+	reorg_execf(
+		SPI_OK_UTILITY,
+		"DROP TRIGGER IF EXISTS z_reorg_trigger ON %s.%s CASCADE",
+		nspname, relname);
+
 	SPI_finish();
 
 	PG_RETURN_VOID();
@@ -593,8 +605,8 @@ Datum
 reorg_drop(PG_FUNCTION_ARGS)
 {
 	Oid			oid = PG_GETARG_OID(0);
-	const char *relname = quote_identifier(get_rel_name(oid));
-	const char *nspname = quote_identifier(get_namespace_name(get_rel_namespace(oid)));
+	const char *relname = get_quoted_relname(oid);
+	const char *nspname = get_quoted_nspname(oid);
 
 	/* authority check */
 	must_be_superuser("reorg_drop");
@@ -602,7 +614,10 @@ reorg_drop(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	reorg_init();
 
-	/* drop reorg trigger */
+	/*
+	 * drop reorg trigger: We have already dropped the trigger in normal
+	 * cases, but it can be left on error.
+	 */
 	reorg_execf(
 		SPI_OK_UTILITY,
 		"DROP TRIGGER IF EXISTS z_reorg_trigger ON %s.%s CASCADE",
@@ -674,4 +689,16 @@ reorg_execf(int expected, const char *format, ...)
 
 	if ((ret = SPI_exec(sql.data, 0)) != expected)
 		elog(ERROR, "pg_reorg: reorg_execf failed (sql=%s, code=%d, expected=%d)", sql.data, ret, expected);
+}
+
+static const char *
+get_quoted_relname(Oid oid)
+{
+	return quote_identifier(get_rel_name(oid));
+}
+
+static const char *
+get_quoted_nspname(Oid oid)
+{
+	return quote_identifier(get_namespace_name(get_rel_namespace(oid)));
 }
