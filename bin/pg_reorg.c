@@ -368,7 +368,7 @@ reorg_one_database(const char *orderby, const char *table)
 	reconnect();
 
 	/* Restrict search_path to system catalog. */
-	command("SET search_path = pg_catalog, pg_temp", 0, NULL);
+	command("SET search_path = pg_catalog, pg_temp, public", 0, NULL);
 
 	/* To avoid annoying "create implicit ..." messages. */
 	command("SET client_min_messages = warning", 0, NULL);
