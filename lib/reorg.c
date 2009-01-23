@@ -25,15 +25,11 @@
 #include "utils/relcache.h"
 #include "utils/syscache.h"
 
-#ifdef PG_MODULE_MAGIC
 PG_MODULE_MAGIC;
-#endif
 
-#if PG_VERSION_NUM < 80300
 #if PG_VERSION_NUM < 80300
 #define SET_VARSIZE(PTR, len)	(VARATT_SIZEP((PTR)) = (len))
 typedef void *SPIPlanPtr;
-#endif
 #endif
 
 
@@ -513,11 +509,10 @@ reorg_swap(PG_FUNCTION_ARGS)
 	reorg_execd(
 		"SELECT X.oid, X.reltoastrelid, TX.reltoastidxid,"
 		"       Y.oid, Y.reltoastrelid, TY.reltoastidxid"
-		"  FROM pg_class X, pg_class Y, pg_class TX, pg_class TY"
+		"  FROM pg_class X LEFT JOIN pg_class TX ON X.reltoastrelid = TX.oid,"
+		"       pg_class Y LEFT JOIN pg_class TY ON Y.reltoastrelid = TY.oid"
 		" WHERE X.oid = $1"
-		"   AND X.reltoastrelid = TX.oid"
-		"   AND Y.oid = ('reorg.table_' || X.oid)::regclass"
-		"   AND Y.reltoastrelid = TY.oid",
+		"   AND Y.oid = ('reorg.table_' || X.oid)::regclass",
 		1, argtypes, values, nulls, SPI_OK_SELECT);
 
 	tuptable = SPI_tuptable;
@@ -525,7 +520,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 	records = SPI_processed;
 
 	if (records == 0)
-		elog(ERROR, "reorg_swap : unexpected");
+		elog(ERROR, "reorg_swap : no swap target");
 
 	tuple = tuptable->vals[0];
 
@@ -534,6 +529,16 @@ reorg_swap(PG_FUNCTION_ARGS)
 	oid2 = getoid(tuple, desc, 4);
 	reltoastrelid2 = getoid(tuple, desc, 5);
 	reltoastidxid2 = getoid(tuple, desc, 6);
+
+	/* should be all-or-nothing */
+	if ((reltoastrelid1 == InvalidOid || reltoastidxid1 == InvalidOid ||
+		 reltoastrelid2 == InvalidOid || reltoastidxid2 == InvalidOid) &&
+		(reltoastrelid1 != InvalidOid || reltoastidxid1 != InvalidOid ||
+		 reltoastrelid2 != InvalidOid || reltoastidxid2 != InvalidOid))
+	{
+		elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
+			reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
+	}
 
 	swap_heap_or_index_files(oid, oid2);
 	CommandCounterIncrement();
@@ -566,7 +571,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 	{
 		char	name[NAMEDATALEN];
 		int		pid = getpid();
-		
+
 		/* rename X to TEMP */
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d", pid);
 		RenameRelationInternal(reltoastrelid1, name, PG_TOAST_NAMESPACE);
@@ -886,6 +891,9 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 }
 
 #if PG_VERSION_NUM < 80400
+
+extern PGDLLIMPORT bool allowSystemTableMods;
+
 static int
 SPI_execute_with_args(const char *src,
 					  int nargs, Oid *argtypes,
@@ -918,6 +926,19 @@ cstring_to_text(const char * s)
 static void
 RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId)
 {
-	renamerel(myrelid, newrelname, OBJECT_TABLE);
+	bool	save_allowSystemTableMods = allowSystemTableMods;
+
+	allowSystemTableMods = true;
+	PG_TRY();
+	{
+		renamerel(myrelid, newrelname, OBJECT_TABLE);
+		allowSystemTableMods = save_allowSystemTableMods;
+	}
+	PG_CATCH();
+	{
+		allowSystemTableMods = save_allowSystemTableMods;
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 }
 #endif
