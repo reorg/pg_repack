@@ -29,9 +29,9 @@ PG_MODULE_MAGIC;
 
 #if PG_VERSION_NUM < 80300
 #define SET_VARSIZE(PTR, len)	(VARATT_SIZEP((PTR)) = (len))
+#define PGDLLIMPORT				DLLIMPORT
 typedef void *SPIPlanPtr;
 #endif
-
 
 Datum reorg_trigger(PG_FUNCTION_ARGS);
 Datum reorg_apply(PG_FUNCTION_ARGS);
@@ -931,7 +931,11 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId)
 	allowSystemTableMods = true;
 	PG_TRY();
 	{
-		renamerel(myrelid, newrelname, OBJECT_TABLE);
+		renamerel(myrelid, newrelname
+#if PG_VERSION_NUM >= 80300
+			, OBJECT_TABLE
+#endif
+			);
 		allowSystemTableMods = save_allowSystemTableMods;
 	}
 	PG_CATCH();

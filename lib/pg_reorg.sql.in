@@ -18,6 +18,12 @@ CREATE AGGREGATE reorg.array_accum (
     initcond = '{}'
 );
 
+CREATE FUNCTION reorg.oid2text(oid) RETURNS text AS
+$$
+	SELECT textin(regclassout($1));
+$$
+LANGUAGE sql STABLE STRICT;
+
 CREATE FUNCTION reorg.get_index_columns(oid, text) RETURNS text AS
 $$
   SELECT array_to_string(reorg.array_accum(quote_ident(attname)), $2)
@@ -58,7 +64,7 @@ CREATE FUNCTION reorg.get_create_trigger(relid oid, pkid oid)
   RETURNS text AS
 $$
   SELECT 'CREATE TRIGGER z_reorg_trigger' ||
-         ' BEFORE INSERT OR DELETE OR UPDATE ON ' || $1::regclass ||
+         ' BEFORE INSERT OR DELETE OR UPDATE ON ' || reorg.oid2text($1) ||
          ' FOR EACH ROW EXECUTE PROCEDURE reorg.reorg_trigger(' ||
          '''INSERT INTO reorg.log_' || $1 || '(pk, row) VALUES(' ||
          ' CASE WHEN $1 IS NULL THEN NULL ELSE (ROW($1.' ||
@@ -104,11 +110,11 @@ CREATE VIEW reorg.tables AS
          PK.indexrelid AS pkid,
          CK.indexrelid AS ckid,
          reorg.get_create_index_type(PK.indexrelid, 'reorg.pk_' || R.oid) AS create_pktype,
-         'CREATE TABLE reorg.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk reorg.pk_' || R.oid || ', row ' || R.oid::regclass || ')' AS create_log,
+         'CREATE TABLE reorg.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk reorg.pk_' || R.oid || ', row ' || reorg.oid2text(R.oid) || ')' AS create_log,
          reorg.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
-         'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || R.relhasoids), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT * FROM ONLY ' || R.oid::regclass AS create_table,
+         'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT * FROM ONLY ' || reorg.oid2text(R.oid) AS create_table,
          'DELETE FROM reorg.log_' || R.oid AS delete_log,
-         'LOCK TABLE ' || R.oid::regclass || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
+         'LOCK TABLE ' || reorg.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
          reorg.get_index_keys(CK.indexrelid, R.oid) AS ckey,
          'SELECT * FROM reorg.log_' || R.oid || ' ORDER BY id LIMIT $1' AS sql_peek,
          'INSERT INTO reorg.table_' || R.oid || ' VALUES ($1.*)' AS sql_insert,

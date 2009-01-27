@@ -581,7 +581,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
 	/* SET work_mem = maintenance_work_mem */
 	command("SELECT set_config('work_mem', current_setting('maintenance_work_mem'), true)", 0, NULL);
-	if (orderby && !orderby[0])
+	if (PQserverVersion(current_conn) >= 80300 && orderby && !orderby[0])
 		command("SET LOCAL synchronize_seqscans = off", 0, NULL);
 	res = execute(SQL_XID_SNAPSHOT, 0, NULL);
 	vxid = strdup(PQgetvalue(res, 0, 0));

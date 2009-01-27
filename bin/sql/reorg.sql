@@ -70,12 +70,10 @@ INSERT INTO tbl_gistkey VALUES(2, '<(4,5),6>');
 \d tbl_only_ckey
 \d tbl_only_pkey
 
-SET synchronize_seqscans = off;
 SELECT col1, to_char(col2, 'YYYY-MM-DD HH24:MI:SS'), ":-)" FROM tbl_cluster;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;
-RESET synchronize_seqscans;
 
 --
 -- clean up
