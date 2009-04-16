@@ -241,19 +241,19 @@ pg_reorg の実行中には、<tt>VACUUM</tt> と <tt>ANALYZE</tt> <STRONG>以�
 
 <dl>
 <dt><tt>TRUNCATE</tt></dt>
-<dd><tt>TRUNCATE</tt>により削除した行が、pg_reorg 実行後には復元しています。操作結果が消失します。</dd>
+<dd>削除した行が pg_reorg 実行後には復元しています。操作結果が消失します。</dd>
 
 <dt><tt>CREATE INDEX</tt></dt>
-<dd><tt>CREATE INDEX</tt>は、スワップされない索引が残る可能性があります。データの不整合が生じます。</dd>
+<dd>スワップされない索引が残る可能性があります。データの不整合が生じます。</dd>
 
-<dt><tt>ADD COLUMN</tt></dt>
-<dd><tt>ADD COLUMN</tt>は、追加された値が全てNULLに置換されてしまう可能性があります。データが消失します。</dd>
+<dt><tt>ALTER TABLE ... ADD COLUMN</tt></dt>
+<dd>追加された値が全てNULLに置換されてしまう可能性があります。データが消失します。</dd>
 
-<dt><tt>ALTER COLUMN TYPE</tt></dt>
-<dd><tt>ALTER COLUMN TYPE</tt>は、実行するとスキーマで定義された型と実際の格納状態に齟齬をきたします。データの不整合が生じます。</dd>
+<dt><tt>ALTER TABLE ... ALTER COLUMN TYPE</tt></dt>
+<dd>実行するとスキーマで定義された型と実際の格納状態に齟齬をきたします。データの不整合が生じます。</dd>
 
-<dt><tt>ALTER TABLE SET TABLESPACE</tt></dt>
-<dd><tt>ALTER TABLE SET TABLE SPACE</tt>は、pg_reorg 実行後にrelfilenodeとの不整合が起こるため、対象のテーブルに対する参照/更新操作時にエラーが発生します。</dd>
+<dt><tt>ALTER TABLE ... SET TABLESPACE</tt></dt>
+<dd>pg_reorg 実行後にrelfilenodeとの不整合が起こるため、対象のテーブルに対する参照/更新操作時にエラーが発生します。</dd>
 </dl>
 </div>
 

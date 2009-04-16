@@ -114,7 +114,7 @@ CREATE VIEW reorg.tables AS
          reorg.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
          'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT * FROM ONLY ' || reorg.oid2text(R.oid) AS create_table,
          'DELETE FROM reorg.log_' || R.oid AS delete_log,
-         'LOCK TABLE ' || reorg.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
+         'LOCK TABLE ' || reorg.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE NOWAIT' AS lock_table,
          reorg.get_index_keys(CK.indexrelid, R.oid) AS ckey,
          'SELECT * FROM reorg.log_' || R.oid || ' ORDER BY id LIMIT $1' AS sql_peek,
          'INSERT INTO reorg.table_' || R.oid || ' VALUES ($1.*)' AS sql_insert,

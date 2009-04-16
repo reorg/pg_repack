@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html
 	PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
 	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -33,9 +33,79 @@ pg_reorg は PostgreSQL のテーブルを再編成するシェルコマンド�
 </div>
 <hr />
 
+<h2>ドキュメント</h2>
 <p>
 <a href="pg_reorg-ja.html">ドキュメントはこちら</a>。
 </p>
+
+<h2>実行時間</h2>
+<p>
+pg_reorg とclusterdb の比較に示します。
+断片化のないソートされた状態 (not fragmented) では clusterdb のほうが高速ですが、完全に断片化した状態 (fully fragmented) では pg_reorg が大幅に高速です。
+一般的に、再編成は断片化が進行した状態で実施されることを考えると、pg_reorg は clusterdb よりも実行時間が短いと言えます。
+</p>
+
+<center>
+<div style="margin: 2em">
+<img src="result.png" />
+</div>
+
+<table border="1">
+<caption>測定環境</caption>
+<tr>
+	<th>大項目</th>
+	<th>小項目</th>
+	<th>環境</th>
+</tr>
+<tr>
+	<td rowspan="3">ハードウェア</td>
+	<td>CPU</td>
+	<td>2 × Xeon 5160 3.00GHz (Dual core)</td>
+</tr>
+<tr>
+	<td>メモリ</td>
+	<td>2GB</td>
+</tr>
+<tr>
+	<td>ストレージ</td>
+	<td>Ultra320 SCSI, 15000rpm (220GB)</td>
+</tr>
+<tr>
+	<td rowspan="4">ソフトウェア</td>
+	<td>OS</td>
+	<td>RHEL 5.2 (64bit) 2.6.18-92.el5</td>
+</tr>
+<tr>
+	<td>DB</td>
+	<td>PostgreSQL 8.3.3</td>
+</tr>
+<tr>
+	<td>pg_reorg</td>
+	<td>1.0.0</td>
+</tr>
+<tr>
+	<td>clusterdb</td>
+	<td>clusterdb (PostgreSQL) 8.3.3</td>
+</tr>
+<tr>
+	<td rowspan="2">データ</td>
+	<td>スキーマ</td>
+	<td><code><pre>CREATE TABLE tbl (
+ id bigserial PRIMARY KEY,
+ seqkey timestamp NOT NULL,
+ rndkey timestamp NOT NULL,
+ filler char(75) NOT NULL
+);
+CREATE INDEX idx_seq ON tbl (seqkey);
+CREATE INDEX idx_rnd ON tbl (rndkey);</pre></code></td>
+</tr>
+<tr>
+	<td>件数</td>
+	<td>1650万件 (約2GB)</td>
+</tr>
+</table>
+
+</center>
 
 <hr />
 <div align="right">

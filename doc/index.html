@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE html
 	PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
 	"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -33,9 +33,79 @@ where you can find <a href="http://pgfoundry.org/frs/?group_id=1000411">download
 </div>
 <hr />
 
+<h2>Documentation</h2>
 <p>
 <a href="pg_reorg.html">Documentations here</a>.
 </p>
+
+<h2>Execution time</h2>
+<p>
+Here is a comparison between pg_reorg and clusterdb.
+Clusterdb is faster on not fragmented conditions, but pg_reorg is faster on fully fragmented conditions.
+Since reorganization is needed only if tables are fragmented, pg_reorg should be faster than clusterdb.
+</p>
+
+<center>
+<div style="margin: 2em">
+<img src="result.png" />
+</div>
+
+<table border="1">
+<caption>Configuration</caption>
+<tr>
+	<th>Category</th>
+	<th>Item</th>
+	<th>Details</th>
+</tr>
+<tr>
+	<td rowspan="3">Hardware</td>
+	<td>CPU</td>
+	<td>2 * Xeon 5160 3.00GHz (Dual core)</td>
+</tr>
+<tr>
+	<td>Memory</td>
+	<td>2GB</td>
+</tr>
+<tr>
+	<td>Storage</td>
+	<td>Ultra320 SCSI, 15000rpm (220GB)</td>
+</tr>
+<tr>
+	<td rowspan="4">Software</td>
+	<td>OS</td>
+	<td>RHEL 5.2 (64bit) 2.6.18-92.el5</td>
+</tr>
+<tr>
+	<td>DB</td>
+	<td>PostgreSQL 8.3.3</td>
+</tr>
+<tr>
+	<td>pg_reorg</td>
+	<td>1.0.0</td>
+</tr>
+<tr>
+	<td>clusterdb</td>
+	<td>clusterdb (PostgreSQL) 8.3.3</td>
+</tr>
+<tr>
+	<td rowspan="2">Data</td>
+	<td>Scheme</td>
+	<td><code><pre>CREATE TABLE tbl (
+ id bigserial PRIMARY KEY,
+ seqkey timestamp NOT NULL,
+ rndkey timestamp NOT NULL,
+ filler char(75) NOT NULL
+);
+CREATE INDEX idx_seq ON tbl (seqkey);
+CREATE INDEX idx_rnd ON tbl (rndkey);</pre></code></td>
+</tr>
+<tr>
+	<td>Rows</td>
+	<td>16.5 M rows (2GB)</td>
+</tr>
+</table>
+
+</center>
 
 <hr />
 <div align="right">

@@ -228,16 +228,16 @@ In many case pg_reorg would fail and rollback collectly, but there are some case
 <dd><tt>TRUNCATE</tt> is lost. Deleted rows still exist after pg_reorg.</dd>
 
 <dt><tt>CREATE INDEX</tt></dt>
-<dd><tt>CREATE INDEX</tt> causes index corruptions.</dd>
+<dd>It causes index corruptions.</dd>
 
-<dt><tt>ADD COLUMN</tt></dt>
-<dd><tt>ADD COLUMN</tt> causes lost of data. Newly added columns are initialized with NULLs.</dd>
+<dt><tt>ALTER TABLE ... ADD COLUMN</tt></dt>
+<dd>It causes lost of data. Newly added columns are initialized with NULLs.</dd>
 
-<dt><tt>ALTER COLUMN TYPE</tt></dt>
-<dd><tt>ALTER COLUMN TYPE</tt> causes data corruptions.</dd>
+<dt><tt>ALTER TABLE ... ALTER COLUMN TYPE</tt></dt>
+<dd>It causes data corruptions.</dd>
 
-<dt><tt>ALTER TABLE SET TABLESPACE</tt></dt>
-<dd><tt>ALTER TABLE SET TABLE SPACE</tt> causes data corruptions by wrong relfilenode.</dd>
+<dt><tt>ALTER TABLE ... SET TABLESPACE</tt></dt>
+<dd>It causes data corruptions by wrong relfilenode.</dd>
 </dl>
 </div>
 

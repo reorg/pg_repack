@@ -74,7 +74,7 @@ typedef struct reorg_index
 
 static void reorg_all_databases(const char *orderby);
 static bool reorg_one_database(const char *orderby, const char *table);
-static void reorg_one_table(const reorg_table *table, const char* orderby);
+static void reorg_one_table(const reorg_table *table, const char *orderby);
 
 static void reconnect(void);
 static void disconnect(void);
@@ -93,6 +93,13 @@ static void PrintVersion(void);
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
 
+#define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
+#define SQLSTATE_LOCK_NOT_AVAILABLE		"55P03"
+
+static bool sqlstate_equals(PGresult *res, const char *state)
+{
+	return strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), state) == 0;
+}
 
 static const char  *progname = NULL;
 static bool			echo = false;
@@ -390,8 +397,7 @@ reorg_one_database(const char *orderby, const char *table)
 
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
-		const char *state = PQresultErrorField(res, PG_DIAG_SQLSTATE);
-		if (state && strcmp(state, "3F000") == 0)
+		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
 		{
 			/* Schema reorg does not exist. Skip the database. */
 			ret = false;
@@ -657,8 +663,32 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	if (verbose)
 		fprintf(stderr, "---- swap ----\n");
 
-	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-	command(table->lock_table, 0, NULL);
+	for (;;)
+	{
+		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+		res = execute_nothrow(table->lock_table, 0, NULL);
+		if (PQresultStatus(res) == PGRES_COMMAND_OK)
+		{
+			PQclear(res);
+			break;
+		}
+		else if (sqlstate_equals(res, SQLSTATE_LOCK_NOT_AVAILABLE))
+		{
+			/* retry if lock conflicted */
+			PQclear(res);
+			command("ROLLBACK", 0, NULL);
+			sleep(1);
+			continue;
+		}
+		else
+		{
+			/* exit otherwise */
+			printf("%s", PQerrorMessage(current_conn));
+			PQclear(res);
+			exit_with_cleanup(1);
+		}
+	}
+
 	apply_log(table, 0);
 	params[0] = utoa(table->target_oid, buffer);
 	command("SELECT reorg.reorg_swap($1)", 1, params);
@@ -761,7 +791,7 @@ execute_nothrow(const char *query, int nParams, const char **params)
 }
 
 /*
- * execute - Execute a SQL and discard the result, or exit() if failed.
+ * execute - Execute a SQL and return the result, or exit() if failed.
  */
 static PGresult *
 execute(const char *query, int nParams, const char **params)
@@ -834,7 +864,6 @@ static void
 PrintVersion(void)
 {
 	fprintf(stderr, "pg_reorg " REORG_VERSION "\n");
-	return;
 }
 
 /*
