@@ -8,36 +8,43 @@
  * @brief Client Modules
  */
 
-#include "postgres_fe.h"
-#include "common.h"
-#include "libpq/pqsignal.h"
+#define PROGRAM_VERSION	"1.0.4"
+#define PROGRAM_URL		"http://reorg.projects.postgresql.org/"
+#define PROGRAM_EMAIL	"reorg-general@lists.pgfoundry.org"
+
+#include "pgut/pgut.h"
+#include "pqexpbuffer.h"
+
+#include <string.h>
+#include <stdlib.h>
 #include <unistd.h>
-#include <signal.h>
 
-
-#define REORG_VERSION	"1.0.3"
-#define REORG_URL		"http://reorg.projects.postgresql.org/"
-#define REORG_EMAIL		"reorg-general@lists.pgfoundry.org"
-
+#define EXITCODE_HELP	2
 #define APPLY_COUNT		1000
 
-
-#if PG_VERSION_NUM >= 80300
-#define SQL_XID_SNAPSHOT \
+#define SQL_XID_SNAPSHOT_80300 \
 	"SELECT reorg.array_accum(virtualtransaction) FROM pg_locks"\
 	" WHERE locktype = 'virtualxid' AND pid <> pg_backend_pid()"
-#define SQL_XID_ALIVE \
-	"SELECT 1 FROM pg_locks WHERE locktype = 'virtualxid'"\
-	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1) LIMIT 1"
-#else
-#define SQL_XID_SNAPSHOT \
+#define SQL_XID_SNAPSHOT_80200 \
 	"SELECT reorg.array_accum(transactionid) FROM pg_locks"\
 	" WHERE locktype = 'transactionid' AND pid <> pg_backend_pid()"
-#define SQL_XID_ALIVE \
+
+#define SQL_XID_ALIVE_80300 \
+	"SELECT 1 FROM pg_locks WHERE locktype = 'virtualxid'"\
+	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1) LIMIT 1"
+#define SQL_XID_ALIVE_80200 \
 	"SELECT 1 FROM pg_locks WHERE locktype = 'transactionid'"\
 	" AND pid <> pg_backend_pid() AND transactionid = ANY($1) LIMIT 1"
-#endif
 
+#define SQL_XID_SNAPSHOT \
+	(PQserverVersion(current_conn) >= 80300 \
+	? SQL_XID_SNAPSHOT_80300 \
+	: SQL_XID_SNAPSHOT_80200)
+
+#define SQL_XID_ALIVE \
+	(PQserverVersion(current_conn) >= 80300 \
+	? SQL_XID_ALIVE_80300 \
+	: SQL_XID_ALIVE_80200)
 
 /*
  * per-table information
@@ -73,71 +80,29 @@ typedef struct reorg_index
 } reorg_index;
 
 static void reorg_all_databases(const char *orderby);
-static bool reorg_one_database(const char *orderby, const char *table);
+static pqbool reorg_one_database(const char *orderby, const char *table);
 static void reorg_one_table(const reorg_table *table, const char *orderby);
 
-static void reconnect(void);
-static void disconnect(void);
-static PGresult *execute_nothrow(const char *query, int nParams, const char **params);
-static PGresult *execute(const char *query, int nParams, const char **params);
-static void command(const char *query, int nParams, const char **params);
-static void cleanup(void);
-static void exit_with_cleanup(int exitcode);
-
-static void reorg_setup_cancel_handler(void);
-static void reorg_command_begin(PGconn *conn);
-static void reorg_command_end(void);
-
-static void PrintHelp(const char *progname);
-static void PrintVersion(void);
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_LOCK_NOT_AVAILABLE		"55P03"
 
-static bool sqlstate_equals(PGresult *res, const char *state)
+static pqbool sqlstate_equals(PGresult *res, const char *state)
 {
 	return strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), state) == 0;
 }
 
-static const char  *progname = NULL;
-static bool			echo = false;
-static bool			verbose = false;
-static bool			quiet = false;
-
-/* connectin parameters */
-static const char  *dbname = NULL;
-static char		   *host = NULL;
-static char		   *port = NULL;
-static char		   *username = NULL;
-static bool			password = false;
+static pqbool	echo = false;
+static pqbool	verbose = false;
+static pqbool	quiet = false;
 
 /*
  * The table begin re-organized. If not null, we need to cleanup temp
  * objects before the program exits.
  */
 static const reorg_table *current_table = NULL;
-
-/* Current connection initizlied with coneection parameters. */
-static PGconn	   *current_conn = NULL;
-
-/* Interrupted by SIGINT (Ctrl+C) ? */
-static bool			interrupted = false;
-
-/* Not null during executing some SQL commands. */
-static PGcancel *volatile cancelConn = NULL;
-
-
-#ifdef WIN32
-static CRITICAL_SECTION cancelConnLock;
-
-static unsigned int sleep(unsigned int seconds)
-{
-	Sleep(seconds * 1000);
-	return 0;
-}
-#endif
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -147,134 +112,69 @@ utoa(unsigned int value, char *buffer)
 	return buffer;
 }
 
-/* called by atexit */
-static void
-warn_if_unclean(void)
+const char *pgut_optstring = "eqvat:no:";
+
+const struct option pgut_longopts[] = {
+	{"echo", no_argument, NULL, 'e'},
+	{"quiet", no_argument, NULL, 'q'},
+	{"verbose", no_argument, NULL, 'v'},
+	{"all", no_argument, NULL, 'a'},
+	{"table", required_argument, NULL, 't'},
+	{"no-order", no_argument, NULL, 'n'},
+	{"order-by", required_argument, NULL, 'o'},
+	{NULL, 0, NULL, 0}
+};
+
+pqbool		alldb = false;
+const char *table = NULL;
+const char *orderby = NULL;
+
+pqbool
+pgut_argument(int c, const char *arg)
 {
-	if (current_table)
-		fprintf(stderr, _("!!!FATAL ERROR!!! Please refer to a manual.\n\n"));
+	switch (c)
+	{
+		case 'e':
+			echo = true;
+			break;
+		case 'q':
+			quiet = true;
+			break;
+		case 'v':
+			verbose = true;
+			break;
+		case 'a':
+			alldb = true;
+			break;
+		case 't':
+			table = arg;
+			break;
+		case 'n':
+			orderby = "";
+			break;
+		case 'o':
+			orderby = arg;
+			break;
+		default:
+			return false;
+	}
+	return true;
 }
 
 int
 main(int argc, char *argv[])
 {
-	static struct option long_options[] = {
-		{"host", required_argument, NULL, 'h'},
-		{"port", required_argument, NULL, 'p'},
-		{"username", required_argument, NULL, 'U'},
-		{"password", no_argument, NULL, 'W'},
-		{"echo", no_argument, NULL, 'e'},
-		{"quiet", no_argument, NULL, 'q'},
-		{"verbose", no_argument, NULL, 'v'},
-		{"dbname", required_argument, NULL, 'd'},
-		{"all", no_argument, NULL, 'a'},
-		{"table", required_argument, NULL, 't'},
-		{"no-order", no_argument, NULL, 'n'},
-		{"order-by", required_argument, NULL, 'o'},
-		{NULL, 0, NULL, 0}
-	};
+	int			exitcode;
 
-	int			optindex;
-	int			c;
-
-	bool		alldb = false;
-	const char *table = NULL;
-	const char *orderby = NULL;
-
-	progname = get_progname(argv[0]);
-	set_pglocale_pgservice(argv[0], "pgscripts");
-
-	/*
-	 * Help message and version are handled at first.
-	 */
-	if (argc > 1)
-	{
-		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
-		{
-			PrintHelp(progname);
-			return 0;
-		}
-		if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)
-		{
-			PrintVersion();
-			return 0;
-		}
-	}
-
-	while ((c = getopt_long(argc, argv, "h:p:U:Weqvd:at:no:", long_options, &optindex)) != -1)
-	{
-		switch (c)
-		{
-			case 'h':
-				host = optarg;
-				break;
-			case 'p':
-				port = optarg;
-				break;
-			case 'U':
-				username = optarg;
-				break;
-			case 'W':
-				password = true;
-				break;
-			case 'e':
-				echo = true;
-				break;
-			case 'q':
-				quiet = true;
-				break;
-			case 'v':
-				verbose = true;
-				break;
-			case 'd':
-				dbname = optarg;
-				break;
-			case 'a':
-				alldb = true;
-				break;
-			case 't':
-				table = optarg;
-				break;
-			case 'n':
-				orderby = "";
-				break;
-			case 'o':
-				orderby = optarg;
-				break;
-			default:
-				fprintf(stderr, _("Try \"%s --help\" for more information.\n"), progname);
-				exit(1);
-		}
-	}
-
-	switch (argc - optind)
-	{
-		case 0:
-			break;
-		case 1:
-			dbname = argv[optind];
-			break;
-		default:
-			fprintf(stderr, _("%s: too many command-line arguments (first is \"%s\")\n"),
-					progname, argv[optind + 1]);
-			fprintf(stderr, _("Try \"%s --help\" for more information.\n"), progname);
-			exit(1);
-	}
-
-	reorg_setup_cancel_handler();
-	atexit(warn_if_unclean);
+	exitcode = pgut_getopt(argc, argv);
+	if (exitcode)
+		return exitcode;
 
 	if (alldb)
 	{
-		if (dbname)
-		{
-			fprintf(stderr, _("%s: cannot reorg all databases and a specific one at the same time\n"),
-					progname);
-			exit(1);
-		}
 		if (table)
 		{
-			fprintf(stderr, _("%s: cannot reorg a specific table in all databases\n"),
+			fprintf(stderr, "%s: cannot reorg a specific table in all databases\n",
 					progname);
 			exit(1);
 		}
@@ -283,14 +183,9 @@ main(int argc, char *argv[])
 	}
 	else
 	{
-		(void) (dbname ||
-		(dbname = getenv("PGDATABASE")) ||
-		(dbname = getenv("PGUSER")) ||
-		(dbname = get_user_name(progname)));
-
 		if (!reorg_one_database(orderby, table))
 		{
-			fprintf(stderr, _("ERROR:  %s is not installed\n"), progname);
+			fprintf(stderr, "ERROR:  %s is not installed\n", progname);
 			return 1;
 		}
 	}
@@ -314,13 +209,13 @@ reorg_all_databases(const char *orderby)
 
 	for (i = 0; i < PQntuples(result); i++)
 	{
-		bool	ret;
+		pqbool	ret;
 
 		dbname = PQgetvalue(result, i, 0);
 
 		if (!quiet)
 		{
-			printf(_("%s: reorg database \"%s\""), progname, dbname);
+			printf("%s: reorg database \"%s\"", progname, dbname);
 			fflush(stdout);
 		}
 
@@ -331,7 +226,7 @@ reorg_all_databases(const char *orderby)
 			if (ret)
 				printf("\n");
 			else
-				printf(_(" ... skipped\n"));
+				printf(" ... skipped\n");
 			fflush(stdout);
 		}
 	}
@@ -361,10 +256,10 @@ getoid(PGresult *res, int row, int col)
 /*
  * Call reorg_one_table for the target table or each table in a database.
  */
-static bool
+static pqbool
 reorg_one_database(const char *orderby, const char *table)
 {
-	bool			ret = true;
+	pqbool			ret = true;
 	PGresult	   *res;
 	int				i;
 	int				num;
@@ -408,7 +303,7 @@ reorg_one_database(const char *orderby, const char *table)
 			/* exit otherwise */
 			printf("%s", PQerrorMessage(current_conn));
 			PQclear(res);
-			exit_with_cleanup(1);
+			exit(1);
 		}
 	}
 
@@ -430,8 +325,8 @@ reorg_one_database(const char *orderby, const char *table)
 
 		if (table.pkid == 0)
 		{
-			fprintf(stderr, _("ERROR:  relation \"%s\" has no primary key\n"), table.target_name);
-			exit_with_cleanup(1);
+			fprintf(stderr, "ERROR:  relation \"%s\" has no primary key\n", table.target_name);
+			exit(1);
 		}
 
 		table.create_pktype = getstr(res, i, c++);
@@ -449,8 +344,8 @@ reorg_one_database(const char *orderby, const char *table)
 			/* CLUSTER mode */
 			if (ckey == NULL)
 			{
-				fprintf(stderr, _("ERROR:  relation \"%s\" has no cluster key\n"), table.target_name);
-				exit_with_cleanup(1);
+				fprintf(stderr, "ERROR:  relation \"%s\" has no cluster key\n", table.target_name);
+				exit(1);
 			}
 			appendPQExpBuffer(&sql, "%s ORDER BY %s", create_table, ckey);
             table.create_table = sql.data;
@@ -561,9 +456,9 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 		1, params);
 	if (PQntuples(res) > 0)
 	{
-		fprintf(stderr, _("%s: trigger conflicted for %s\n"),
+		fprintf(stderr, "%s: trigger conflicted for %s\n",
 			progname, table->target_name);
-		exit_with_cleanup(1);
+		exit(1);
 	}
 
 	command(table->create_pktype, 0, NULL);
@@ -685,7 +580,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 			/* exit otherwise */
 			printf("%s", PQerrorMessage(current_conn));
 			PQclear(res);
-			exit_with_cleanup(1);
+			exit(1);
 		}
 	}
 
@@ -710,279 +605,73 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	free(vxid);
 }
 
-static void
-cleanup(void)
+void
+pgut_cleanup(pqbool fatal)
 {
-	char		buffer[12];
-	const char *params[1];
-
-	if (!current_table)
-		return;
-
-	params[0] = utoa(current_table->target_oid, buffer);
-	execute("SELECT reorg.reorg_drop($1)", 1, params);
-	current_table = NULL;
-}
-
-static void
-reconnect(void)
-{
-	disconnect();
-	current_conn = connectDatabase(dbname, host, port, username, password, progname);
-}
-
-static void
-disconnect(void)
-{
-	if (current_conn)
+	if (fatal)
 	{
-		PQfinish(current_conn);
-		current_conn = NULL;
+		if (current_table)
+			fprintf(stderr, "!!!FATAL ERROR!!! Please refer to a manual.\n\n");
 	}
-}
-
-static void
-exit_with_cleanup(int exitcode)
-{
-	if (current_table)
+	else
 	{
+		char		buffer[12];
+		const char *params[1];
+
+		if (current_table == NULL)
+			return;	/* no needs to cleanup */
+
 		/* Rollback current transaction */
 		if (current_conn)
-		{
-			PGresult *res;
-			res = PQexec(current_conn, "ROLLBACK");
-			if (PQresultStatus(res) != PGRES_COMMAND_OK)
-				exit(1);	/* fatal error */
-			PQclear(res);
-		}
+			command("ROLLBACK", 0, NULL);
 
 		/* Try reconnection if not available. */
 		if (PQstatus(current_conn) != CONNECTION_OK)
 			reconnect();
 
-		cleanup();
+		/* do cleanup */
+		params[0] = utoa(current_table->target_oid, buffer);
+		command("SELECT reorg.reorg_drop($1)", 1, params);
+		current_table = NULL;
 	}
-
-	disconnect();
-	exit(exitcode);
 }
 
-static PGresult *
-execute_nothrow(const char *query, int nParams, const char **params)
+int
+pgut_help(void)
 {
-	PGresult   *res;
-
-	if (echo)
-		fprintf(stderr, _("%s: executing %s\n"), progname, query);
-
-#ifdef DEBUG_REORG
-	fprintf(stderr, "debug: suspend in execute. (sql='%s')\npush enter key: ", query);
-	fgetc(stdin);
+	fprintf(stderr,
+		"%s re-organizes a PostgreSQL database.\n\n"
+		"Usage:\n"
+		"  %s [OPTION]... [DBNAME]\n"
+		"\nOptions:\n"
+		"  -a, --all                 reorg all databases\n"
+		"  -d, --dbname=DBNAME       database to reorg\n"
+		"  -t, --table=TABLE         reorg specific table only\n"
+		"  -n, --no-order            do vacuum full instead of cluster\n"
+		"  -o, --order-by=columns    order by columns instead of cluster keys\n"
+		"  -e, --echo                show the commands being sent to the server\n"
+		"  -q, --quiet               don't write any messages\n"
+		"  -v, --verbose             display detailed information during processing\n"
+		"  --help                    show this help, then exit\n"
+		"  --version                 output version information, then exit\n"
+		"\nConnection options:\n"
+		"  -h, --host=HOSTNAME       database server host or socket directory\n"
+		"  -p, --port=PORT           database server port\n"
+		"  -U, --username=USERNAME   user name to connect as\n"
+		"  -W, --password            force password prompt\n",
+		progname, progname);
+#ifdef PROGRAM_URL
+	fprintf(stderr,"\nRead the website for details. <" PROGRAM_URL ">\n");
 #endif
-
-	reorg_command_begin(current_conn);
-	if (nParams == 0)
-		res = PQexec(current_conn, query);
-	else
-		res = PQexecParams(current_conn, query, nParams, NULL, params, NULL, NULL, 0);
-	reorg_command_end();
-
-	return res;
-}
-
-/*
- * execute - Execute a SQL and return the result, or exit() if failed.
- */
-static PGresult *
-execute(const char *query, int nParams, const char **params)
-{
-	if (interrupted)
-	{
-		interrupted = false;
-		fprintf(stderr, _("%s: interrupted\n"), progname);
-	}
-	else
-	{
-		PGresult   *res = execute_nothrow(query, nParams, params);
-
-		if (PQresultStatus(res) == PGRES_TUPLES_OK ||
-			PQresultStatus(res) == PGRES_COMMAND_OK)
-			return res;
-
-		fprintf(stderr, _("%s: query failed: %s"),
-				progname, PQerrorMessage(current_conn));
-		fprintf(stderr, _("%s: query was: %s\n"),
-				progname, query);
-		PQclear(res);
-	}
-
-	exit_with_cleanup(1);
-	return NULL;	/* keep compiler quiet */
-}
-
-/*
- * command - Execute a SQL and discard the result, or exit() if failed.
- */
-static void
-command(const char *query, int nParams, const char **params)
-{
-	PGresult *res = execute(query, nParams, params);
-	PQclear(res);
-}
-
-static void
-PrintHelp(const char *progname)
-{
-	printf(_("%s re-organizes a PostgreSQL database.\n\n"), progname);
-	printf(_("Usage:\n"));
-	printf(_("  %s [OPTION]... [DBNAME]\n"), progname);
-	printf(_("\nOptions:\n"));
-	printf(_("  -a, --all                 reorg all databases\n"));
-	printf(_("  -d, --dbname=DBNAME       database to reorg\n"));
-	printf(_("  -t, --table=TABLE         reorg specific table only\n"));
-	printf(_("  -n, --no-order            do vacuum full instead of cluster\n"));
-	printf(_("  -o, --order-by=columns    order by columns instead of cluster keys\n"));
-	printf(_("  -e, --echo                show the commands being sent to the server\n"));
-	printf(_("  -q, --quiet               don't write any messages\n"));
-	printf(_("  -v, --verbose             display detailed information during processing\n"));
-	printf(_("  --help                    show this help, then exit\n"));
-	printf(_("  --version                 output version information, then exit\n"));
-	printf(_("\nConnection options:\n"));
-	printf(_("  -h, --host=HOSTNAME       database server host or socket directory\n"));
-	printf(_("  -p, --port=PORT           database server port\n"));
-	printf(_("  -U, --username=USERNAME   user name to connect as\n"));
-	printf(_("  -W, --password            force password prompt\n"));
-#ifdef REORG_URL
-	printf(_("\nRead the website for details. <" REORG_URL ">\n"));
+#ifdef PROGRAM_EMAIL
+	fprintf(stderr,"\nReport bugs to <" PROGRAM_EMAIL ">.\n");
 #endif
-#ifdef REORG_EMAIL
-	printf(_("\nReport bugs to <" REORG_EMAIL ">.\n"));
-#endif
+	return EXITCODE_HELP;
 }
 
-static void
-PrintVersion(void)
+int
+pgut_version(void)
 {
-	fprintf(stderr, "pg_reorg " REORG_VERSION "\n");
+	fprintf(stderr, "%s %s\n", progname, PROGRAM_VERSION);
+	return EXITCODE_HELP;
 }
-
-/*
- * reorg_command_begin
- *
- * Set cancelConn to point to the current database connection.
- */
-static void
-reorg_command_begin(PGconn *conn)
-{
-	PGcancel   *oldCancelConn;
-
-#ifdef WIN32
-	EnterCriticalSection(&cancelConnLock);
-#endif
-
-	/* Free the old one if we have one */
-	oldCancelConn = cancelConn;
-
-	/* be sure handle_sigint doesn't use pointer while freeing */
-	cancelConn = NULL;
-
-	if (oldCancelConn != NULL)
-		PQfreeCancel(oldCancelConn);
-
-	cancelConn = PQgetCancel(conn);
-
-#ifdef WIN32
-	LeaveCriticalSection(&cancelConnLock);
-#endif
-}
-
-/*
- * reorg_command_end
- *
- * Free the current cancel connection, if any, and set to NULL.
- */
-static void
-reorg_command_end(void)
-{
-	PGcancel   *oldCancelConn;
-
-#ifdef WIN32
-	EnterCriticalSection(&cancelConnLock);
-#endif
-
-	oldCancelConn = cancelConn;
-
-	/* be sure handle_sigint doesn't use pointer while freeing */
-	cancelConn = NULL;
-
-	if (oldCancelConn != NULL)
-		PQfreeCancel(oldCancelConn);
-
-#ifdef WIN32
-	LeaveCriticalSection(&cancelConnLock);
-#endif
-}
-
-/*
- * Handle interrupt signals by cancelling the current command.
- */
-static void
-reorg_cancel(void)
-{
-	int			save_errno = errno;
-	char		errbuf[256];
-
-	/* Set interruped flag */
-	interrupted = true;
-
-	/* Send QueryCancel if we are processing a database query */
-	if (cancelConn != NULL && PQcancel(cancelConn, errbuf, sizeof(errbuf)))
-		fprintf(stderr, _("Cancel request sent\n"));
-
-	errno = save_errno;			/* just in case the write changed it */
-}
-
-#ifndef WIN32
-static void
-handle_sigint(SIGNAL_ARGS)
-{
-	reorg_cancel();
-}
-
-static void
-reorg_setup_cancel_handler(void)
-{
-	pqsignal(SIGINT, handle_sigint);
-}
-#else							/* WIN32 */
-
-/*
- * Console control handler for Win32. Note that the control handler will
- * execute on a *different thread* than the main one, so we need to do
- * proper locking around those structures.
- */
-static BOOL WINAPI
-consoleHandler(DWORD dwCtrlType)
-{
-	if (dwCtrlType == CTRL_C_EVENT ||
-		dwCtrlType == CTRL_BREAK_EVENT)
-	{
-		EnterCriticalSection(&cancelConnLock);
-		reorg_cancel();
-		LeaveCriticalSection(&cancelConnLock);
-		return TRUE;
-	}
-	else
-		/* Return FALSE for any signals not being handled */
-		return FALSE;
-}
-
-static void
-reorg_setup_cancel_handler(void)
-{
-	InitializeCriticalSection(&cancelConnLock);
-
-	SetConsoleCtrlHandler(consoleHandler, TRUE);
-}
-
-#endif   /* WIN32 */

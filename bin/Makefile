@@ -3,16 +3,15 @@
 #
 #    Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #
-SRCS = \
-	pg_reorg.c
-OBJS = $(SRCS:.c=.o) $(top_builddir)/src/bin/scripts/common.o
+SRCS = pg_reorg.c pgut/pgut.c
+OBJS = $(SRCS:.c=.o)
 PROGRAM = pg_reorg
 REGRESS = init reorg
 
 ifdef DEBUG_REORG
-PG_CPPFLAGS = -I$(libpq_srcdir) -I$(top_builddir)/src/bin/scripts -DDEBUG_REORG
+PG_CPPFLAGS = -I$(libpq_srcdir) -DDEBUG_REORG
 else
-PG_CPPFLAGS = -I$(libpq_srcdir) -I$(top_builddir)/src/bin/scripts
+PG_CPPFLAGS = -I$(libpq_srcdir)
 endif
 PG_LIBS = $(libpq)
 
