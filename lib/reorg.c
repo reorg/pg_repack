@@ -9,6 +9,9 @@
  */
 
 #include "postgres.h"
+
+#include <unistd.h>
+
 #include "access/transam.h"
 #include "access/xact.h"
 #include "catalog/dependency.h"

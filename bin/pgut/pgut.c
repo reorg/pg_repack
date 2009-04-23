@@ -29,7 +29,7 @@ static void init_cancel_handler(void);
 static void on_before_exec(PGconn *conn);
 static void on_after_exec(void);
 static void on_interrupt(void);
-static void on_exit(void);
+static void on_cleanup(void);
 static void exit_or_abort(int exitcode);
 const char *get_user_name(const char *progname);
 
@@ -150,7 +150,7 @@ pgut_getopt(int argc, char **argv)
 	}
 
 	init_cancel_handler();
-	atexit(on_exit);
+	atexit(on_cleanup);
 
 	(void) (dbname ||
 	(dbname = getenv("PGDATABASE")) ||
@@ -189,7 +189,12 @@ reconnect(void)
 		}
 
 		if (PQstatus(conn) == CONNECTION_BAD &&
+#if PG_VERSION_NUM >= 80300
 			PQconnectionNeedsPassword(conn) &&
+#else
+			strcmp(PQerrorMessage(conn), PQnoPasswordSupplied) == 0 &&
+			!feof(stdin) &&
+#endif
 			pwd == NULL)
 		{
 			PQfinish(conn);
@@ -360,7 +365,7 @@ on_interrupt(void)
 static pqbool	in_cleanup = false;
 
 static void
-on_exit(void)
+on_cleanup(void)
 {
 	in_cleanup = true;
 	pgut_cleanup(false);
