@@ -1,28 +1,33 @@
-/*
+/*-------------------------------------------------------------------------
+ *
  * pgut.c
  *
  * Copyright (c) 2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ *
+ *-------------------------------------------------------------------------
  */
-#include "pgut.h"
 
 #include "postgres_fe.h"
 #include "libpq/pqsignal.h"
 
 #include <unistd.h>
 
-const char *progname = NULL;
-const char *dbname = NULL;
-char	   *host = NULL;
-char	   *port = NULL;
-char	   *username = NULL;
-pqbool		password = false;
+#include "pgut.h"
 
-/* Interrupted by SIGINT (Ctrl+C) ? */
-pqbool		interrupted = false;
+const char *PROGRAM_NAME = NULL;
+
+const char *dbname = NULL;
+const char *host = NULL;
+const char *port = NULL;
+const char *username = NULL;
+bool		password = false;
 
 /* Database connections */
-PGconn	   *current_conn = NULL;
+PGconn	   *connection = NULL;
 static PGcancel *volatile cancel_conn = NULL;
+
+/* Interrupted by SIGINT (Ctrl+C) ? */
+static bool		interrupted = false;
 
 /* Connection routines */
 static void init_cancel_handler(void);
@@ -31,7 +36,8 @@ static void on_after_exec(void);
 static void on_interrupt(void);
 static void on_cleanup(void);
 static void exit_or_abort(int exitcode);
-const char *get_user_name(const char *progname);
+static void help(void);
+static const char *get_user_name(const char *PROGRAM_NAME);
 
 const char default_optstring[] = "d:h:p:U:W";
 
@@ -44,6 +50,9 @@ const struct option default_longopts[] =
 	{"password", no_argument, NULL, 'W'},
 	{NULL, 0, NULL, 0}
 };
+
+static const char			   *optstring = NULL;
+static const struct option	   *longopts = NULL;;
 
 static const char *
 merge_optstring(const char *opts)
@@ -83,29 +92,31 @@ merge_longopts(const struct option *opts)
 	return result;
 }
 
-int
-pgut_getopt(int argc, char **argv)
+void
+parse_options(int argc, char **argv)
 {
-	const char			   *optstring;
-	const struct option	   *longopts;
-
 	int		c;
 	int		optindex = 0;
 
-	progname = get_progname(argv[0]);
+	PROGRAM_NAME = get_progname(argv[0]);
 	set_pglocale_pgservice(argv[0], "pgscripts");
 
-	/*
-	 * Help message and version are handled at first.
-	 */
+	/* Help message and version are handled at first. */
 	if (argc > 1)
 	{
 		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
-			return pgut_help();
+		{
+			help();
+			exit_or_abort(HELP);
+		}
 		if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)
-			return pgut_version();
+		{
+			fprintf(stderr, "%s %s\n", PROGRAM_NAME, PROGRAM_VERSION);
+			exit_or_abort(HELP);
+		}
 	}
 
+	/* Merge default and user options. */
 	optstring = merge_optstring(pgut_optstring);
 	longopts = merge_longopts(pgut_longopts);
 
@@ -113,26 +124,26 @@ pgut_getopt(int argc, char **argv)
 	{
 		switch (c)
 		{
+		case 'd':
+			assign_option(&dbname, c, optarg);
+			break;
 		case 'h':
-			host = optarg;
+			assign_option(&host, c, optarg);
 			break;
 		case 'p':
-			port = optarg;
+			assign_option(&port, c, optarg);
 			break;
 		case 'U':
-			username = optarg;
+			assign_option(&username, c, optarg);
 			break;
 		case 'W':
 			password = true;
 			break;
-		case 'd':
-			dbname = optarg;
-			break;
 		default:
 			if (!pgut_argument(c, optarg))
 			{
-				fprintf(stderr, _("Try \"%s --help\" for more information.\n"), progname);
-				exit_or_abort(EXITCODE_ERROR);
+				fprintf(stderr, "Try \"%s --help\" for more information.\n", PROGRAM_NAME);
+				exit_or_abort(ERROR);
 			}
 			break;
 		}
@@ -142,10 +153,10 @@ pgut_getopt(int argc, char **argv)
 	{
 		if (!pgut_argument(0, argv[optind]))
 		{
-			fprintf(stderr, _("%s: too many command-line arguments (first is \"%s\")\n"),
-					progname, argv[optind]);
-			fprintf(stderr, _("Try \"%s --help\" for more information.\n"), progname);
-			exit_or_abort(EXITCODE_ERROR);
+			fprintf(stderr, "%s: too many command-line arguments (first is \"%s\")\n",
+					PROGRAM_NAME, argv[optind]);
+			fprintf(stderr, "Try \"%s --help\" for more information.\n", PROGRAM_NAME);
+			exit_or_abort(ERROR);
 		}
 	}
 
@@ -155,9 +166,28 @@ pgut_getopt(int argc, char **argv)
 	(void) (dbname ||
 	(dbname = getenv("PGDATABASE")) ||
 	(dbname = getenv("PGUSER")) ||
-	(dbname = get_user_name(progname)));
+	(dbname = get_user_name(PROGRAM_NAME)));
+}
 
-	return 0;
+bool
+assign_option(const char **value, int c, const char *arg)
+{
+	if (*value != NULL)
+	{
+		const struct option *opt;
+		for (opt = longopts; opt->name; opt++)
+		{
+			if (opt->val == c)
+				break;
+		}
+		if (opt->name)
+			elog(ERROR, "option -%c(--%s) should be specified only once", c, opt->name);
+		else
+			elog(ERROR, "option -%c should be specified only once", c);
+		return false;
+	}
+	*value = arg;
+	return true;
 }
 
 void
@@ -182,11 +212,7 @@ reconnect(void)
 		conn = PQsetdbLogin(host, port, NULL, NULL, dbname, username, pwd);
 
 		if (!conn)
-		{
-			fprintf(stderr, _("%s: could not connect to database %s\n"),
-					progname, dbname);
-			exit_or_abort(EXITCODE_ERROR);
-		}
+			elog(ERROR, "could not connect to database %s", dbname);
 
 		if (PQstatus(conn) == CONNECTION_BAD &&
 #if PG_VERSION_NUM >= 80300
@@ -207,22 +233,19 @@ reconnect(void)
 
 	/* check to see that the backend connection was successfully made */
 	if (PQstatus(conn) == CONNECTION_BAD)
-	{
-		fprintf(stderr, _("%s: could not connect to database %s: %s"),
-				progname, dbname, PQerrorMessage(conn));
-		exit_or_abort(EXITCODE_ERROR);
-	}
+		elog(ERROR, "could not connect to database %s: %s",
+					dbname, PQerrorMessage(conn));
 
-	current_conn = conn;
+	connection = conn;
 }
 
 void
 disconnect(void)
 {
-	if (current_conn)
+	if (connection)
 	{
-		PQfinish(current_conn);
-		current_conn = NULL;
+		PQfinish(connection);
+		connection = NULL;
 	}
 }
 
@@ -231,11 +254,17 @@ execute_nothrow(const char *query, int nParams, const char **params)
 {
 	PGresult   *res;
 
-	on_before_exec(current_conn);
+	if (interrupted)
+	{
+		interrupted = false;
+		elog(ERROR, "%s: interrupted", PROGRAM_NAME);
+	}
+
+	on_before_exec(connection);
 	if (nParams == 0)
-		res = PQexec(current_conn, query);
+		res = PQexec(connection, query);
 	else
-		res = PQexecParams(current_conn, query, nParams, NULL, params, NULL, NULL, 0);
+		res = PQexecParams(connection, query, nParams, NULL, params, NULL, NULL, 0);
 	on_after_exec();
 
 	return res;
@@ -247,27 +276,16 @@ execute_nothrow(const char *query, int nParams, const char **params)
 PGresult *
 execute(const char *query, int nParams, const char **params)
 {
-	if (interrupted)
-	{
-		interrupted = false;
-		fprintf(stderr, _("%s: interrupted\n"), progname);
-	}
-	else
-	{
-		PGresult   *res = execute_nothrow(query, nParams, params);
+	PGresult   *res = execute_nothrow(query, nParams, params);
 
-		if (PQresultStatus(res) == PGRES_TUPLES_OK ||
-			PQresultStatus(res) == PGRES_COMMAND_OK)
-			return res;
+	if (PQresultStatus(res) == PGRES_TUPLES_OK ||
+		PQresultStatus(res) == PGRES_COMMAND_OK)
+		return res;
 
-		fprintf(stderr, _("%s: query failed: %s"),
-				progname, PQerrorMessage(current_conn));
-		fprintf(stderr, _("%s: query was: %s\n"),
-				progname, query);
-		PQclear(res);
-	}
-
-	exit_or_abort(EXITCODE_ERROR);
+	fprintf(stderr, "%s: query failed: %s", PROGRAM_NAME, PQerrorMessage(connection));
+	fprintf(stderr, "%s: query was: %s\n", PROGRAM_NAME, query);
+	PQclear(res);
+	exit_or_abort(ERROR);
 	return NULL;	/* keep compiler quiet */
 }
 
@@ -281,6 +299,48 @@ command(const char *query, int nParams, const char **params)
 	PQclear(res);
 }
 
+/*
+ * elog - log to stderr and exit if ERROR or FATAL
+ */
+void
+elog(int elevel, const char *fmt, ...)
+{
+	va_list		args;
+
+	switch (elevel)
+	{
+	case LOG:
+		fputs("LOG: ", stderr);
+		break;
+	case INFO:
+		fputs("INFO: ", stderr);
+		break;
+	case NOTICE:
+		fputs("NOTICE: ", stderr);
+		break;
+	case WARNING:
+		fputs("WARNING: ", stderr);
+		break;
+	case ERROR:
+		fputs("ERROR: ", stderr);
+		break;
+	case FATAL:
+		fputs("FATAL: ", stderr);
+		break;
+	case PANIC:
+		fputs("PANIC: ", stderr);
+		break;
+	}
+
+	va_start(args, fmt);
+	vfprintf(stderr, fmt, args);
+	va_end(args);
+	fputc('\n', stderr);
+	fflush(stderr);
+
+	if (elevel > 0)
+		exit_or_abort(elevel);
+}
 
 #ifdef WIN32
 static CRITICAL_SECTION cancelConnLock;
@@ -357,12 +417,12 @@ on_interrupt(void)
 
 	/* Send QueryCancel if we are processing a database query */
 	if (cancel_conn != NULL && PQcancel(cancel_conn, errbuf, sizeof(errbuf)))
-		fprintf(stderr, _("Cancel request sent\n"));
+		fprintf(stderr, "Cancel request sent\n");
 
 	errno = save_errno;			/* just in case the write changed it */
 }
 
-static pqbool	in_cleanup = false;
+static bool	in_cleanup = false;
 
 static void
 on_cleanup(void)
@@ -388,33 +448,45 @@ exit_or_abort(int exitcode)
 	}
 }
 
+static void help(void)
+{
+	pgut_help();
+	fprintf(stderr, "\nConnection options:\n");
+	fprintf(stderr, "  -d, --dbname=DBNAME       database to connect\n");
+	fprintf(stderr, "  -h, --host=HOSTNAME       database server host or socket directory\n");
+	fprintf(stderr, "  -p, --port=PORT           database server port\n");
+	fprintf(stderr, "  -U, --username=USERNAME   user name to connect as\n");
+	fprintf(stderr, "  -W, --password            force password prompt\n");
+	fprintf(stderr, "\nGeneric Options:\n");
+	fprintf(stderr, "  --help                    show this help, then exit\n");
+	fprintf(stderr, "  --version                 output version information, then exit\n\n");
+	if (PROGRAM_URL)
+		fprintf(stderr, "Read the website for details. <%s>\n", PROGRAM_URL);
+	if (PROGRAM_EMAIL)
+		fprintf(stderr, "Report bugs to <%s>.\n", PROGRAM_EMAIL);
+}
+
 /*
  * Returns the current user name.
  */
-const char *
-get_user_name(const char *progname)
+static const char *
+get_user_name(const char *PROGRAM_NAME)
 {
 #ifndef WIN32
 	struct passwd *pw;
 
 	pw = getpwuid(geteuid());
 	if (!pw)
-	{
-		fprintf(stderr, _("%s: could not obtain information about current user: %s\n"),
-				progname, strerror(errno));
-		exit_or_abort(EXITCODE_ERROR);
-	}
+		elog(ERROR, "%s: could not obtain information about current user: %s",
+				PROGRAM_NAME, strerror(errno));
 	return pw->pw_name;
 #else
 	static char username[128];	/* remains after function exit */
 	DWORD		len = sizeof(username) - 1;
 
 	if (!GetUserName(username, &len))
-	{
-		fprintf(stderr, _("%s: could not get current user name: %s\n"),
-				progname, strerror(errno));
-		exit_or_abort(EXITCODE_ERROR);
-	}
+		elog(ERROR, "%s: could not get current user name: %s",
+			PROGRAM_NAME, strerror(errno));
 	return username;
 #endif
 }

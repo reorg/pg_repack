@@ -3,7 +3,7 @@
 #
 #    Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #
-SRCS = reorg.c
+SRCS = reorg.c pgut/pgut-be.c
 OBJS = $(SRCS:.c=.o)
 MODULE_big = pg_reorg
 DATA_built = pg_reorg.sql

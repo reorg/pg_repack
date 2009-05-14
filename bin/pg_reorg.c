@@ -8,18 +8,16 @@
  * @brief Client Modules
  */
 
-#define PROGRAM_VERSION	"1.0.4"
-#define PROGRAM_URL		"http://reorg.projects.postgresql.org/"
-#define PROGRAM_EMAIL	"reorg-general@lists.pgfoundry.org"
+const char *PROGRAM_VERSION	= "1.0.4";
+const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
+const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
 #include "pgut/pgut.h"
-#include "pqexpbuffer.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-#define EXITCODE_HELP	2
 #define APPLY_COUNT		1000
 
 #define SQL_XID_SNAPSHOT_80300 \
@@ -37,12 +35,12 @@
 	" AND pid <> pg_backend_pid() AND transactionid = ANY($1) LIMIT 1"
 
 #define SQL_XID_SNAPSHOT \
-	(PQserverVersion(current_conn) >= 80300 \
+	(PQserverVersion(connection) >= 80300 \
 	? SQL_XID_SNAPSHOT_80300 \
 	: SQL_XID_SNAPSHOT_80200)
 
 #define SQL_XID_ALIVE \
-	(PQserverVersion(current_conn) >= 80300 \
+	(PQserverVersion(connection) >= 80300 \
 	? SQL_XID_ALIVE_80300 \
 	: SQL_XID_ALIVE_80200)
 
@@ -80,7 +78,7 @@ typedef struct reorg_index
 } reorg_index;
 
 static void reorg_all_databases(const char *orderby);
-static pqbool reorg_one_database(const char *orderby, const char *table);
+static bool reorg_one_database(const char *orderby, const char *table);
 static void reorg_one_table(const reorg_table *table, const char *orderby);
 
 static char *getstr(PGresult *res, int row, int col);
@@ -89,14 +87,14 @@ static Oid getoid(PGresult *res, int row, int col);
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_LOCK_NOT_AVAILABLE		"55P03"
 
-static pqbool sqlstate_equals(PGresult *res, const char *state)
+static bool sqlstate_equals(PGresult *res, const char *state)
 {
 	return strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), state) == 0;
 }
 
-static pqbool	echo = false;
-static pqbool	verbose = false;
-static pqbool	quiet = false;
+static bool	echo = false;
+static bool	verbose = false;
+static bool	quiet = false;
 
 /*
  * The table begin re-organized. If not null, we need to cleanup temp
@@ -125,11 +123,11 @@ const struct option pgut_longopts[] = {
 	{NULL, 0, NULL, 0}
 };
 
-pqbool		alldb = false;
+bool		alldb = false;
 const char *table = NULL;
 const char *orderby = NULL;
 
-pqbool
+bool
 pgut_argument(int c, const char *arg)
 {
 	switch (c)
@@ -147,13 +145,13 @@ pgut_argument(int c, const char *arg)
 			alldb = true;
 			break;
 		case 't':
-			table = arg;
+			assign_option(&table, c, arg);
 			break;
 		case 'n':
-			orderby = "";
+			assign_option(&orderby, c, "");
 			break;
 		case 'o':
-			orderby = arg;
+			assign_option(&orderby, c, arg);
 			break;
 		default:
 			return false;
@@ -164,30 +162,18 @@ pgut_argument(int c, const char *arg)
 int
 main(int argc, char *argv[])
 {
-	int			exitcode;
-
-	exitcode = pgut_getopt(argc, argv);
-	if (exitcode)
-		return exitcode;
+	parse_options(argc, argv);
 
 	if (alldb)
 	{
 		if (table)
-		{
-			fprintf(stderr, "%s: cannot reorg a specific table in all databases\n",
-					progname);
-			exit(1);
-		}
-
+			elog(ERROR, "cannot reorg a specific table in all databases");
 		reorg_all_databases(orderby);
 	}
 	else
 	{
 		if (!reorg_one_database(orderby, table))
-		{
-			fprintf(stderr, "ERROR:  %s is not installed\n", progname);
-			return 1;
-		}
+			elog(ERROR, "%s is not installed", PROGRAM_NAME);
 	}
 
 	return 0;
@@ -209,13 +195,13 @@ reorg_all_databases(const char *orderby)
 
 	for (i = 0; i < PQntuples(result); i++)
 	{
-		pqbool	ret;
+		bool	ret;
 
 		dbname = PQgetvalue(result, i, 0);
 
 		if (!quiet)
 		{
-			printf("%s: reorg database \"%s\"", progname, dbname);
+			printf("%s: reorg database \"%s\"", PROGRAM_NAME, dbname);
 			fflush(stdout);
 		}
 
@@ -256,10 +242,10 @@ getoid(PGresult *res, int row, int col)
 /*
  * Call reorg_one_table for the target table or each table in a database.
  */
-static pqbool
+static bool
 reorg_one_database(const char *orderby, const char *table)
 {
-	pqbool			ret = true;
+	bool			ret = true;
 	PGresult	   *res;
 	int				i;
 	int				num;
@@ -301,7 +287,7 @@ reorg_one_database(const char *orderby, const char *table)
 		else
 		{
 			/* exit otherwise */
-			printf("%s", PQerrorMessage(current_conn));
+			printf("%s", PQerrorMessage(connection));
 			PQclear(res);
 			exit(1);
 		}
@@ -324,10 +310,7 @@ reorg_one_database(const char *orderby, const char *table)
 		table.ckid = getoid(res, i, c++);
 
 		if (table.pkid == 0)
-		{
-			fprintf(stderr, "ERROR:  relation \"%s\" has no primary key\n", table.target_name);
-			exit(1);
-		}
+			elog(ERROR, "relation \"%s\" has no primary key", table.target_name);
 
 		table.create_pktype = getstr(res, i, c++);
 		table.create_log = getstr(res, i, c++);
@@ -343,10 +326,7 @@ reorg_one_database(const char *orderby, const char *table)
 		{
 			/* CLUSTER mode */
 			if (ckey == NULL)
-			{
-				fprintf(stderr, "ERROR:  relation \"%s\" has no cluster key\n", table.target_name);
-				exit(1);
-			}
+				elog(ERROR, "relation \"%s\" has no cluster key", table.target_name);
 			appendPQExpBuffer(&sql, "%s ORDER BY %s", create_table, ckey);
             table.create_table = sql.data;
 		}
@@ -455,11 +435,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 		" WHERE tgrelid = $1 AND tgname >= 'z_reorg_trigger' LIMIT 1",
 		1, params);
 	if (PQntuples(res) > 0)
-	{
-		fprintf(stderr, "%s: trigger conflicted for %s\n",
-			progname, table->target_name);
-		exit(1);
-	}
+		elog(ERROR, "trigger conflicted for %s", table->target_name);
 
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
@@ -482,7 +458,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
 	/* SET work_mem = maintenance_work_mem */
 	command("SELECT set_config('work_mem', current_setting('maintenance_work_mem'), true)", 0, NULL);
-	if (PQserverVersion(current_conn) >= 80300 && orderby && !orderby[0])
+	if (PQserverVersion(connection) >= 80300 && orderby && !orderby[0])
 		command("SET LOCAL synchronize_seqscans = off", 0, NULL);
 	res = execute(SQL_XID_SNAPSHOT, 0, NULL);
 	vxid = strdup(PQgetvalue(res, 0, 0));
@@ -578,7 +554,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 		else
 		{
 			/* exit otherwise */
-			printf("%s", PQerrorMessage(current_conn));
+			printf("%s", PQerrorMessage(connection));
 			PQclear(res);
 			exit(1);
 		}
@@ -606,7 +582,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 }
 
 void
-pgut_cleanup(pqbool fatal)
+pgut_cleanup(bool fatal)
 {
 	if (fatal)
 	{
@@ -622,11 +598,11 @@ pgut_cleanup(pqbool fatal)
 			return;	/* no needs to cleanup */
 
 		/* Rollback current transaction */
-		if (current_conn)
+		if (connection)
 			command("ROLLBACK", 0, NULL);
 
 		/* Try reconnection if not available. */
-		if (PQstatus(current_conn) != CONNECTION_OK)
+		if (PQstatus(connection) != CONNECTION_OK)
 			reconnect();
 
 		/* do cleanup */
@@ -636,7 +612,7 @@ pgut_cleanup(pqbool fatal)
 	}
 }
 
-int
+void
 pgut_help(void)
 {
 	fprintf(stderr,
@@ -645,33 +621,11 @@ pgut_help(void)
 		"  %s [OPTION]... [DBNAME]\n"
 		"\nOptions:\n"
 		"  -a, --all                 reorg all databases\n"
-		"  -d, --dbname=DBNAME       database to reorg\n"
 		"  -t, --table=TABLE         reorg specific table only\n"
 		"  -n, --no-order            do vacuum full instead of cluster\n"
 		"  -o, --order-by=columns    order by columns instead of cluster keys\n"
 		"  -e, --echo                show the commands being sent to the server\n"
 		"  -q, --quiet               don't write any messages\n"
-		"  -v, --verbose             display detailed information during processing\n"
-		"  --help                    show this help, then exit\n"
-		"  --version                 output version information, then exit\n"
-		"\nConnection options:\n"
-		"  -h, --host=HOSTNAME       database server host or socket directory\n"
-		"  -p, --port=PORT           database server port\n"
-		"  -U, --username=USERNAME   user name to connect as\n"
-		"  -W, --password            force password prompt\n",
-		progname, progname);
-#ifdef PROGRAM_URL
-	fprintf(stderr,"\nRead the website for details. <" PROGRAM_URL ">\n");
-#endif
-#ifdef PROGRAM_EMAIL
-	fprintf(stderr,"\nReport bugs to <" PROGRAM_EMAIL ">.\n");
-#endif
-	return EXITCODE_HELP;
-}
-
-int
-pgut_version(void)
-{
-	fprintf(stderr, "%s %s\n", progname, PROGRAM_VERSION);
-	return EXITCODE_HELP;
+		"  -v, --verbose             display detailed information during processing\n",
+		PROGRAM_NAME, PROGRAM_NAME);
 }
