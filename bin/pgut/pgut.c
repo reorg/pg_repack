@@ -21,13 +21,14 @@ const char *host = NULL;
 const char *port = NULL;
 const char *username = NULL;
 bool		password = false;
+bool		debug = false;
 
 /* Database connections */
 PGconn	   *connection = NULL;
 static PGcancel *volatile cancel_conn = NULL;
 
 /* Interrupted by SIGINT (Ctrl+C) ? */
-static bool		interrupted = false;
+bool		interrupted = false;
 
 /* Connection routines */
 static void init_cancel_handler(void);
@@ -39,39 +40,18 @@ static void exit_or_abort(int exitcode);
 static void help(void);
 static const char *get_user_name(const char *PROGRAM_NAME);
 
-const char default_optstring[] = "d:h:p:U:W";
-
-const struct option default_longopts[] =
+const struct option default_options[] =
 {
 	{"dbname", required_argument, NULL, 'd'},
 	{"host", required_argument, NULL, 'h'},
 	{"port", required_argument, NULL, 'p'},
 	{"username", required_argument, NULL, 'U'},
 	{"password", no_argument, NULL, 'W'},
+	{"debug", no_argument, NULL, '!'},
 	{NULL, 0, NULL, 0}
 };
 
-static const char			   *optstring = NULL;
 static const struct option	   *longopts = NULL;;
-
-static const char *
-merge_optstring(const char *opts)
-{
-	size_t	len;
-	char   *result;
-
-	if (opts == NULL)
-		return default_optstring;
-
-	len = strlen(opts);
-	if (len == 0)
-		return default_optstring;
-
-	result = malloc(len + lengthof(default_optstring));
-	memcpy(&result[0], opts, len);
-	memcpy(&result[len], default_optstring, lengthof(default_optstring));
-	return result;
-}
 
 static const struct option *
 merge_longopts(const struct option *opts)
@@ -80,23 +60,46 @@ merge_longopts(const struct option *opts)
 	struct option *result;
 
 	if (opts == NULL)
-		return default_longopts;
+		return default_options;
 
 	for (len = 0; opts[len].name; len++) { }
 	if (len == 0)
-		return default_longopts;
+		return default_options;
 
-	result = (struct option *) malloc((len + lengthof(default_longopts)) * sizeof(struct option));
+	result = (struct option *) malloc((len + lengthof(default_options)) * sizeof(struct option));
 	memcpy(&result[0], opts, len * sizeof(struct option));
-	memcpy(&result[len], default_longopts, lengthof(default_longopts) * sizeof(struct option));
+	memcpy(&result[len], default_options, lengthof(default_options) * sizeof(struct option));
+	return result;
+}
+
+static const char *
+longopts_to_optstring(const struct option *opts)
+{
+	size_t	len;
+	char   *result;
+	char   *s;
+
+	for (len = 0; opts[len].name; len++) { }
+	result = malloc(len * 2 + 1);
+
+	s = result;
+	for (len = 0; opts[len].name; len++)
+	{
+		*s++ = opts[len].val;
+		if (opts[len].has_arg == required_argument)
+			*s++ = ':';
+	}
+	*s = '\0';
+
 	return result;
 }
 
 void
 parse_options(int argc, char **argv)
 {
-	int		c;
-	int		optindex = 0;
+	int			c;
+	int			optindex = 0;
+	const char *optstring;
 
 	PROGRAM_NAME = get_progname(argv[0]);
 	set_pglocale_pgservice(argv[0], "pgscripts");
@@ -117,8 +120,8 @@ parse_options(int argc, char **argv)
 	}
 
 	/* Merge default and user options. */
-	optstring = merge_optstring(pgut_optstring);
-	longopts = merge_longopts(pgut_longopts);
+	longopts = merge_longopts(pgut_options);
+	optstring = longopts_to_optstring(longopts);
 
 	while ((c = getopt_long(argc, argv, optstring, longopts, &optindex)) != -1)
 	{
@@ -138,6 +141,9 @@ parse_options(int argc, char **argv)
 			break;
 		case 'W':
 			password = true;
+			break;
+		case '!':
+			debug = true;
 			break;
 		default:
 			if (!pgut_argument(c, optarg))
@@ -250,7 +256,7 @@ disconnect(void)
 }
 
 PGresult *
-execute_nothrow(const char *query, int nParams, const char **params)
+execute_elevel(const char *query, int nParams, const char **params, int elevel)
 {
 	PGresult   *res;
 
@@ -260,12 +266,36 @@ execute_nothrow(const char *query, int nParams, const char **params)
 		elog(ERROR, "%s: interrupted", PROGRAM_NAME);
 	}
 
+	/* write query to elog if debug */
+	if (debug)
+	{
+		int		i;
+
+		if (strchr(query, '\n'))
+			elog(LOG, "(query)\n%s", query);
+		else
+			elog(LOG, "(query) %s", query);
+		for (i = 0; i < nParams; i++)
+			elog(LOG, "\t(param:%d) = %s", i, params[i] ? params[i] : "(null)");
+	}
+
 	on_before_exec(connection);
 	if (nParams == 0)
 		res = PQexec(connection, query);
 	else
 		res = PQexecParams(connection, query, nParams, NULL, params, NULL, NULL, 0);
 	on_after_exec();
+
+	switch (PQresultStatus(res))
+	{
+		case PGRES_TUPLES_OK:
+		case PGRES_COMMAND_OK:
+			break;
+		default:
+			elog(elevel, "query failed: %squery was: %s",
+				PQerrorMessage(connection), query);
+			break;
+	}
 
 	return res;
 }
@@ -276,17 +306,7 @@ execute_nothrow(const char *query, int nParams, const char **params)
 PGresult *
 execute(const char *query, int nParams, const char **params)
 {
-	PGresult   *res = execute_nothrow(query, nParams, params);
-
-	if (PQresultStatus(res) == PGRES_TUPLES_OK ||
-		PQresultStatus(res) == PGRES_COMMAND_OK)
-		return res;
-
-	fprintf(stderr, "%s: query failed: %s", PROGRAM_NAME, PQerrorMessage(connection));
-	fprintf(stderr, "%s: query was: %s\n", PROGRAM_NAME, query);
-	PQclear(res);
-	exit_or_abort(ERROR);
-	return NULL;	/* keep compiler quiet */
+	return execute_elevel(query, nParams, params, ERROR);
 }
 
 /*
@@ -306,6 +326,9 @@ void
 elog(int elevel, const char *fmt, ...)
 {
 	va_list		args;
+
+	if (!debug && elevel <= LOG)
+		return;
 
 	switch (elevel)
 	{
@@ -457,7 +480,8 @@ static void help(void)
 	fprintf(stderr, "  -p, --port=PORT           database server port\n");
 	fprintf(stderr, "  -U, --username=USERNAME   user name to connect as\n");
 	fprintf(stderr, "  -W, --password            force password prompt\n");
-	fprintf(stderr, "\nGeneric Options:\n");
+	fprintf(stderr, "\nGeneric options:\n");
+	fprintf(stderr, "  --debug                   debug mode\n");
 	fprintf(stderr, "  --help                    show this help, then exit\n");
 	fprintf(stderr, "  --version                 output version information, then exit\n\n");
 	if (PROGRAM_URL)

@@ -31,19 +31,23 @@
 
 PG_MODULE_MAGIC;
 
+Datum reorg_version(PG_FUNCTION_ARGS);
 Datum reorg_trigger(PG_FUNCTION_ARGS);
 Datum reorg_apply(PG_FUNCTION_ARGS);
 Datum reorg_get_index_keys(PG_FUNCTION_ARGS);
 Datum reorg_indexdef(PG_FUNCTION_ARGS);
 Datum reorg_swap(PG_FUNCTION_ARGS);
 Datum reorg_drop(PG_FUNCTION_ARGS);
+Datum reorg_disable_autovacuum(PG_FUNCTION_ARGS);
 
+PG_FUNCTION_INFO_V1(reorg_version);
 PG_FUNCTION_INFO_V1(reorg_trigger);
 PG_FUNCTION_INFO_V1(reorg_apply);
 PG_FUNCTION_INFO_V1(reorg_get_index_keys);
 PG_FUNCTION_INFO_V1(reorg_indexdef);
 PG_FUNCTION_INFO_V1(reorg_swap);
 PG_FUNCTION_INFO_V1(reorg_drop);
+PG_FUNCTION_INFO_V1(reorg_disable_autovacuum);
 
 static void	reorg_init(void);
 static SPIPlanPtr reorg_prepare(const char *src, int nargs, Oid *argtypes);
@@ -69,6 +73,12 @@ must_be_superuser(const char *func)
 #if PG_VERSION_NUM < 80400
 static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId);
 #endif
+
+Datum
+reorg_version(PG_FUNCTION_ARGS)
+{
+	return CStringGetTextDatum("pg_reorg 1.0.5");
+}
 
 /**
  * @fn      Datum reorg_trigger(PG_FUNCTION_ARGS)
@@ -274,7 +284,7 @@ typedef struct IndexDef
 } IndexDef;
 
 static char *
-generate_relation_name(Oid relid)
+get_relation_name(Oid relid)
 {
 	Oid		nsp = get_rel_namespace(relid);
 	char   *nspname;
@@ -380,7 +390,7 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 {
 	char *sql = pg_get_indexdef_string(index);
 	const char *idxname = get_quoted_relname(index);
-	const char *tblname = generate_relation_name(table);
+	const char *tblname = get_relation_name(table);
 
 	/* CREATE [UNIQUE] INDEX */
 	stmt->create = sql;
@@ -646,6 +656,19 @@ reorg_drop(PG_FUNCTION_ARGS)
 		"DROP TRIGGER IF EXISTS z_reorg_trigger ON %s.%s CASCADE",
 		nspname, relname);
 
+#if PG_VERSION_NUM < 80400
+	/* delete autovacuum settings */
+	reorg_execf(
+		SPI_OK_DELETE,
+		"DELETE FROM pg_catalog.pg_autovacuum v"
+		" USING pg_class c, pg_namespace n"
+		" WHERE relname IN ('log_%u', 'table_%u')"
+		"   AND n.nspname = 'reorg'"
+		"   AND c.relnamespace = n.oid"
+		"   AND v.vacrelid = c.oid",
+		oid, oid);
+#endif
+
 	/* drop log table */
 	reorg_execf(
 		SPI_OK_UTILITY,
@@ -663,6 +686,31 @@ reorg_drop(PG_FUNCTION_ARGS)
 		SPI_OK_UTILITY,
 		"DROP TYPE IF EXISTS reorg.pk_%u CASCADE",
 		oid);
+
+	SPI_finish();
+
+	PG_RETURN_VOID();
+}
+
+Datum
+reorg_disable_autovacuum(PG_FUNCTION_ARGS)
+{
+	Oid			oid = PG_GETARG_OID(0);
+
+	/* connect to SPI manager */
+	reorg_init();
+
+#if PG_VERSION_NUM >= 80400
+	reorg_execf(
+		SPI_OK_UTILITY,
+		"ALTER TABLE %s SET (autovacuum_enabled = off)",
+		get_relation_name(oid));
+#else
+	reorg_execf(
+		SPI_OK_INSERT,
+		"INSERT INTO pg_catalog.pg_autovacuum VALUES (%u, false, -1, -1, -1, -1, -1, -1, -1, -1)",
+		oid);
+#endif
 
 	SPI_finish();
 

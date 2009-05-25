@@ -29,7 +29,6 @@ See also <a href="#options">options</a> for details.</p>
   <dd><tt>-U</tt> [<tt>--username</tt>] <tt><i>username</i></tt></dd>
   <dd><tt>-W</tt> [<tt>--password</tt>]</dd>
  <dt><tt>message-options</tt></dt>
-  <dd><tt>-e</tt> [<tt>--echo</tt>]</dd>
   <dd><tt>-q</tt> [<tt>--quiet</tt>]</dd>
   <dd><tt>-v</tt> [<tt>--verbose</tt>]</dd>
  <dt><tt>order-options</tt></dt>
@@ -39,6 +38,7 @@ See also <a href="#options">options</a> for details.</p>
   <dd><tt>-a</tt> [<tt>--all</tt>]</dd>
   <dd><tt>-d</tt> [<tt>--dbname</tt>] <tt><i>dbname</i></tt></dd>
   <dd><tt>-t</tt> [<tt>--table</tt>] <tt><i>table</i></tt></dd>
+  <dd><tt>-Z</tt> [<tt>--no-analyze</tt>]</dd>
 </dl>
 </div>
 
@@ -57,7 +57,6 @@ You can choose one of the following methods to reorganize.</p>
 <ul>
 <li>Only superusers can use the utility.</li>
 <li>Target table must have PRIMARY KEY.</li>
-<li>You'd better to do <tt><a href="http://www.postgresql.jp/document/current/html/sql-analyze.html">ANALYZE</a></tt> after pg_reorg is completed.</li>
 </ul>
 </div>
 
@@ -103,8 +102,6 @@ You can choose one of the following methods to reorganize.</p>
 <tt>--quiet</tt> is ignored if some of the other options are specified.</p>
 
 <dl>
-<dt><tt>-e</tt><br /><tt>--echo</tt></dt>
-<dd>Echo the commands that pg_reorg generates and sends to the server.</dd>
 <dt><tt>-q</tt><br /><tt>--quiet</tt></dt>
 <dd>Do not display progress messages. </dd>
 <dt><tt>-v</tt><br /><tt>--verbose</tt></dt>
@@ -148,6 +145,10 @@ You cannot use <tt>--all</tt> and <tt>--dbname</tt> or <tt>--table</tt> together
 <tt>--table</tt> <tt><i>table</i></tt>
 </dt>
 <dd>Reorganize <tt><i>table</i></tt> only. If you don't specify this option, all tables in specified databases are reorganized.</dd>
+
+<dt><tt>-Z</tt><br /><tt>--no-analyze</tt></dt>
+<dd>Do ANALYZE after reorganization. If you don't specify this option, ANALYZE is performed automatically after reorg.</dd>
+
 </dl>
 </div>
 

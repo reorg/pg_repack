@@ -16,11 +16,11 @@ HR { margin: 5px 0px 5px 0px }
 
 
 h2, h3, h4, h5, h6 {
-    color: Black;
-    background: none;
-    padding-top: 0.5em;
-    padding-bottom: 0.17em;
-    border-bottom: 1px solid #aaaaaa;
+	color: Black;
+	background: none;
+	padding-top: 0.5em;
+	padding-bottom: 0.17em;
+	border-bottom: 1px solid #aaaaaa;
 }
 H1 { font-size: x-large; font-family: Lucida Grande,verdana,arial,helvetica,sans-serif; }
 H2 { font-size: large; font-family: Lucida Grande,verdana,arial,helvetica,sans-serif; }

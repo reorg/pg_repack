@@ -67,6 +67,9 @@ extern text *cstring_to_text(const char *s);
 extern int SPI_execute_with_args(const char *src, int nargs, Oid *argtypes,
 	Datum *values, const char *nulls, bool read_only, long tcount);
 
+#define CStringGetTextDatum(s)		PointerGetDatum(cstring_to_text(s))
+#define TextDatumGetCString(d)		text_to_cstring((text *) DatumGetPointer(d))
+
 #endif
 
 #endif   /* PGUT_BE_H */

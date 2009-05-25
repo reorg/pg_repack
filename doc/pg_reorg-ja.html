@@ -30,7 +30,6 @@ pg_reorg -- PostgreSQLデータベース内のテーブルに対して、参照/
   <dd><tt>-U</tt> [<tt>--username</tt>] <tt><i>username</i></tt></dd>
   <dd><tt>-W</tt> [<tt>--password</tt>]</dd>
  <dt><tt>message-options</tt> : 出力メッセージ</dt>
-  <dd><tt>-e</tt> [<tt>--echo</tt>]</dd>
   <dd><tt>-q</tt> [<tt>--quiet</tt>]</dd>
   <dd><tt>-v</tt> [<tt>--verbose</tt>]</dd>
  <dt><tt>order-options</tt> : 並び替えの基準</dt>
@@ -40,6 +39,7 @@ pg_reorg -- PostgreSQLデータベース内のテーブルに対して、参照/
   <dd><tt>-a</tt> [<tt>--all</tt>]</dd>
   <dd><tt>-d</tt> [<tt>--dbname</tt>] <tt><i>dbname</i></tt></dd>
   <dd><tt>-t</tt> [<tt>--table</tt>] <tt><i>table</i></tt></dd>
+  <dd><tt>-Z</tt> [<tt>--no-analyze</tt>]</dd>
 </dl>
 </div>
 
@@ -57,7 +57,6 @@ pg_reorg -- PostgreSQLデータベース内のテーブルに対して、参照/
 <ul>
 <li>このユーティリティは、スーパーユーザのみが実行することができます。</li>
 <li>対象のテーブルはPRIMARY KEYを持っている必要があります。</li>
-<li>pg_reorg 実行後のデータの状態は、統計情報に反映されていません。統計情報を最新化するため、pg_reorg 実行後に<tt><a href="http://www.postgresql.jp/document/current/html/sql-analyze.html">ANALYZE</a></tt>を実行してください。</li>
 </ul>
 </div>
 
@@ -108,8 +107,6 @@ pg_reorg を実行した際に任意のメッセージを出力するための�
 </p>
 
 <dl>
-<dt><tt>-e</tt><br /><tt>--echo</tt></dt>
-<dd>pg_reorg が生成し、サーバに送るコマンドをエコー表示します。</dd>
 <dt><tt>-q</tt><br /><tt>--quiet</tt></dt>
 <dd>進行メッセージを表示しません。</dd>
 <dt><tt>-v</tt><br /><tt>--verbose</tt></dt>
@@ -157,6 +154,11 @@ pg_reorg を実行する対象を指定するパラメータです。
 <dd>オンライン CLUSTER 、または、オンライン VACUUM FULL を行うテーブルを指定します。
 このオプションが指定されていない場合は、対象となったデータベースに存在する全ての対象テーブルに対して処理を行います。
 </dd>
+
+<dt><tt>-Z</tt><br /><tt>--no-analyze</tt></dt>
+<dd>再編成後に ANALYZE を行いません。
+このオプションが指定されていない場合は、再編成後に ANALYZE します。</dd>
+
 </dl>
 </div>
 

@@ -11,6 +11,10 @@ BEGIN;
 
 CREATE SCHEMA reorg;
 
+CREATE FUNCTION reorg.version() RETURNS text AS
+'MODULE_PATHNAME', 'reorg_version'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 CREATE AGGREGATE reorg.array_accum (
     sfunc = array_append,
     basetype = anyelement,
@@ -141,6 +145,17 @@ LANGUAGE 'C' STABLE STRICT;
 CREATE FUNCTION reorg.reorg_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'reorg_trigger'
 LANGUAGE 'C' VOLATILE STRICT SECURITY DEFINER;
+
+CREATE FUNCTION reorg.conflicted_triggers(oid) RETURNS SETOF name AS
+$$
+SELECT tgname FROM pg_trigger
+ WHERE tgrelid = $1 AND tgname >= 'z_reorg_trigger'
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.disable_autovacuum(regclass) RETURNS void AS
+'MODULE_PATHNAME', 'reorg_disable_autovacuum'
+LANGUAGE 'C' VOLATILE STRICT;
 
 CREATE FUNCTION reorg.reorg_apply(
   sql_peek      cstring,

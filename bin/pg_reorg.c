@@ -8,7 +8,7 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_VERSION	= "1.0.4";
+const char *PROGRAM_VERSION	= "1.0.5";
 const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
@@ -92,9 +92,9 @@ static bool sqlstate_equals(PGresult *res, const char *state)
 	return strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), state) == 0;
 }
 
-static bool	echo = false;
 static bool	verbose = false;
 static bool	quiet = false;
+static bool	analyze = true;
 
 /*
  * The table begin re-organized. If not null, we need to cleanup temp
@@ -110,16 +110,14 @@ utoa(unsigned int value, char *buffer)
 	return buffer;
 }
 
-const char *pgut_optstring = "eqvat:no:";
-
-const struct option pgut_longopts[] = {
-	{"echo", no_argument, NULL, 'e'},
+const struct option pgut_options[] = {
 	{"quiet", no_argument, NULL, 'q'},
 	{"verbose", no_argument, NULL, 'v'},
 	{"all", no_argument, NULL, 'a'},
 	{"table", required_argument, NULL, 't'},
 	{"no-order", no_argument, NULL, 'n'},
 	{"order-by", required_argument, NULL, 'o'},
+	{"no-analyze", no_argument, NULL, 'Z'},
 	{NULL, 0, NULL, 0}
 };
 
@@ -132,9 +130,6 @@ pgut_argument(int c, const char *arg)
 {
 	switch (c)
 	{
-		case 'e':
-			echo = true;
-			break;
 		case 'q':
 			quiet = true;
 			break;
@@ -152,6 +147,9 @@ pgut_argument(int c, const char *arg)
 			break;
 		case 'o':
 			assign_option(&orderby, c, arg);
+			break;
+		case 'Z':
+			analyze = false;
 			break;
 		default:
 			return false;
@@ -249,9 +247,9 @@ reorg_one_database(const char *orderby, const char *table)
 	PGresult	   *res;
 	int				i;
 	int				num;
-	PQExpBufferData sql;
+	StringInfoData	sql;
 
-	initPQExpBuffer(&sql);
+	initStringInfo(&sql);
 
 	reconnect();
 
@@ -262,18 +260,18 @@ reorg_one_database(const char *orderby, const char *table)
 	command("SET client_min_messages = warning", 0, NULL);
 
 	/* acquire target tables */
-	appendPQExpBufferStr(&sql, "SELECT * FROM reorg.tables WHERE ");
+	appendStringInfoString(&sql, "SELECT * FROM reorg.tables WHERE ");
 	if (table)
 	{
-		appendPQExpBufferStr(&sql, "relid = $1::regclass");
-		res = execute_nothrow(sql.data, 1, &table);
+		appendStringInfoString(&sql, "relid = $1::regclass");
+		res = execute_elevel(sql.data, 1, &table, LOG);
 	}
 	else
 	{
-		appendPQExpBufferStr(&sql, "pkid IS NOT NULL");
+		appendStringInfoString(&sql, "pkid IS NOT NULL");
 		if (!orderby)
-			appendPQExpBufferStr(&sql, " AND ckid IS NOT NULL");
-		res = execute_nothrow(sql.data, 0, NULL);
+			appendStringInfoString(&sql, " AND ckid IS NOT NULL");
+		res = execute_elevel(sql.data, 0, NULL, LOG);
 	}
 
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
@@ -321,13 +319,13 @@ reorg_one_database(const char *orderby, const char *table)
 		table.lock_table = getstr(res, i, c++);
 		ckey = getstr(res, i, c++);
 
-		resetPQExpBuffer(&sql);
+		resetStringInfo(&sql);
 		if (!orderby)
 		{
 			/* CLUSTER mode */
 			if (ckey == NULL)
 				elog(ERROR, "relation \"%s\" has no cluster key", table.target_name);
-			appendPQExpBuffer(&sql, "%s ORDER BY %s", create_table, ckey);
+			appendStringInfo(&sql, "%s ORDER BY %s", create_table, ckey);
             table.create_table = sql.data;
 		}
 		else if (!orderby[0])
@@ -338,7 +336,7 @@ reorg_one_database(const char *orderby, const char *table)
 		else
 		{
 			/* User specified ORDER BY */
-			appendPQExpBuffer(&sql, "%s ORDER BY %s", create_table, orderby);
+			appendStringInfo(&sql, "%s ORDER BY %s", create_table, orderby);
             table.create_table = sql.data;
 		}
 
@@ -354,7 +352,7 @@ reorg_one_database(const char *orderby, const char *table)
 cleanup:
 	PQclear(res);
 	disconnect();
-	termPQExpBuffer(&sql);
+	termStringInfo(&sql);
 	return ret;
 }
 
@@ -387,12 +385,15 @@ apply_log(const reorg_table *table, int count)
 static void
 reorg_one_table(const reorg_table *table, const char *orderby)
 {
-	PGresult   *res;
-	const char *params[1];
-	int			num;
-	int			i;
-	char	   *vxid;
-	char		buffer[12];
+	PGresult	   *res;
+	const char	   *params[1];
+	int				num;
+	int				i;
+	char		   *vxid;
+	char			buffer[12];
+	StringInfoData	sql;
+
+	initStringInfo(&sql);
 
 	if (verbose)
 	{
@@ -430,16 +431,16 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	 */
 	params[0] = utoa(table->target_oid, buffer);
 
-	res = execute(
-		"SELECT 1 FROM pg_trigger"
-		" WHERE tgrelid = $1 AND tgname >= 'z_reorg_trigger' LIMIT 1",
-		1, params);
+	res = execute("SELECT reorg.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
-		elog(ERROR, "trigger conflicted for %s", table->target_name);
+		elog(ERROR, "trigger %s conflicted for %s",
+			PQgetvalue(res, 0, 0), table->target_name);
 
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
 	command(table->create_trigger, 0, NULL);
+	printfStringInfo(&sql, "SELECT reorg.disable_autovacuum('reorg.log_%u')", table->target_oid);
+	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
 
 	/*
@@ -465,6 +466,8 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	PQclear(res);
 	command(table->delete_log, 0, NULL);
 	command(table->create_table, 0, NULL);
+	printfStringInfo(&sql, "SELECT reorg.disable_autovacuum('reorg.table_%u')", table->target_oid);
+	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
 
 	/*
@@ -537,7 +540,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	for (;;)
 	{
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-		res = execute_nothrow(table->lock_table, 0, NULL);
+		res = execute_elevel(table->lock_table, 0, NULL, NOTICE);
 		if (PQresultStatus(res) == PGRES_COMMAND_OK)
 		{
 			PQclear(res);
@@ -577,8 +580,23 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	command("COMMIT", 0, NULL);
 
 	current_table = NULL;
-
 	free(vxid);
+
+	/*
+	 * 7. Analyze.
+	 * Note that current_table is already set to NULL here because analyze
+	 * is an unimportant operation; No clean up even if failed.
+	 */
+	if (verbose)
+		fprintf(stderr, "---- analyze ----\n");
+
+	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+	printfStringInfo(&sql, "ANALYZE %s%s",
+		(verbose ? "VERBOSE " : ""), table->target_name);
+	command(sql.data, 0, NULL);
+	command("COMMIT", 0, NULL);
+
+	termStringInfo(&sql);
 }
 
 void
@@ -624,7 +642,7 @@ pgut_help(void)
 		"  -t, --table=TABLE         reorg specific table only\n"
 		"  -n, --no-order            do vacuum full instead of cluster\n"
 		"  -o, --order-by=columns    order by columns instead of cluster keys\n"
-		"  -e, --echo                show the commands being sent to the server\n"
+		"  -Z, --no-analyze          don't analyze at end\n"
 		"  -q, --quiet               don't write any messages\n"
 		"  -v, --verbose             display detailed information during processing\n",
 		PROGRAM_NAME, PROGRAM_NAME);
