@@ -13,6 +13,7 @@
 #include "libpq-fe.h"
 #include "pqexpbuffer.h"
 
+#include <assert.h>
 #include <getopt.h>
 
 #if !defined(C_H) && !defined(__cplusplus)
@@ -51,6 +52,7 @@ extern const char  *port;
 extern const char  *username;
 extern bool			password;
 extern bool			debug;
+extern bool			quiet;
 
 extern PGconn	   *connection;
 extern bool			interrupted;
@@ -58,6 +60,8 @@ extern bool			interrupted;
 extern void	parse_options(int argc, char **argv);
 extern bool	assign_option(const char **value, int c, const char *arg);
 
+
+extern PGconn *reconnect_elevel(int elevel);
 extern void reconnect(void);
 extern void disconnect(void);
 extern PGresult *execute_elevel(const char *query, int nParams, const char **params, int elevel);
@@ -67,6 +71,15 @@ extern void command(const char *query, int nParams, const char **params);
 #ifdef WIN32
 extern unsigned int sleep(unsigned int seconds);
 #endif
+
+/*
+ * IsXXX
+ */
+#define IsSpace(c)		(isspace((unsigned char)(c)))
+#define IsAlpha(c)		(isalpha((unsigned char)(c)))
+#define IsAlnum(c)		(isalnum((unsigned char)(c)))
+#define IsIdentHead(c)	(IsAlpha(c) || (c) == '_')
+#define IsIdentBody(c)	(IsAlnum(c) || (c) == '_')
 
 /*
  * elog
@@ -105,6 +118,20 @@ __attribute__((format(printf, 2, 3)));
 #define appendBinaryStringInfo	appendBinaryPQExpBuffer
 
 /*
+ * Assert
+ */
+#undef Assert
+#undef AssertMacro
+
+#ifdef USE_ASSERT_CHECKING
+#define Assert(x)		assert(x)
+#define AssertMacro(x)	assert(x)
+#else
+#define Assert(x)		((void) 0)
+#define AssertMacro(x)	((void) 0)
+#endif
+
+/*
  * import from postgres.h and catalog/genbki.h in 8.4
  */
 #if PG_VERSION_NUM < 80400
@@ -124,3 +151,4 @@ typedef int aclitem;
 #endif
 
 #endif   /* PGUT_H */
+

@@ -22,6 +22,7 @@ const char *port = NULL;
 const char *username = NULL;
 bool		password = false;
 bool		debug = false;
+bool		quiet = false;
 
 /* Database connections */
 PGconn	   *connection = NULL;
@@ -45,6 +46,7 @@ const struct option default_options[] =
 	{"dbname", required_argument, NULL, 'd'},
 	{"host", required_argument, NULL, 'h'},
 	{"port", required_argument, NULL, 'p'},
+	{"quiet", no_argument, NULL, 'q'},
 	{"username", required_argument, NULL, 'U'},
 	{"password", no_argument, NULL, 'W'},
 	{"debug", no_argument, NULL, '!'},
@@ -136,6 +138,9 @@ parse_options(int argc, char **argv)
 		case 'p':
 			assign_option(&port, c, optarg);
 			break;
+		case 'q':
+			quiet = true;
+			break;
 		case 'U':
 			assign_option(&username, c, optarg);
 			break;
@@ -196,12 +201,21 @@ assign_option(const char **value, int c, const char *arg)
 	return true;
 }
 
-void
-reconnect(void)
+/*
+ * the result is also available with the global variable 'connection'.
+ */
+PGconn *
+reconnect_elevel(int elevel)
 {
 	PGconn	   *conn;
 	char	   *pwd = NULL;
 	bool		new_pass;
+
+	if (interrupted)
+	{
+		interrupted = false;
+		elog(ERROR, "%s: interrupted", PROGRAM_NAME);
+	}
 
 	disconnect();
 
@@ -218,7 +232,10 @@ reconnect(void)
 		conn = PQsetdbLogin(host, port, NULL, NULL, dbname, username, pwd);
 
 		if (!conn)
-			elog(ERROR, "could not connect to database %s", dbname);
+		{
+			elog(elevel, "could not connect to database %s", dbname);
+			return NULL;
+		}
 
 		if (PQstatus(conn) == CONNECTION_BAD &&
 #if PG_VERSION_NUM >= 80300
@@ -239,10 +256,17 @@ reconnect(void)
 
 	/* check to see that the backend connection was successfully made */
 	if (PQstatus(conn) == CONNECTION_BAD)
-		elog(ERROR, "could not connect to database %s: %s",
+		elog(elevel, "could not connect to database %s: %s",
 					dbname, PQerrorMessage(conn));
 
 	connection = conn;
+	return conn;
+}
+
+void
+reconnect(void)
+{
+	reconnect_elevel(ERROR);
 }
 
 void
@@ -290,6 +314,7 @@ execute_elevel(const char *query, int nParams, const char **params, int elevel)
 	{
 		case PGRES_TUPLES_OK:
 		case PGRES_COMMAND_OK:
+		case PGRES_COPY_IN:
 			break;
 		default:
 			elog(elevel, "query failed: %squery was: %s",
@@ -328,6 +353,8 @@ elog(int elevel, const char *fmt, ...)
 	va_list		args;
 
 	if (!debug && elevel <= LOG)
+		return;
+	if (quiet && elevel <= WARNING)
 		return;
 
 	switch (elevel)
@@ -481,6 +508,7 @@ static void help(void)
 	fprintf(stderr, "  -U, --username=USERNAME   user name to connect as\n");
 	fprintf(stderr, "  -W, --password            force password prompt\n");
 	fprintf(stderr, "\nGeneric options:\n");
+	fprintf(stderr, "  -q, --quiet               don't write any messages\n");
 	fprintf(stderr, "  --debug                   debug mode\n");
 	fprintf(stderr, "  --help                    show this help, then exit\n");
 	fprintf(stderr, "  --version                 output version information, then exit\n\n");
@@ -566,3 +594,4 @@ sleep(unsigned int seconds)
 }
 
 #endif   /* WIN32 */
+

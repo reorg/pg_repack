@@ -41,21 +41,4 @@ cstring_to_text(const char *s)
 	return result;
 }
 
-int
-SPI_execute_with_args(const char *src,
-					  int nargs, Oid *argtypes,
-					  Datum *values, const char *nulls,
-					  bool read_only, long tcount)
-{
-	SPIPlanPtr	plan;
-	int			ret;
-
-	plan = SPI_prepare(src, nargs, argtypes);
-	if (plan == NULL)
-		return SPI_result;
-	ret = SPI_execute_plan(plan, values, nulls, read_only, tcount);
-	SPI_freeplan(plan);
-	return ret;
-}
-
 #endif

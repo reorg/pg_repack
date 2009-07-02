@@ -83,7 +83,7 @@ $$
          ') = (' || $2 || '.' ||
          array_to_string(reorg.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
     FROM (SELECT attname FROM pg_attribute
-           WHERE attrelid = $1 AND attnum > 0
+           WHERE attrelid = $1 AND attnum > 0 AND NOT attisdropped
            ORDER BY attnum) tmp;
 $$
 LANGUAGE sql STABLE STRICT;

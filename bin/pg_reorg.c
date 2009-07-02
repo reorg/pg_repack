@@ -8,7 +8,7 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_VERSION	= "1.0.5";
+const char *PROGRAM_VERSION	= "1.0.6";
 const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
@@ -93,7 +93,6 @@ static bool sqlstate_equals(PGresult *res, const char *state)
 }
 
 static bool	verbose = false;
-static bool	quiet = false;
 static bool	analyze = true;
 
 /*
@@ -111,7 +110,6 @@ utoa(unsigned int value, char *buffer)
 }
 
 const struct option pgut_options[] = {
-	{"quiet", no_argument, NULL, 'q'},
 	{"verbose", no_argument, NULL, 'v'},
 	{"all", no_argument, NULL, 'a'},
 	{"table", required_argument, NULL, 't'},
@@ -130,9 +128,6 @@ pgut_argument(int c, const char *arg)
 {
 	switch (c)
 	{
-		case 'q':
-			quiet = true;
-			break;
 		case 'v':
 			verbose = true;
 			break;
@@ -587,14 +582,17 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	 * Note that current_table is already set to NULL here because analyze
 	 * is an unimportant operation; No clean up even if failed.
 	 */
-	if (verbose)
-		fprintf(stderr, "---- analyze ----\n");
+	if (analyze)
+	{
+		if (verbose)
+			fprintf(stderr, "---- analyze ----\n");
 
-	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-	printfStringInfo(&sql, "ANALYZE %s%s",
-		(verbose ? "VERBOSE " : ""), table->target_name);
-	command(sql.data, 0, NULL);
-	command("COMMIT", 0, NULL);
+		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+		printfStringInfo(&sql, "ANALYZE %s%s",
+			(verbose ? "VERBOSE " : ""), table->target_name);
+		command(sql.data, 0, NULL);
+		command("COMMIT", 0, NULL);
+	}
 
 	termStringInfo(&sql);
 }
@@ -643,7 +641,6 @@ pgut_help(void)
 		"  -n, --no-order            do vacuum full instead of cluster\n"
 		"  -o, --order-by=columns    order by columns instead of cluster keys\n"
 		"  -Z, --no-analyze          don't analyze at end\n"
-		"  -q, --quiet               don't write any messages\n"
 		"  -v, --verbose             display detailed information during processing\n",
 		PROGRAM_NAME, PROGRAM_NAME);
 }
