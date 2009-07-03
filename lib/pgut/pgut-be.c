@@ -8,6 +8,7 @@
  */
 
 #include "postgres.h"
+#include "fmgr.h"
 #include "pgut-be.h"
 
 #if PG_VERSION_NUM < 80400

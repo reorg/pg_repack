@@ -38,8 +38,6 @@
 #define PageAddItem(page, item, size, offnum, overwrite, is_heap) \
 	PageAddItem((page), (item), (size), (offnum), LP_USED)
 
-typedef void *SPIPlanPtr;
-
 #endif
 
 #if PG_VERSION_NUM < 80400

@@ -23,8 +23,8 @@
 #include "utils/relcache.h"
 #include "utils/syscache.h"
 
-#include "pgut/pgut-be.h"
 #include "pgut/pgut-spi.h"
+#include "pgut/pgut-be.h"
 
 PG_MODULE_MAGIC;
 
@@ -468,6 +468,89 @@ getint16(HeapTuple tuple, TupleDesc desc, int column)
 	return isnull ? 0 : DatumGetInt16(datum);
 }
 
+static void
+remove_dropped_columns_and_adjust_attnum(Oid oid, int16 natts1, int16 natts2)
+{
+	/* delete dropped columns */
+	execute_with_format(SPI_OK_DELETE,
+		"DELETE FROM pg_catalog.pg_attribute"
+		" WHERE attrelid = %u AND attisdropped",
+		oid);
+	if (SPI_processed != natts1 - natts2)
+		elog(ERROR, "cannot remove %d dropped columns (%u columns removed)",
+			natts2 - natts1, SPI_processed);
+
+	/* renumber attnum */
+#if PG_VERSION_NUM >= 80300
+	execute_with_format(SPI_OK_UPDATE,
+		"UPDATE pg_catalog.pg_attribute"
+		"   SET attnum = (SELECT count(*) FROM pg_attribute a"
+		" WHERE pg_catalog.pg_attribute.attrelid = a.attrelid"
+		"   AND pg_catalog.pg_attribute.attnum >= a.attnum"
+		"   AND a.attnum > 0 AND NOT a.attisdropped)"
+		" WHERE attrelid = %u AND attnum > 0 AND NOT attisdropped",
+		oid);
+	if (SPI_processed != natts2)
+		elog(ERROR, "cannot update %d columns (%u columns updated)",
+			natts2, SPI_processed);
+#else
+	/*
+	 * Use count(*) in subquery because 8.2 doesn't support aggregates
+	 * in UPDATE SET.
+	 */
+	do
+	{
+		uint32			i;
+		uint32			ntuples;
+		SPITupleTable  *tuptable;
+		TupleDesc		desc;
+
+		execute_with_format(SPI_OK_SELECT,
+			"SELECT attnum FROM pg_catalog.pg_attribute"
+			" WHERE attrelid = %u AND attnum > 0 AND NOT attisdropped"
+			" ORDER BY attnum",
+			oid);
+		if (SPI_processed != natts2)
+			elog(ERROR, "number of columns should be %d (%d returned)",
+				natts2, SPI_processed);
+
+		ntuples = SPI_processed;
+		tuptable = SPI_tuptable;
+		desc = tuptable->tupdesc;
+
+		for (i = 0; i < ntuples; i++)
+		{
+			int		attnum;
+			int		count;
+
+			attnum = getint16(tuptable->vals[i], desc, 1);
+
+			execute_with_format(SPI_OK_SELECT,
+				"SELECT count(*)::smallint FROM pg_catalog.pg_attribute"
+				" WHERE attrelid = %u AND attnum > 0 AND attnum <= %d",
+				oid, attnum);
+			if (SPI_processed != 1)
+				elog(ERROR, "cannot adjust column %d", attnum);
+
+			count = getint16(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
+
+			execute_with_format(SPI_OK_UPDATE,
+				"UPDATE pg_catalog.pg_attribute"
+				"   SET attnum = %d"
+				" WHERE attrelid = %u AND attnum = %d",
+				count, oid, attnum);
+			if (SPI_processed != 1)
+				elog(ERROR, "cannot update column %d", attnum);
+		}
+	} while(0);
+#endif
+
+	/* adjust attribute number of the table */
+	execute_with_format(SPI_OK_UPDATE,
+		"UPDATE pg_catalog.pg_class SET relnatts = %d WHERE oid = %u",
+		natts2, oid);
+}
+
 /**
  * @fn      Datum reorg_swap(PG_FUNCTION_ARGS)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
@@ -635,26 +718,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 
 	/* adjust attribute numbers if the target table has dropped columns */
 	if (natts1 != natts2)
-	{
-		/* delete dropped columns */
-		execute_with_format(SPI_OK_DELETE,
-			"DELETE FROM pg_catalog.pg_attribute"
-			" WHERE attrelid = %u AND attisdropped",
-			oid);
-		/* renumber attnum */
-		execute_with_format(SPI_OK_UPDATE,
-			"UPDATE pg_catalog.pg_attribute"
-			"   SET attnum = (SELECT count(*) FROM pg_attribute a"
-			" WHERE pg_catalog.pg_attribute.attrelid = a.attrelid"
-			"   AND pg_catalog.pg_attribute.attnum >= a.attnum"
-			"   AND a.attnum > 0 AND NOT a.attisdropped)"
-			" WHERE attrelid = %u AND attnum > 0 AND NOT attisdropped",
-			oid);
-		/* adjust attribute number of the table */
-		execute_with_format(SPI_OK_UPDATE,
-			"UPDATE pg_catalog.pg_class SET relnatts = %d WHERE oid = %u",
-			natts2, oid);
-	}
+		remove_dropped_columns_and_adjust_attnum(oid, natts1, natts2);
 
 	/* drop reorg trigger */
 	execute_with_format(

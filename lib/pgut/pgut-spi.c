@@ -10,6 +10,9 @@
 #include "postgres.h"
 #include "pgut-spi.h"
 
+#define EXEC_FAILED(ret, expected) \
+	(((expected) > 0 && (ret) != (expected)) || (ret) < 0)
+
 static void
 termStringInfo(StringInfo str)
 {
@@ -17,12 +20,23 @@ termStringInfo(StringInfo str)
 		pfree(str->data);
 }
 
+/* appendStringInfoVA + automatic buffer extension */
+static void
+appendStringInfoVA_s(StringInfo str, const char *fmt, va_list args)
+{
+	while (!appendStringInfoVA(str, fmt, args))
+	{
+		/* Double the buffer size and try again. */
+		enlargeStringInfo(str, str->maxlen);
+	}
+}
+
 /* simple execute */
 void
 execute(int expected, const char *sql)
 {
 	int ret = SPI_execute(sql, false, 0);
-	if ((expected > 0 && ret != expected) || ret < 0)
+	if EXEC_FAILED(ret, expected)
 		elog(ERROR, "query failed: (sql=%s, code=%d, expected=%d)", sql, ret, expected);
 }
 
@@ -31,7 +45,7 @@ void
 execute_plan(int expected, SPIPlanPtr plan, Datum *values, const char *nulls)
 {
 	int	ret = SPI_execute_plan(plan, values, nulls, false, 0);
-	if ((expected > 0 && ret != expected) || ret < 0)
+	if EXEC_FAILED(ret, expected)
 		elog(ERROR, "query failed: (code=%d, expected=%d)", ret, expected);
 }
 
@@ -45,11 +59,13 @@ execute_with_format(int expected, const char *format, ...)
 
 	initStringInfo(&sql);
 	va_start(ap, format);
-	appendStringInfoVA(&sql, format, ap);
+	appendStringInfoVA_s(&sql, format, ap);
 	va_end(ap);
 
+	if (strlen(sql.data) == 0)
+		elog(WARNING, "execute_with_format(%s)", format);
 	ret = SPI_exec(sql.data, 0);
-	if ((expected > 0 && ret != expected) || ret < 0)
+	if EXEC_FAILED(ret, expected)
 		elog(ERROR, "query failed: (sql=%s, code=%d, expected=%d)", sql.data, ret, expected);
 
 	termStringInfo(&sql);
@@ -66,7 +82,7 @@ execute_with_args(int expected, const char *src, int nargs, Oid argtypes[], Datu
 		c_nulls[i] = (nulls[i] ? 'n' : ' ');
 
 	ret = SPI_execute_with_args(src, nargs, argtypes, values, c_nulls, false, 0);
-	if ((expected > 0 && ret != expected) || ret < 0)
+	if EXEC_FAILED(ret, expected)
 		elog(ERROR, "query failed: (sql=%s, code=%d, expected=%d)", src, ret, expected);
 }
 
@@ -78,7 +94,7 @@ execute_with_format_args(int expected, const char *format, int nargs, Oid argtyp
 
 	initStringInfo(&sql);
 	va_start(ap, nulls);
-	appendStringInfoVA(&sql, format, ap);
+	appendStringInfoVA_s(&sql, format, ap);
 	va_end(ap);
 
 	execute_with_args(expected, sql.data, nargs, argtypes, values, nulls);
