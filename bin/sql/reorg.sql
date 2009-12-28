@@ -5,25 +5,25 @@ SET client_min_messages = warning;
 CREATE TABLE tbl_cluster (
 	col1 int,
 	col2 timestamp,
-	":-)" text,
-	PRIMARY KEY (":-)", col1)
+	","")" text,
+	PRIMARY KEY (","")", col1)
 ) WITH (fillfactor = 70);
 
-CREATE INDEX cidx_cluster ON tbl_cluster (col2, length(":-)"));
-ALTER TABLE tbl_cluster CLUSTER ON cidx_cluster;
+CREATE INDEX ","") cluster" ON tbl_cluster (col2, length(","")"), ","")" text_pattern_ops);
+ALTER TABLE tbl_cluster CLUSTER ON ","") cluster";
 
 CREATE TABLE tbl_only_pkey (
 	col1 int PRIMARY KEY,
-	":-)" text
+	","")" text
 );
 
 CREATE TABLE tbl_only_ckey (
 	col1 int,
 	col2 timestamp,
-	":-)" text
+	","")" text
 ) WITH (fillfactor = 70);
 
-CREATE INDEX cidx_only_ckey ON tbl_only_ckey (col2, ":-)");
+CREATE INDEX cidx_only_ckey ON tbl_only_ckey (col2, ","")");
 ALTER TABLE tbl_only_ckey CLUSTER ON cidx_only_ckey;
 
 CREATE TABLE tbl_gistkey (
@@ -95,7 +95,7 @@ SELECT * FROM tbl_with_dropped_column;
 \d tbl_only_pkey
 \d tbl_with_dropped_column
 
-SELECT col1, to_char(col2, 'YYYY-MM-DD HH24:MI:SS'), ":-)" FROM tbl_cluster;
+SELECT col1, to_char(col2, 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;

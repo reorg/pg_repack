@@ -3,27 +3,26 @@
 #
 #    Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #
-.PHONY: all install clean
+ifdef USE_PGXS
+PG_CONFIG = pg_config
+PGXS := $(shell $(PG_CONFIG) --pgxs)
+include $(PGXS)
+else
+subdir = pg_statsinfo
+top_builddir = ../..
+include $(top_builddir)/src/Makefile.global
+endif
 
-all:
-	make -C bin
-	make -C lib
+SUBDIRS = bin lib
 
-install:
-	make -C bin install
-	make -C lib install
+all install installdirs uninstall distprep clean distclean maintainer-clean debug:
+	@for dir in $(SUBDIRS); do \
+		$(MAKE) -C $$dir $@ || exit; \
+	done
 
-clean:
-	make -C bin clean
-	make -C lib clean
-
-debug:
-	make -C bin DEBUG_REORG=enable
-	make -C lib DEBUG_REORG=enable
-
-uninstall: 
-	make -C bin uninstall
-	make -C lib uninstall
-
-installcheck:
-	make -C bin installcheck
+# We'd like check operations to run all the subtests before failing.
+check installcheck:
+	@CHECKERR=0; for dir in $(SUBDIRS); do \
+		$(MAKE) -C $$dir $@ || CHECKERR=$$?; \
+	done; \
+	exit $$CHECKERR

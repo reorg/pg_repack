@@ -1,12 +1,13 @@
-BODY {
-	margin-top: 3;
-	margin-left: 3;
-	margin-right: 3;
-	margin-bottom: 3;
-}
-
-TT,OL,UL,P,BODY,TR,TD,TH,FORM {
-	font-family: arial,helvetica,sans-serif;
+﻿body {
+	font-family:
+		Lucida Grande, Verdana, Arial, Helvetica,
+		'メイリオ',
+		'Meiryo',
+		'ヒラギノ角ゴ Pro W3',
+		'Hiragino Kaku Gothic Pro',
+		'Osaka',
+		'ＭＳ Ｐゴシック',
+		sans-serif;
 	color: #202020;
 }
 
@@ -16,11 +17,11 @@ HR { margin: 5px 0px 5px 0px }
 
 
 h2, h3, h4, h5, h6 {
-	color: Black;
-	background: none;
-	padding-top: 0.5em;
-	padding-bottom: 0.17em;
-	border-bottom: 1px solid #aaaaaa;
+    color: Black;
+    background: none;
+    padding-top: 0.5em;
+    padding-bottom: 0.17em;
+    border-bottom: 1px solid #aaaaaa;
 }
 H1 { font-size: x-large; font-family: Lucida Grande,verdana,arial,helvetica,sans-serif; }
 H2 { font-size: large; font-family: Lucida Grande,verdana,arial,helvetica,sans-serif; }
@@ -29,13 +30,7 @@ H4 { padding-left: 2em; font-size: small; font-family: Lucida Grande,verdana,ari
 H5 { padding-left: 3em; font-size: x-small; font-family: Lucida Grande,verdana,arial,helvetica,sans-serif; }
 H6 { padding-left: 4em; font-size: xx-small; font-family: Lucida Grande,verdana,arial,helvetica,sans-serif; }
 
-dt {
-	font-size: 110%;
-	padding-top: 0.5em;
-	padding-bottom: 0.5em;
-}
-
-PRE {
+pre {
 	font-family: courier,sans-serif;
 	background-color: #FBFBFD;
 	border: 1px dashed #7E7ECB;
@@ -44,63 +39,43 @@ PRE {
 	overflow: auto;
 }
 
-A:link { text-decoration:none; color:#0000EE }
-A:visited { text-decoration:none color:#551A8B}
-A:active { text-decoration:none; color:#00ff00 }
-A:hover { text-decoration:underline; color:#008000 }
-
-.titlebar { color: #000000; text-decoration: none; font-weight: bold; }
-
-
-A.tablink {
-	color: #000000;
-	text-decoration: none;
-	font-weight: bold;
-	font-size: small;
-}
-A.tablink:visited {
-	color: #000000;
-	text-decoration: none;
-	font-weight: bold;
-	font-size: small;
-}
-A.tablink:hover {
-	text-decoration: none;
-	color: #000000;
-	font-weight: bold;
-	font-size: small;
-}
-A.tabsellink {
-	color: #ffffcc;
-	text-decoration: none;
-	font-weight: bold;
-	font-size: small;
-}
-A.tabsellink:visited {
-	color: #ffffcc;
-	text-decoration: none;
-	font-weight: bold;
-	font-size: small;
-}
-A.tabsellink:hover {
-	text-decoration: none;
-	color: #ffffcc;
-	font-weight: bold;
-	font-size: small;
+li {
+	line-height: 1.4em;
 }
 
-A.showsource {
-	color: #000000;
-	text-decoration: none;
-	font-size: small;
+table {
+	background: #f9f9f9;
+	border: 1px solid #aaa;
+	border-collapse: collapse;
 }
-A.showsource:visited {
-	color: #000000;
-	text-decoration: none;
-	font-size: small;
+
+th, td {
+	border: 1px solid #aaa;
+	padding: 0.2em;
 }
-A.showsource:hover {
-	color: #000000;
-	text-decoration: none;
+
+thead th {
+	background: #f2f2f2;
+	text-align: center;
+}
+
+tbody th {
+	background: #f2f2f2;
+	text-align: left;
+}
+
+div.index {
+	float:right;
+	border:thin solid black;
+	background-color: white;
+	padding-top: 0.2em;
+	padding-bottom: 0.2em;
+	padding-left: 1em;
+	padding-right: 1em;
+	margin-left: 0.5em;
+}
+
+p.footer {
+	text-align: right;
 	font-size: small;
 }
