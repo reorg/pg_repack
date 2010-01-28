@@ -2,7 +2,7 @@
  *
  * pgut-be.h
  *
- * Copyright (c) 2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2009-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  *
  *-------------------------------------------------------------------------
  */
@@ -55,6 +55,11 @@
 	heap_insert((relation), (tup), (cid), true, true)
 #define GetBulkInsertState()			(NULL)
 #define FreeBulkInsertState(bistate)	((void)0)
+#define FreeExprContext(econtext, isCommit)		FreeExprContext((econtext))
+#define FuncnameGetCandidates(names, nargs, argnames, variadic, defaults) \
+	FuncnameGetCandidates((names), (nargs))
+#define pgstat_init_function_usage(fcinfo, fcu)		((void)0)
+#define pgstat_end_function_usage(fcu, finalize)	((void)0)
 
 typedef void *BulkInsertState;
 
@@ -63,6 +68,19 @@ extern text *cstring_to_text(const char *s);
 
 #define CStringGetTextDatum(s)		PointerGetDatum(cstring_to_text(s))
 #define TextDatumGetCString(d)		text_to_cstring((text *) DatumGetPointer(d))
+
+#elif PG_VERSION_NUM < 80500
+
+#define FuncnameGetCandidates(names, nargs, argnames, variadic, defaults) \
+	FuncnameGetCandidates((names), (nargs), (variadic), (defaults))
+
+#endif
+
+#if PG_VERSION_NUM < 80500
+
+#define func_signature_string(funcname, nargs, argnames, argtypes) \
+	func_signature_string((funcname), (nargs), (argtypes))
+#define GetConfigOption(name, restrict_superuser)	GetConfigOption((name))
 
 #endif
 

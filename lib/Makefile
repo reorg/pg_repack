@@ -1,7 +1,7 @@
 #
 # pg_reorg: lib/Makefile
 #
-#    Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#    Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #
 SRCS = reorg.c pgut/pgut-be.c pgut/pgut-spi.c
 OBJS = $(SRCS:.c=.o)

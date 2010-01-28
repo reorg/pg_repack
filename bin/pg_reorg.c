@@ -1,14 +1,14 @@
 /*
  * pg_reorg.c: bin/pg_reorg.c
  *
- * Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  */
 
 /**
  * @brief Client Modules
  */
 
-const char *PROGRAM_VERSION	= "1.0.6";
+const char *PROGRAM_VERSION	= "1.0.7";
 const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
@@ -77,9 +77,10 @@ typedef struct reorg_index
 	const char	   *create_index;	/* CREATE INDEX */
 } reorg_index;
 
-static void reorg_all_databases(const char *orderby);
-static bool reorg_one_database(const char *orderby, const char *table);
-static void reorg_one_table(const reorg_table *table, const char *orderby);
+static void reorg_all_databases(const char *order_by);
+static bool reorg_one_database(const char *order_by, const char *table);
+static void reorg_one_table(const reorg_table *table, const char *order_by);
+static void reorg_cleanup(bool fatal, void *userdata);
 
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
@@ -92,14 +93,12 @@ static bool sqlstate_equals(PGresult *res, const char *state)
 	return strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), state) == 0;
 }
 
-static bool	verbose = false;
-static bool	analyze = true;
-
-/*
- * The table begin re-organized. If not null, we need to cleanup temp
- * objects before the program exits.
- */
-static const reorg_table *current_table = NULL;
+static bool		verbose = false;
+static bool		analyze = true;
+static bool		alldb = false;
+static bool		noorder = false;
+static char	   *table = NULL;
+static char	   *orderby = NULL;
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -109,53 +108,31 @@ utoa(unsigned int value, char *buffer)
 	return buffer;
 }
 
-const struct option pgut_options[] = {
-	{"verbose", no_argument, NULL, 'v'},
-	{"all", no_argument, NULL, 'a'},
-	{"table", required_argument, NULL, 't'},
-	{"no-order", no_argument, NULL, 'n'},
-	{"order-by", required_argument, NULL, 'o'},
-	{"no-analyze", no_argument, NULL, 'Z'},
-	{NULL, 0, NULL, 0}
-};
-
-bool		alldb = false;
-const char *table = NULL;
-const char *orderby = NULL;
-
-bool
-pgut_argument(int c, const char *arg)
+static pgut_option options[] =
 {
-	switch (c)
-	{
-		case 'v':
-			verbose = true;
-			break;
-		case 'a':
-			alldb = true;
-			break;
-		case 't':
-			assign_option(&table, c, arg);
-			break;
-		case 'n':
-			assign_option(&orderby, c, "");
-			break;
-		case 'o':
-			assign_option(&orderby, c, arg);
-			break;
-		case 'Z':
-			analyze = false;
-			break;
-		default:
-			return false;
-	}
-	return true;
-}
+	{ 'b', 'v', "verbose", &verbose },
+	{ 'b', 'a', "all", &alldb },
+	{ 's', 't', "table", &table },
+	{ 'b', 'n', "no-order", &noorder },
+	{ 's', 'o', "order-by", &orderby },
+	{ 'B', 'Z', "no-analyze", &analyze },
+	{ 0 },
+};
 
 int
 main(int argc, char *argv[])
 {
-	parse_options(argc, argv);
+	int		i;
+
+	i = pgut_getopt(argc, argv, options);
+
+	if (i == argc - 1)
+		dbname = argv[i];
+	else if (i < argc)
+		elog(ERROR_ARGS, "too many arguments");
+
+	if (noorder)
+		orderby = "";
 
 	if (alldb)
 	{
@@ -443,7 +420,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	 * an advisory lock. The registration should be done after
 	 * the first command is succeeded.
 	 */
-	current_table = table;
+	pgut_atexit_push(&reorg_cleanup, (void *) table);
 
 	/*
 	 * 2. Copy tuples into temp table.
@@ -574,13 +551,13 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	command("SELECT reorg.reorg_drop($1)", 1, params);
 	command("COMMIT", 0, NULL);
 
-	current_table = NULL;
+	pgut_atexit_pop(&reorg_cleanup, (void *) table);
 	free(vxid);
 
 	/*
 	 * 7. Analyze.
-	 * Note that current_table is already set to NULL here because analyze
-	 * is an unimportant operation; No clean up even if failed.
+	 * Note that cleanup hook has been already uninstalled here because analyze
+	 * is not an important operation; No clean up even if failed.
 	 */
 	if (analyze)
 	{
@@ -597,21 +574,23 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	termStringInfo(&sql);
 }
 
-void
-pgut_cleanup(bool fatal)
+/*
+ * The userdata pointing a table being re-organized. We need to cleanup temp
+ * objects before the program exits.
+ */
+static void
+reorg_cleanup(bool fatal, void *userdata)
 {
+	const reorg_table *table = (const reorg_table *) userdata;
+
 	if (fatal)
 	{
-		if (current_table)
-			fprintf(stderr, "!!!FATAL ERROR!!! Please refer to a manual.\n\n");
+		fprintf(stderr, "!!!FATAL ERROR!!! Please refer to a manual.\n\n");
 	}
 	else
 	{
 		char		buffer[12];
 		const char *params[1];
-
-		if (current_table == NULL)
-			return;	/* no needs to cleanup */
 
 		/* Rollback current transaction */
 		if (connection)
@@ -622,25 +601,26 @@ pgut_cleanup(bool fatal)
 			reconnect();
 
 		/* do cleanup */
-		params[0] = utoa(current_table->target_oid, buffer);
+		params[0] = utoa(table->target_oid, buffer);
 		command("SELECT reorg.reorg_drop($1)", 1, params);
-		current_table = NULL;
 	}
 }
 
 void
-pgut_help(void)
+pgut_help(bool details)
 {
-	fprintf(stderr,
-		"%s re-organizes a PostgreSQL database.\n\n"
-		"Usage:\n"
-		"  %s [OPTION]... [DBNAME]\n"
-		"\nOptions:\n"
-		"  -a, --all                 reorg all databases\n"
-		"  -t, --table=TABLE         reorg specific table only\n"
-		"  -n, --no-order            do vacuum full instead of cluster\n"
-		"  -o, --order-by=columns    order by columns instead of cluster keys\n"
-		"  -Z, --no-analyze          don't analyze at end\n"
-		"  -v, --verbose             display detailed information during processing\n",
-		PROGRAM_NAME, PROGRAM_NAME);
+	printf("%s re-organizes a PostgreSQL database.\n\n", PROGRAM_NAME);
+	printf("Usage:\n");
+	printf("  %s [OPTION]... [DBNAME]\n", PROGRAM_NAME);
+
+	if (!details)
+		return;
+
+	printf("Options:\n");
+	printf("  -a, --all                 reorg all databases\n");
+	printf("  -t, --table=TABLE         reorg specific table only\n");
+	printf("  -n, --no-order            do vacuum full instead of cluster\n");
+	printf("  -o, --order-by=columns    order by columns instead of cluster keys\n");
+	printf("  -Z, --no-analyze          don't analyze at end\n");
+	printf("  -v, --verbose             display detailed information during processing\n");
 }

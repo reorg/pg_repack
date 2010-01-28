@@ -1,7 +1,7 @@
 #
 # pg_reorg: Makefile
 #
-#    Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#    Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #
 ifdef USE_PGXS
 PG_CONFIG = pg_config

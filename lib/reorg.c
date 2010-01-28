@@ -1,7 +1,7 @@
 /*
  * pg_reorg: lib/reorg.c
  *
- * Copyright (c) 2008-2009, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  */
 
 #include "postgres.h"
@@ -75,7 +75,7 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 Datum
 reorg_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_reorg 1.0.6");
+	return CStringGetTextDatum("pg_reorg 1.0.7");
 }
 
 /**
