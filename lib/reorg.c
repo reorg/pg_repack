@@ -350,6 +350,10 @@ skip_ident(Oid index, char *sql)
 	return parse_error(index);
 }
 
+/*
+ * Skip until 'end' character found. The 'end' character is replaced with \0.
+ * Returns the next character of the 'end', or NULL if 'end' is not found.
+ */
 static char *
 skip_until(Oid index, char *sql, char end)
 {
@@ -391,8 +395,13 @@ skip_until(Oid index, char *sql, char end)
 
 	if (nopen == 0 && instr == 0)
 	{
-		*sql = '\0';
-		return sql + 1;
+		if (*sql)
+		{
+			*sql = '\0';
+			return sql + 1;
+		}
+		else
+			return NULL;
 	}
 
 	/* error */
@@ -427,7 +436,8 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 		parse_error(index);
 	sql++;
 	stmt->columns = sql;
-	sql = skip_until(index, sql, ')');
+	if ((sql = skip_until(index, sql, ')')) == NULL)
+		parse_error(index);
 	/* options */
 	stmt->options = sql;
 }
@@ -467,7 +477,7 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 	 */
 
 	initStringInfo(&str);
-	for (nattr = 0, next = stmt.columns; *next; nattr++)
+	for (nattr = 0, next = stmt.columns; next; nattr++)
 	{
 		char *opcname;
 
@@ -544,7 +554,7 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 		}
 		else
 			appendStringInfoString(&str, token);
-		if (*next)
+		if (next)
 			appendStringInfoChar(&str, ',');
 	}
 

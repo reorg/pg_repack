@@ -6,10 +6,10 @@ CREATE TABLE tbl_cluster (
 	col1 int,
 	col2 timestamp,
 	","")" text,
-	PRIMARY KEY (","")", col1)
+	PRIMARY KEY (","")", col1) WITH (fillfactor = 75)
 ) WITH (fillfactor = 70);
 
-CREATE INDEX ","") cluster" ON tbl_cluster (col2, length(","")"), ","")" text_pattern_ops);
+CREATE INDEX ","") cluster" ON tbl_cluster (col2, length(","")"), ","")" text_pattern_ops) WITH (fillfactor = 75);
 ALTER TABLE tbl_cluster CLUSTER ON ","") cluster";
 
 CREATE TABLE tbl_only_pkey (
@@ -42,8 +42,9 @@ CREATE TABLE tbl_with_dropped_column (
 	c2 text,
 	d3 text
 );
+ALTER INDEX tbl_with_dropped_column_pkey SET (fillfactor = 75);
 ALTER TABLE tbl_with_dropped_column CLUSTER ON tbl_with_dropped_column_pkey;
-CREATE INDEX idx_c1c2 ON tbl_with_dropped_column (c1, c2);
+CREATE INDEX idx_c1c2 ON tbl_with_dropped_column (c1, c2) WITH (fillfactor = 75);
 CREATE INDEX idx_c2c1 ON tbl_with_dropped_column (c2, c1);
 
 --

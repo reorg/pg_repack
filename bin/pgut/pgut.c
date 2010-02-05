@@ -144,8 +144,8 @@ option_find(int c, pgut_option opts1[], pgut_option opts2[])
 	return NULL;	/* not found */
 }
 
-static void
-assign_option(pgut_option *opt, const char *optarg, pgut_optsrc src)
+void
+pgut_setopt(pgut_option *opt, const char *optarg, pgut_optsrc src)
 {
 	const char	  *message;
 
@@ -578,7 +578,7 @@ option_from_env(pgut_option options[])
 		name[j] = '\0';
 
 		if ((value = getenv(name)) != NULL)
-			assign_option(opt, value, SOURCE_ENV);
+			pgut_setopt(opt, value, SOURCE_ENV);
 	}
 }
 
@@ -620,7 +620,7 @@ pgut_getopt(int argc, char **argv, pgut_option options[])
 	while ((c = getopt_long(argc, argv, optstring, longopts, &optindex)) != -1)
 	{
 		opt = option_find(c, default_options, options);
-		assign_option(opt, optarg, SOURCE_CMDLINE);
+		pgut_setopt(opt, optarg, SOURCE_CMDLINE);
 	}
 
 	/* Read environment variables */
@@ -637,8 +637,8 @@ pgut_getopt(int argc, char **argv, pgut_option options[])
 }
 
 /* compare two strings ignore cases and ignore -_ */
-static bool
-key_equals(const char *lhs, const char *rhs)
+bool
+pgut_keyeq(const char *lhs, const char *rhs)
 {
 	for (; *lhs && *rhs; lhs++, rhs++)
 	{
@@ -684,13 +684,13 @@ pgut_readopt(const char *path, pgut_option options[], int elevel)
 			{
 				pgut_option *opt = &options[i];
 
-				if (key_equals(key, opt->lname))
+				if (pgut_keyeq(key, opt->lname))
 				{
 					if (opt->allowed == SOURCE_DEFAULT ||
 						opt->allowed > SOURCE_FILE)
 						elog(elevel, "option %s cannot specified in file", opt->lname);
 					else if (opt->source <= SOURCE_FILE)
-						assign_option(opt, value, SOURCE_FILE);
+						pgut_setopt(opt, value, SOURCE_FILE);
 					break;
 				}
 			}
