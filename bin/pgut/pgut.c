@@ -859,22 +859,16 @@ parse_pair(const char buffer[], char key[], char value[])
  * password is for, if one has been explicitly specified.
  * Set malloc'd string to the global variable 'password'.
  */
-static void
+static char *
 prompt_for_password(const char *username)
 {
-	if (password)
-	{
-		free(password);
-		password = NULL;
-	}
-
 	if (username == NULL)
-		password = simple_prompt("Password: ", 100, false);
+		return simple_prompt("Password: ", 100, false);
 	else
 	{
 		char	message[256];
 		snprintf(message, lengthof(message), "Password for user %s: ", username);
-		password = simple_prompt(message, 100, false);
+		return simple_prompt(message, 100, false);
 	}
 }
 #endif
@@ -887,32 +881,53 @@ PQconnectionNeedsPassword(PGconn *conn)
 }
 #endif
 
-PGconn *
-pgut_connect(int elevel)
+static PGconn *
+do_connect(int elevel,
+		   const char *my_host,
+		   const char *my_port,
+		   const char *my_dbname,
+		   const char *my_username,
+		   const char *my_password,
+		   char **new_password)
 {
-	PGconn	   *conn;
+	char	   *passwd;
 
-	if (interrupted && !in_cleanup)
-		elog(ERROR_INTERRUPTED, "interrupted");
+	CHECK_FOR_INTERRUPTS();
+
+	if (new_password)
+		*new_password = NULL;
 
 #ifndef PGUT_NO_PROMPT
 	if (prompt_password == YES)
-		prompt_for_password(username);
+		passwd = prompt_for_password(my_username);
+	else
 #endif
+		passwd = (char *) my_password;
 
 	/* Start the connection. Loop until we have a password if requested by backend. */
 	for (;;)
 	{
-		conn = PQsetdbLogin(host, port, NULL, NULL, dbname, username, password);
+		PGconn	   *conn;
+
+		conn = PQsetdbLogin(my_host, my_port, NULL, NULL, my_dbname, my_username, passwd);
 
 		if (PQstatus(conn) == CONNECTION_OK)
+		{
+			if (new_password)
+				*new_password = passwd;
+			else
+				free(passwd);
 			return conn;
+		}
+
+		if (passwd != my_password)
+			free(passwd);
 
 #ifndef PGUT_NO_PROMPT
 		if (conn && PQconnectionNeedsPassword(conn) && prompt_password != NO)
 		{
 			PQfinish(conn);
-			prompt_for_password(username);
+			passwd = prompt_for_password(username);
 			continue;
 		}
 #endif
@@ -921,6 +936,74 @@ pgut_connect(int elevel)
 		PQfinish(conn);
 		return NULL;
 	}
+}
+
+PGconn *
+pgut_connect(int elevel)
+{
+	PGconn	   *conn;
+	char	   *new_password;
+	
+	conn = do_connect(elevel, host, port, dbname, username, password, &new_password);
+
+	/* update password if a new one is supplied */
+	if (password != new_password)
+	{
+		free(password);
+		password = new_password;
+	}
+
+	return conn;
+}
+
+PGconn *
+pgut_connectdb(const char *conninfo, int elevel)
+{
+	PGconn			   *conn;
+	const char		   *my_host = NULL;
+	const char		   *my_port = NULL;
+	const char		   *my_dbname = NULL;
+	const char		   *my_username = NULL;
+	const char		   *my_password = NULL;
+	PQconninfoOption   *options;
+	char			   *message = NULL;
+
+	options = PQconninfoParse(conninfo, &message);
+	if (message != NULL)
+	{
+		elog(elevel, "%s", message);
+		PQfreemem(message);
+		return NULL;
+	}
+	else if (options)
+	{
+		PQconninfoOption *option;
+
+		for (option = options; option->keyword != NULL; option++)
+		{
+			if (!option->val || !option->val[0])
+				continue;
+			if (strcmp(option->keyword, "host") == 0)
+				my_host = option->val;
+			else if (strcmp(option->keyword, "port") == 0)
+				my_port = option->val;
+			else if (strcmp(option->keyword, "dbname") == 0)
+				my_dbname = option->val;
+			else if (strcmp(option->keyword, "user") == 0)
+				my_username = option->val;
+			else if (strcmp(option->keyword, "password") == 0)
+				my_password = option->val;
+			else
+				elog(WARNING, "unsupported connection option: %s = %s",
+					option->keyword, option->val);
+		}
+	}
+
+	conn = do_connect(elevel, my_host, my_port, my_dbname, my_username, my_password, NULL);
+
+	PQconninfoFree(options);
+
+	return conn;
 }
 
 void
@@ -965,8 +1048,7 @@ pgut_execute(PGconn* conn, const char *query, int nParams, const char **params, 
 {
 	PGresult   *res;
 
-	if (interrupted && !in_cleanup)
-		elog(ERROR_INTERRUPTED, "interrupted");
+	CHECK_FOR_INTERRUPTS();
 
 	/* write query to elog if debug */
 	if (debug)
@@ -1009,10 +1091,17 @@ pgut_execute(PGconn* conn, const char *query, int nParams, const char **params, 
 	return res;
 }
 
-void
+ExecStatusType
 pgut_command(PGconn* conn, const char *query, int nParams, const char **params, int elevel)
 {
-	PQclear(pgut_execute(conn, query, nParams, params, elevel));
+	PGresult	   *res;
+	ExecStatusType	code;
+	
+	res = pgut_execute(conn, query, nParams, params, elevel);
+	code = PQresultStatus(res);
+	PQclear(res);
+
+	return code;
 }
 
 bool
@@ -1020,8 +1109,7 @@ pgut_send(PGconn* conn, const char *query, int nParams, const char **params, int
 {
 	int			res;
 
-	if (interrupted && !in_cleanup)
-		elog(ERROR_INTERRUPTED, "interrupted");
+	CHECK_FOR_INTERRUPTS();
 
 	/* write query to elog if debug */
 	if (debug)
@@ -1133,6 +1221,16 @@ void
 command(const char *query, int nParams, const char **params)
 {
 	PQclear(execute(query, nParams, params));
+}
+
+/*
+ * CHECK_FOR_INTERRUPTS - Ctrl+C pressed?
+ */
+void
+CHECK_FOR_INTERRUPTS(void)
+{
+	if (interrupted && !in_cleanup)
+		elog(ERROR_INTERRUPTED, "interrupted");
 }
 
 /*
@@ -1682,9 +1780,8 @@ wait_for_sockets(int nfds, fd_set *fds, struct timeval *timeout)
 		i = select(nfds, fds, NULL, NULL, timeout);
 		if (i < 0)
 		{
-			if (interrupted)
-				elog(ERROR_INTERRUPTED, "interrupted");
-			else if (errno != EINTR)
+			CHECK_FOR_INTERRUPTS();
+			if (errno != EINTR)
 				elog(ERROR_SYSTEM, "select failed: %s", strerror(errno));
 		}
 		else

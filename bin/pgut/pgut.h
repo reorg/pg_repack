@@ -114,9 +114,10 @@ extern void pgut_atexit_pop(pgut_atexit_callback callback, void *userdata);
  * Database connections
  */
 extern PGconn *pgut_connect(int elevel);
+extern PGconn *pgut_connectdb(const char *conninfo, int elevel);
 extern void pgut_disconnect(PGconn *conn);
 extern PGresult *pgut_execute(PGconn* conn, const char *query, int nParams, const char **params, int elevel);
-extern void pgut_command(PGconn* conn, const char *query, int nParams, const char **params, int elevel);
+extern ExecStatusType pgut_command(PGconn* conn, const char *query, int nParams, const char **params, int elevel);
 extern bool pgut_send(PGconn* conn, const char *query, int nParams, const char **params, int elevel);
 extern int pgut_wait(int num, PGconn *connections[], struct timeval *timeout);
 
@@ -168,6 +169,9 @@ extern void pgut_mkdir(const char *path);
 extern void
 elog(int elevel, const char *fmt, ...)
 __attribute__((format(printf, 2, 3)));
+
+#undef CHECK_FOR_INTERRUPTS
+extern void CHECK_FOR_INTERRUPTS(void);
 
 /*
  * Assert
