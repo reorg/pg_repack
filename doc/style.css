@@ -79,3 +79,7 @@ p.footer {
 	text-align: right;
 	font-size: small;
 }
+
+span.param {
+	color: #0000cd;
+}

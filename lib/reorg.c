@@ -30,14 +30,14 @@
 
 PG_MODULE_MAGIC;
 
-Datum reorg_version(PG_FUNCTION_ARGS);
-Datum reorg_trigger(PG_FUNCTION_ARGS);
-Datum reorg_apply(PG_FUNCTION_ARGS);
-Datum reorg_get_index_keys(PG_FUNCTION_ARGS);
-Datum reorg_indexdef(PG_FUNCTION_ARGS);
-Datum reorg_swap(PG_FUNCTION_ARGS);
-Datum reorg_drop(PG_FUNCTION_ARGS);
-Datum reorg_disable_autovacuum(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_version(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_trigger(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_apply(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_get_index_keys(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_indexdef(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_swap(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_drop(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT reorg_disable_autovacuum(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(reorg_version);
 PG_FUNCTION_INFO_V1(reorg_trigger);
@@ -75,7 +75,7 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 Datum
 reorg_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_reorg 1.0.8");
+	return CStringGetTextDatum("pg_reorg 1.1.0");
 }
 
 /**

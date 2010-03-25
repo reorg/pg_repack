@@ -17,10 +17,22 @@
 <h1>Welcome to the pg_reorg Project Home Page</h1>
 <hr />
 </center>
+
 <p>
-pg_reorg can re-organize tables on a postgres database without any locks so that you can retrieve or update rows in tables being reorganized.
+This project provides two tools for PostgreSQL; <strong>pg_reorg</strong> and <strong>pg_batch</strong>.
+</p>
+
+<p>
+<strong>pg_reorg</strong> can re-organize tables on a postgres database without any locks so that you can retrieve or update rows in tables being reorganized.
 The module is developed to be a better alternative of CLUSTER and VACUUM FULL.
 </p>
+
+<p>
+<strong>pg_batch</strong> is a SQL job executor program for PostgreSQL.
+It generates job list from an external SQL script file, and execute the jobs in serial or parallel.
+It can be used as "a better vacuumdb" with the attached script to run VACUUM.
+</p>
+
 <p>
 The pg_reorg project is a <a href="http://www.postgresql.org">PostgreSQL</a> Community project that is a part of the <a href="http://pgfoundry.org">pgFoundry</a>.
 </p>
@@ -34,9 +46,11 @@ where you can find <a href="http://pgfoundry.org/frs/?group_id=1000411">download
 <hr />
 
 <h2>Documentation</h2>
-<p>
-<a href="pg_reorg.html">Documentations here</a>.
-</p>
+
+<ul>
+<li><a href="pg_reorg.html">pg_reorg 1.1.0 documentation</a></li>
+<li><a href="pg_batch-ja.html">pg_batch 1.2.0 documentation</a> (ja)</li>
+</ul>
 
 <h2>Execution time</h2>
 <p>

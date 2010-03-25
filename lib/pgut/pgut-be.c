@@ -8,7 +8,7 @@
  */
 
 #include "postgres.h"
-#include "fmgr.h"
+#include "access/heapam.h"
 #include "pgut-be.h"
 
 #if PG_VERSION_NUM < 80400
@@ -40,6 +40,13 @@ cstring_to_text(const char *s)
 	memcpy(VARDATA(result), s, len);
 
 	return result;
+}
+
+void
+tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
+					 Datum *values, bool *isnull)
+{
+	tuplestore_puttuple(state, heap_form_tuple(tdesc, values, isnull));
 }
 
 #endif

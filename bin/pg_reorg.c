@@ -8,15 +8,16 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_VERSION	= "1.0.8";
+const char *PROGRAM_VERSION	= "1.1.0";
 const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
-#include "pgut/pgut.h"
+#include "pgut/pgut-fe.h"
 
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <time.h>
 
 #define APPLY_COUNT		1000
 
@@ -84,21 +85,22 @@ static void reorg_cleanup(bool fatal, void *userdata);
 
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
+static void lock_exclusive(const char *relid, const char *lock_query);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
-#define SQLSTATE_LOCK_NOT_AVAILABLE		"55P03"
+#define SQLSTATE_QUERY_CANCELED			"57014"
 
 static bool sqlstate_equals(PGresult *res, const char *state)
 {
 	return strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), state) == 0;
 }
 
-static bool		verbose = false;
 static bool		analyze = true;
 static bool		alldb = false;
 static bool		noorder = false;
 static char	   *table = NULL;
 static char	   *orderby = NULL;
+static int		wait_timeout = 60;	/* in seconds */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -110,11 +112,11 @@ utoa(unsigned int value, char *buffer)
 
 static pgut_option options[] =
 {
-	{ 'b', 'v', "verbose", &verbose },
 	{ 'b', 'a', "all", &alldb },
 	{ 's', 't', "table", &table },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 's', 'o', "order-by", &orderby },
+	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 0 },
 };
@@ -129,7 +131,9 @@ main(int argc, char *argv[])
 	if (i == argc - 1)
 		dbname = argv[i];
 	else if (i < argc)
-		elog(ERROR_ARGS, "too many arguments");
+		ereport(ERROR,
+			(errcode(EINVAL),
+			 errmsg("too many arguments")));
 
 	if (noorder)
 		orderby = "";
@@ -137,13 +141,17 @@ main(int argc, char *argv[])
 	if (alldb)
 	{
 		if (table)
-			elog(ERROR, "cannot reorg a specific table in all databases");
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot reorg a specific table in all databases")));
 		reorg_all_databases(orderby);
 	}
 	else
 	{
 		if (!reorg_one_database(orderby, table))
-			elog(ERROR, "%s is not installed", PROGRAM_NAME);
+			ereport(ERROR,
+				(errcode(ENOENT),
+				 errmsg("%s is not installed", PROGRAM_NAME)));
 	}
 
 	return 0;
@@ -159,7 +167,7 @@ reorg_all_databases(const char *orderby)
 	int			i;
 
 	dbname = "postgres";
-	reconnect();
+	reconnect(ERROR);
 	result = execute("SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1;", 0, NULL);
 	disconnect();
 
@@ -169,7 +177,7 @@ reorg_all_databases(const char *orderby)
 
 		dbname = PQgetvalue(result, i, 0);
 
-		if (!quiet)
+		if (pgut_log_level >= INFO)
 		{
 			printf("%s: reorg database \"%s\"", PROGRAM_NAME, dbname);
 			fflush(stdout);
@@ -177,7 +185,7 @@ reorg_all_databases(const char *orderby)
 
 		ret = reorg_one_database(orderby, NULL);
 
-		if (!quiet)
+		if (pgut_log_level >= INFO)
 		{
 			if (ret)
 				printf("\n");
@@ -223,7 +231,10 @@ reorg_one_database(const char *orderby, const char *table)
 
 	initStringInfo(&sql);
 
-	reconnect();
+	reconnect(ERROR);
+
+	/* Disable statement timeout. */
+	command("SET statement_timeout = 0", 0, NULL);
 
 	/* Restrict search_path to system catalog. */
 	command("SET search_path = pg_catalog, pg_temp, public", 0, NULL);
@@ -236,14 +247,14 @@ reorg_one_database(const char *orderby, const char *table)
 	if (table)
 	{
 		appendStringInfoString(&sql, "relid = $1::regclass");
-		res = execute_elevel(sql.data, 1, &table, LOG);
+		res = execute_elevel(sql.data, 1, &table, DEBUG2);
 	}
 	else
 	{
 		appendStringInfoString(&sql, "pkid IS NOT NULL");
 		if (!orderby)
 			appendStringInfoString(&sql, " AND ckid IS NOT NULL");
-		res = execute_elevel(sql.data, 0, NULL, LOG);
+		res = execute_elevel(sql.data, 0, NULL, DEBUG2);
 	}
 
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
@@ -280,7 +291,9 @@ reorg_one_database(const char *orderby, const char *table)
 		table.ckid = getoid(res, i, c++);
 
 		if (table.pkid == 0)
-			elog(ERROR, "relation \"%s\" has no primary key", table.target_name);
+			ereport(ERROR,
+				(errcode(E_PG_COMMAND),
+				 errmsg("relation \"%s\" has no primary key", table.target_name)));
 
 		table.create_pktype = getstr(res, i, c++);
 		table.create_log = getstr(res, i, c++);
@@ -296,7 +309,9 @@ reorg_one_database(const char *orderby, const char *table)
 		{
 			/* CLUSTER mode */
 			if (ckey == NULL)
-				elog(ERROR, "relation \"%s\" has no cluster key", table.target_name);
+				ereport(ERROR,
+					(errcode(E_PG_COMMAND),
+					 errmsg("relation \"%s\" has no cluster key", table.target_name)));
 			appendStringInfo(&sql, "%s ORDER BY %s", create_table, ckey);
             table.create_table = sql.data;
 		}
@@ -367,35 +382,30 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 
 	initStringInfo(&sql);
 
-	if (verbose)
-	{
-		fprintf(stderr, "---- reorg_one_table ----\n");
-		fprintf(stderr, "target_name    : %s\n", table->target_name);
-		fprintf(stderr, "target_oid     : %u\n", table->target_oid);
-		fprintf(stderr, "target_toast   : %u\n", table->target_toast);
-		fprintf(stderr, "target_tidx    : %u\n", table->target_tidx);
-		fprintf(stderr, "pkid           : %u\n", table->pkid);
-		fprintf(stderr, "ckid           : %u\n", table->ckid);
-		fprintf(stderr, "create_pktype  : %s\n", table->create_pktype);
-		fprintf(stderr, "create_log     : %s\n", table->create_log);
-		fprintf(stderr, "create_trigger : %s\n", table->create_trigger);
-		fprintf(stderr, "create_table   : %s\n", table->create_table);
-		fprintf(stderr, "delete_log     : %s\n", table->delete_log);
-		fprintf(stderr, "lock_table     : %s\n", table->lock_table);
-		fprintf(stderr, "sql_peek       : %s\n", table->sql_peek);
-		fprintf(stderr, "sql_insert     : %s\n", table->sql_insert);
-		fprintf(stderr, "sql_delete     : %s\n", table->sql_delete);
-		fprintf(stderr, "sql_update     : %s\n", table->sql_update);
-		fprintf(stderr, "sql_pop        : %s\n", table->sql_pop);
-	}
+	elog(DEBUG2, "---- reorg_one_table ----");
+	elog(DEBUG2, "target_name    : %s", table->target_name);
+	elog(DEBUG2, "target_oid     : %u", table->target_oid);
+	elog(DEBUG2, "target_toast   : %u", table->target_toast);
+	elog(DEBUG2, "target_tidx    : %u", table->target_tidx);
+	elog(DEBUG2, "pkid           : %u", table->pkid);
+	elog(DEBUG2, "ckid           : %u", table->ckid);
+	elog(DEBUG2, "create_pktype  : %s", table->create_pktype);
+	elog(DEBUG2, "create_log     : %s", table->create_log);
+	elog(DEBUG2, "create_trigger : %s", table->create_trigger);
+	elog(DEBUG2, "create_table   : %s", table->create_table);
+	elog(DEBUG2, "delete_log     : %s", table->delete_log);
+	elog(DEBUG2, "lock_table     : %s", table->lock_table);
+	elog(DEBUG2, "sql_peek       : %s", table->sql_peek);
+	elog(DEBUG2, "sql_insert     : %s", table->sql_insert);
+	elog(DEBUG2, "sql_delete     : %s", table->sql_delete);
+	elog(DEBUG2, "sql_update     : %s", table->sql_update);
+	elog(DEBUG2, "sql_pop        : %s", table->sql_pop);
 
 	/*
 	 * 1. Setup workspaces and a trigger.
 	 */
-	if (verbose)
-		fprintf(stderr, "---- setup ----\n");
-
-	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+	elog(DEBUG2, "---- setup ----");
+	lock_exclusive(utoa(table->target_oid, buffer), table->lock_table);
 
 	/*
 	 * Check z_reorg_trigger is the trigger executed at last so that
@@ -405,8 +415,10 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 
 	res = execute("SELECT reorg.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
-		elog(ERROR, "trigger %s conflicted for %s",
-			PQgetvalue(res, 0, 0), table->target_name);
+		ereport(ERROR,
+			(errcode(E_PG_COMMAND),
+			 errmsg("trigger %s conflicted for %s",
+					PQgetvalue(res, 0, 0), table->target_name)));
 
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
@@ -425,8 +437,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	/*
 	 * 2. Copy tuples into temp table.
 	 */
-	if (verbose)
-		fprintf(stderr, "---- copy tuples ----\n");
+	elog(DEBUG2, "---- copy tuples ----");
 
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
 	/* SET work_mem = maintenance_work_mem */
@@ -445,8 +456,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	/*
 	 * 3. Create indexes on temp table.
 	 */
-	if (verbose)
-		fprintf(stderr, "---- create indexes ----\n");
+	elog(DEBUG2, "---- create indexes ----");
 
 	params[0] = utoa(table->target_oid, buffer);
 	res = execute("SELECT indexrelid,"
@@ -462,12 +472,9 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 		index.target_oid = getoid(res, i, c++);
 		index.create_index = getstr(res, i, c++);
 
-		if (verbose)
-		{
-			fprintf(stderr, "[%d]\n", i);
-			fprintf(stderr, "target_oid   : %u\n", index.target_oid);
-			fprintf(stderr, "create_index : %s\n", index.create_index);
-		}
+		elog(DEBUG2, "[%d]", i);
+		elog(DEBUG2, "target_oid   : %u", index.target_oid);
+		elog(DEBUG2, "create_index : %s", index.create_index);
 
 		/*
 		 * NOTE: If we want to create multiple indexes in parallel,
@@ -506,35 +513,8 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	/*
 	 * 5. Swap.
 	 */
-	if (verbose)
-		fprintf(stderr, "---- swap ----\n");
-
-	for (;;)
-	{
-		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-		res = execute_elevel(table->lock_table, 0, NULL, NOTICE);
-		if (PQresultStatus(res) == PGRES_COMMAND_OK)
-		{
-			PQclear(res);
-			break;
-		}
-		else if (sqlstate_equals(res, SQLSTATE_LOCK_NOT_AVAILABLE))
-		{
-			/* retry if lock conflicted */
-			PQclear(res);
-			command("ROLLBACK", 0, NULL);
-			sleep(1);
-			continue;
-		}
-		else
-		{
-			/* exit otherwise */
-			printf("%s", PQerrorMessage(connection));
-			PQclear(res);
-			exit(1);
-		}
-	}
-
+	elog(DEBUG2, "---- swap ----");
+	lock_exclusive(utoa(table->target_oid, buffer), table->lock_table);
 	apply_log(table, 0);
 	params[0] = utoa(table->target_oid, buffer);
 	command("SELECT reorg.reorg_swap($1)", 1, params);
@@ -543,8 +523,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	/*
 	 * 6. Drop.
 	 */
-	if (verbose)
-		fprintf(stderr, "---- drop ----\n");
+	elog(DEBUG2, "---- drop ----");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 	params[0] = utoa(table->target_oid, buffer);
@@ -561,17 +540,88 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	 */
 	if (analyze)
 	{
-		if (verbose)
-			fprintf(stderr, "---- analyze ----\n");
+		elog(DEBUG2, "---- analyze ----");
 
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-		printfStringInfo(&sql, "ANALYZE %s%s",
-			(verbose ? "VERBOSE " : ""), table->target_name);
+		printfStringInfo(&sql, "ANALYZE %s", table->target_name);
 		command(sql.data, 0, NULL);
 		command("COMMIT", 0, NULL);
 	}
 
 	termStringInfo(&sql);
+}
+
+/*
+ * Try acquire a table lock but avoid long time locks when conflict.
+ */
+static void
+lock_exclusive(const char *relid, const char *lock_query)
+{
+	time_t		start = time(NULL);
+	int			i;
+	
+	for (i = 1; ; i++)
+	{
+		time_t		duration;
+		char		sql[1024];
+		PGresult   *res;
+		int			wait_msec;
+
+		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+
+		duration = time(NULL) - start;
+		if (duration > wait_timeout)
+		{
+			const char *cancel_query;
+			if (PQserverVersion(connection) >= 80400 &&
+				duration > wait_timeout * 2)
+			{
+				elog(WARNING, "terminating conflicted backends");
+				cancel_query =
+					"SELECT pg_terminate_backend(pid) FROM pg_locks"
+					" WHERE locktype = 'relation'"
+					"   AND relation = $1 AND pid <> pg_backend_pid()";
+			}
+			else
+			{
+				elog(WARNING, "canceling conflicted backends");
+				cancel_query =
+					"SELECT pg_cancel_backend(pid) FROM pg_locks"
+					" WHERE locktype = 'relation'"
+					"   AND relation = $1 AND pid <> pg_backend_pid()";
+			}
+
+			command(cancel_query, 1, &relid);
+		}
+
+		/* wait for a while to lock the table. */
+		wait_msec = Min(1000, i * 100);
+		snprintf(sql, lengthof(sql), "SET LOCAL statement_timeout = %d", wait_msec);
+		command(sql, 0, NULL);
+
+		res = execute_elevel(lock_query, 0, NULL, DEBUG2);
+		if (PQresultStatus(res) == PGRES_COMMAND_OK)
+		{
+			PQclear(res);
+			break;
+		}
+		else if (sqlstate_equals(res, SQLSTATE_QUERY_CANCELED))
+		{
+			/* retry if lock conflicted */
+			PQclear(res);
+			command("ROLLBACK", 0, NULL);
+			continue;
+		}
+		else
+		{
+			/* exit otherwise */
+			printf("%s", PQerrorMessage(connection));
+			PQclear(res);
+			exit(1);
+		}
+	}
+
+	command("RESET statement_timeout", 0, NULL);
 }
 
 /*
@@ -598,7 +648,7 @@ reorg_cleanup(bool fatal, void *userdata)
 
 		/* Try reconnection if not available. */
 		if (PQstatus(connection) != CONNECTION_OK)
-			reconnect();
+			reconnect(ERROR);
 
 		/* do cleanup */
 		params[0] = utoa(table->target_oid, buffer);
@@ -621,6 +671,6 @@ pgut_help(bool details)
 	printf("  -t, --table=TABLE         reorg specific table only\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -o, --order-by=columns    order by columns instead of cluster keys\n");
+	printf("  -T, --wait-timeout=secs   timeout to cancel other backends on conflict.\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
-	printf("  -v, --verbose             display detailed information during processing\n");
 }

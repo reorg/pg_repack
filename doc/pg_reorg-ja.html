@@ -8,7 +8,12 @@
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg</h1>
+<h1 id="pg_reorg">pg_reorg 1.1.0</h1>
+<div class="navigation">
+  <a href="index-ja.html">Top</a> &gt;
+  <a href="pg_reorg-ja.html">pg_reorg</a>
+<div>
+<hr />
 
 <div class="index">
 <ol>
@@ -31,28 +36,34 @@ pg_reorg -- PostgreSQLデータベース内のテーブルに対して、参照/
 
 <h2 id="synopsis">概要</h2>
 <p>
-pg_reorg [connection-options...]  [message-options...]  [order-options...]  [target-options...]
+pg_reorg [OPTIONS]
 </p>
-<p>指定できるオプションには4つのカテゴリがあります。
+
+<p>オプション OPTIONS には以下を指定できます。
 詳細は<a href="#options">オプション</a>を参照してください。</p>
-<dl>
- <dt>connection-options : 接続パラメータ</dt>
-  <dd>-h [--host] host</dd>
-  <dd>-p [--port] port</dd>
-  <dd>-U [--username] username</dd>
-  <dd>-W [--password]</dd>
- <dt>message-options : 出力メッセージ</dt>
-  <dd>-q [--quiet]</dd>
-  <dd>-v [--verbose]</dd>
- <dt>order-options : 並び替えの基準</dt>
-  <dd>-o [--order-by]  columns [,...]</dd>
-  <dd>-n [--no-order]</dd>
- <dt>target-options : 処理対象</dt>
-  <dd>-a [--all]</dd>
-  <dd>-d [--dbname] dbname</dd>
-  <dd>-t [--table] table</dd>
-  <dd>-Z [--no-analyze]</dd>
-</dl>
+<ul>
+  <li>固有オプション<ul>
+    <li>-o [--order-by]  columns [,...]</li>
+    <li>-n [--no-order]</li>
+    <li>-t [--table] table</li>
+    <li>-T [--wait-timeout] seconds</li>
+    <li>-Z [--no-analyze]</li>
+  </ul></li>
+  <li>接続オプション<ul>
+    <li>-a, --all : 全てのデータベースに対して実行します</li>
+    <li>-d, --dbname=DBNAME : 接続するデータベース</li>
+    <li>-h, --host=HOSTNAME : データベースサーバホスト、またはソケットディレクトリ</li>
+    <li>-p, --port=PORT : データベースサーバのポート</li>
+    <li>-U, --username=USERNAME : このユーザとして接続します</li>
+    <li>-W, --password : パスワード入力を強制します</li>
+  </ul></li>
+  <li>一般オプション<ul>
+    <li>-e, --echo : サーバに送信するSQLを表示します</li>
+    <li>-E, --elevel=LEVEL : ログ出力レベルを設定します</li>
+    <li>--help : ヘルプを表示し、終了します</li>
+    <li>--version : バージョン情報を出力し、終了します</li>
+  </ul></li>
+</ul>
 
 <h2 id="description">説明</h2>
 <p>pg_reorg は、PostgreSQLデータベース内のテーブルを再編成(行の並び替え)するユーティリティです。
@@ -77,47 +88,11 @@ pg_reorg [connection-options...]  [message-options...]  [order-options...]  [tar
 </p>
 
 <h2 id="options">オプション</h2>
-<p>pg_reorg では、下記の4種類のコマンドライン引数を指定できます。</p>
+<p>pg_reorg では、下記のコマンドライン引数を指定できます。</p>
 <dl>
 
-<h3>connection-options</h3>
-<p>PostgreSQLに接続するためのパラメータです。</p>
-
-<dl>
-<dt>-h host<br />
---host host</dt>
-<dd>サーバが稼働しているマシンのホスト名を指定します。ホスト名がスラッシュから始まる場合、Unixドメインソケット用のディレクトリとして使用されます。</dd>
-
-<dt>-p port<br />
---port port</dt>
-<dd>サーバが接続を監視するTCPポートもしくはUnixドメインソケットファイルの拡張子を指定します。</dd>
-
-<dt>-U username<br />
---username username</dt>
-<dd>接続するユーザ名を指定します。</dd>
-
-<dt>-W<br />--password</dt>
-<dd>データベースに接続する前に、pg_reorg は強制的にパスワード入力を促します。</dd>
-<dd>サーバがパスワード認証を要求する場合 pg_reorg は自動的にパスワード入力を促しますので、これが重要になることはありません。
-しかし、pg_reorg は、サーバにパスワードが必要かどうかを判断するための接続試行を無駄に行います。
-こうした余計な接続試行を防ぐために-Wの入力が有意となる場合もあります。</dd>
-</dl>
-
-<h3>message-options</h3>
-<p>
-pg_reorg を実行した際に任意のメッセージを出力するためのパラメータです。
---quietと他の2つのオプションを同時に指定した場合は、--quietのオプションは無視されます。
-</p>
-
-<dl>
-<dt>-q<br />--quiet</dt>
-<dd>進行メッセージを表示しません。</dd>
-<dt>-v<br />--verbose</dt>
-<dd>処理中に詳細な情報を表示します。</dd>
-</dl>
-
-<h3>order-options</h3>
-<p>pg_reorg を実行する際の並び替えの基準を指定するパラメータです。
+<h3>固有オプション</h3>
+<p>pg_reorg を実行する対象と並び替えの基準を指定するパラメータです。
 何も指定されていない場合は、cluster index順にオンライン CLUSTER を行います。
 この2つを同時に指定することはできません。
 </p>
@@ -131,9 +106,34 @@ pg_reorg を実行した際に任意のメッセージを出力するための�
 <dd>指定したカラムをキーにオンライン CLUSTER を行います。</dd>
 </dl>
 
-<h3>target-options</h3>
+<dt>
+-t table<br />
+--table=table
+</dt>
+<dd>オンライン CLUSTER 、または、オンライン VACUUM FULL を行うテーブルを指定します。
+このオプションが指定されていない場合は、対象となったデータベースに存在する全ての対象テーブルに対して処理を行います。
+</dd>
+
+<dt>
+-T seconds<br />
+--wait-timeout=seconds
+</dt>
+<dd>
+再編成完了直前に一瞬だけ排他ロックを取得しますが、この排他ロックが取得できるまで待機する秒数を指定します。
+この秒数が経過してもロックが取得できない場合には、対象のテーブルにアクセスしている他の全てのクエリを取り消します。
+また、サーバのバージョンが 8.4 またはそれ以降の場合には、指定した秒数の2倍経過してもロックを取得できない場合には、強制的に切断します。
+デフォルトは60秒です。
+</dd>
+
+<dt>-Z<br />--no-analyze</dt>
+<dd>再編成後に ANALYZE を行いません。
+このオプションが指定されていない場合は、再編成後に ANALYZE します。</dd>
+
+</dl>
+
+<h3>接続オプション</h3>
 <p>
-pg_reorg を実行する対象を指定するパラメータです。
+PostgreSQLに接続するためのパラメータです。
 --allと--dbnameまたは--tableを同時に指定することはできません。
 </p>
 
@@ -142,26 +142,46 @@ pg_reorg を実行する対象を指定するパラメータです。
 <dd>対象となる全てのデータベースに対してオンライン CLUSTER、または、オンラインVACUUM  FULLを行います。</dd>
 
 <dt>
--d dbname<br />
---dbname dbname
+-d DBNAME<br />
+--dbname=DBNAME
 </dt>
 <dd>オンライン CLUSTER、または、オンライン VACUUM FULL を行うデータベース名を指定します。
 データベース名が指定されておらず、-a（または--all）も指定されていない場合、
-データベース名はPGDATABASE環境変数から読み取られます。この変数も設定されていない場合は、接続時に指定したユーザ名が使用されます。
-</dd>
+データベース名はPGDATABASE環境変数から読み取られます。
+この変数も設定されていない場合は、接続時に指定したユーザ名が使用されます。</dd>
 
-<dt>
--t table<br />
---table table
-</dt>
-<dd>オンライン CLUSTER 、または、オンライン VACUUM FULL を行うテーブルを指定します。
-このオプションが指定されていない場合は、対象となったデータベースに存在する全ての対象テーブルに対して処理を行います。
-</dd>
+<dt>-h HOSTNAME<br />
+--host=HOSTNAME</dt>
+<dd>サーバが稼働しているマシンのホスト名を指定します。ホスト名がスラッシュから始まる場合、Unixドメインソケット用のディレクトリとして使用されます。</dd>
 
-<dt>-Z<br />--no-analyze</dt>
-<dd>再編成後に ANALYZE を行いません。
-このオプションが指定されていない場合は、再編成後に ANALYZE します。</dd>
+<dt>-p PORT<br />
+--port=PORT</dt>
+<dd>サーバが接続を監視するTCPポートもしくはUnixドメインソケットファイルの拡張子を指定します。</dd>
 
+<dt>-U USERNAME<br />
+--username=USERNAME</dt>
+<dd>接続するユーザ名を指定します。</dd>
+
+<dt>-W<br />
+--password</dt>
+<dd>データベースに接続する前に、強制的にパスワード入力を促します。
+サーバがパスワード認証を要求する場合 自動的にパスワード入力を促しますので、これが重要になることはありません。
+しかし、サーバにパスワードが必要かどうかを判断するための接続試行を無駄に行います。
+こうした余計な接続試行を防ぐために -W の入力が有意となる場合もあります。</dd>
+</dl>
+
+<h3>一般オプション</h3>
+<dl>
+<dt>-e<br />--echo</dt>
+<dd>サーバに送信するSQLを表示します。</dd>
+<dt>-E<br />--elevel</dt>
+<dd>ログ出力レベルを設定します。
+DEBUG, INFO, NOTICE, WARNING, ERROR, LOG, FATAL, PANIC から選択します。
+デフォルトは INFO です。</dd>
+<dt>--help</dt>
+<dd>使用方法について表示します。</dd>
+<dt>--version</dt>
+<dd>バージョン情報を表示します。</dd>
 </dl>
 
 <h2 id="environment">環境変数</h2>
@@ -268,9 +288,12 @@ pg_reorg の実行中には、VACUUM と ANALYZE <STRONG>以外</STRONG> のDDL�
 
 <h2 id="requirement">動作環境</h2>
 <dl>
-<dt>PostgreSQLバージョン</dt><dd>PostgreSQL 8.3</dd>
-<dt>OS</dt><dd>RHEL 5.2, Windows XP SP3</dd>
-<dt>ディスク容量</dt><dd>処理対象のテーブル、インデックスサイズの2倍以上のディスク空き容量</dd>
+<dt>PostgreSQLバージョン</dt>
+<dd>PostgreSQL 8.3, 8.4, 9.0</dd>
+<dt>OS</dt>
+<dd>RHEL 5.2, Windows XP SP3</dd>
+<dt>ディスク容量</dt>
+<dd>処理対象のテーブル、インデックスサイズの2倍以上のディスク空き容量 (対象が1GBならば、さらに追加で2GB)</dd>
 </dl>
 
 <h2 id="seealso">関連項目</h2>
@@ -278,6 +301,10 @@ pg_reorg の実行中には、VACUUM と ANALYZE <STRONG>以外</STRONG> のDDL�
 <a href="http://www.postgresql.jp/document/current/html/app-vacuumdb.html">vacuumdb</a>
 
 <hr />
+<div class="navigation">
+  <a href="index-ja.html">Top</a> &gt;
+  <a href="pg_reorg-ja.html">pg_reorg</a>
+<div>
 <p class="footer">Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION</p>
 
 <script type="text/javascript">

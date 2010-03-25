@@ -1,0 +1,21 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual C++ Express 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "bin", "bin.vcproj", "{B6B37F22-9E44-4240-AAA0-650D4AC2C1E2}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "lib", "lib.vcproj", "{B6B37F22-9E44-4240-AAA0-650D4AC2C2E2}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{B6B37F22-9E44-4240-AAA0-650D4AC2C1E2}.Release|Win32.ActiveCfg = Release|Win32
+		{B6B37F22-9E44-4240-AAA0-650D4AC2C1E2}.Release|Win32.Build.0 = Release|Win32
+		{B6B37F22-9E44-4240-AAA0-650D4AC2C2E2}.Release|Win32.ActiveCfg = Release|Win32
+		{B6B37F22-9E44-4240-AAA0-650D4AC2C2E2}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

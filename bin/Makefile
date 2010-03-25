@@ -3,7 +3,7 @@
 #
 #    Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #
-SRCS = pg_reorg.c pgut/pgut.c
+SRCS = pg_reorg.c pgut/pgut.c pgut/pgut-fe.c
 OBJS = $(SRCS:.c=.o)
 PROGRAM = pg_reorg
 REGRESS = init reorg

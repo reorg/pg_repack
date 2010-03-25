@@ -8,7 +8,12 @@
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg</h1>
+<h1 id="pg_reorg">pg_reorg 1.1.0</h1>
+<div class="navigation">
+  <a href="index.html">Top</a> &gt;
+  <a href="pg_reorg.html">pg_reorg</a>
+<div>
+<hr />
 
 <div class="index">
 <ol>
@@ -31,28 +36,34 @@ pg_reorg -- Reorganize tables in PostgreSQL databases without any locks.
 
 <h2 id="synopsis">Synopsis</h2>
 <p>
-pg_reorg [connection-options...]  [message-options...]  [order-options...]  [target-options...]
+pg_reorg [OPTIONS]
 </p>
-<p>There 4 option categories.
-See also <a href="#options">options</a> for details.</p>
-<dl>
- <dt>connection-options</dt>
-  <dd>-h [--host] host</dd>
-  <dd>-p [--port] port</dd>
-  <dd>-U [--username] username</dd>
-  <dd>-W [--password]</dd>
- <dt>message-options</dt>
-  <dd>-q [--quiet]</dd>
-  <dd>-v [--verbose]</dd>
- <dt>order-options</dt>
-  <dd>-o [--order-by]  columns [,...]</dd>
-  <dd>-n [--no-order]</dd>
- <dt>target-options</dt>
-  <dd>-a [--all]</dd>
-  <dd>-d [--dbname] dbname</dd>
-  <dd>-t [--table] table</dd>
-  <dd>-Z [--no-analyze]</dd>
-</dl>
+
+<p>The following options can be specified in OPTIONS.
+See also "<a href="#options">Options</a>" for details.</p>
+<ul>
+  <li>Reorg Options<ul>
+    <li>-o [--order-by]  columns [,...]</li>
+    <li>-n [--no-order]</li>
+    <li>-t [--table] table</li>
+    <li>-T [--wait-timeout] seconds</li>
+    <li>-Z [--no-analyze]</li>
+  </ul></li>
+  <li>Connection Options<ul>
+    <li>-a, --all : reorganize all databases</li>
+    <li>-d, --dbname=DBNAME : database to connect</li>
+    <li>-h, --host=HOSTNAME : database server host or socket directory</li>
+    <li>-p, --port=PORT : database server port</li>
+    <li>-U, --username=USERNAME : user name to connect as</li>
+    <li>-W, --password : force password prompt</li>
+  </ul></li>
+  <li>Generic Options<ul>
+    <li>-e, --echo : echo queries</li>
+    <li>-E, --elevel=LEVEL : set output message level</li>
+    <li>--help : show the help, then exit</li>
+    <li>--version : output version information, then exit</li>
+  </ul></li>
+</ul>
 
 <h2 id="description">Description</h2>
 <p>pg_reorg is an utility program to reorganize tables in PostgreSQL databases.
@@ -77,15 +88,68 @@ You can choose one of the following methods to reorganize.</p>
 </p>
 
 <h2 id="options">Options</h2>
-<p>pg_reorg has command line options in 4 categolies.</p>
-<div>
+<p>pg_reorg has the following command line options:</p>
 <dl>
 
-<h3>connection-options</h3>
-<p>Parameters to connect PostgreSQL.</p>
+<h3>Reorg Options</h3>
+<p>Options to order rows.
+If not specified, pg_reorg do online CLUSTER using cluster indexes.
+Only one option can be specified.
 
-<div>
+Options to specify target tables or databases.
+</p>
+
 <dl>
+<dt>-n<br />--no-order</dt>
+<dd>Do online VACUUM FULL.</dd>
+
+<dt>-o columns [,...]<br />
+--order-by=columns [,...]</dt>
+<dd>Do online CLUSTER ordered by specified columns.</dd>
+
+<dt>
+-t table<br />
+--table=table
+</dt>
+<dd>Reorganize table only. If you don't specify this option, all tables in specified databases are reorganized.</dd>
+
+<dt>-Z<br />--no-analyze</dt>
+<dd>Do ANALYZE after reorganization. If you don't specify this option, ANALYZE is performed automatically after reorg.</dd>
+
+<dt>
+-T seconds<br />
+--wait-timeout=seconds
+</dt>
+<dd>
+pg_reorg needs to take an exclusive lock at the end of the reorganization.
+This setting controls how long it wait for acquiring the lock in seconds.
+If the lock cannot be taken even after the duration, pg_reorg forces to cancel conflicted queries.
+Also, if the server version is 8.4 or newer, pg_reorg forces to disconnect conflicted backends after twice time passed.
+The default is 60 seconds.
+</dd>
+
+<dt>-Z<br />--no-analyze</dt>
+<dd>Disable ANALYZE after the reorganization.
+If not specified, run ANALYZE after the reorganization.</dd>
+
+</dl>
+
+<h3>Connection Options</h3>
+<p>
+Options to connect to servers.
+You cannot use --all and --dbname or --table together.
+</p>
+
+<dl>
+<dt>-a<br />--all</dt>
+<dd>Reorganize all databases.</dd>
+
+<dt>
+-d dbname<br />
+--dbname dbname
+</dt>
+<dd>Specifies the name of the database to be reorganized. If this is not specified and -a (or --all) is not used, the database name is read from the environment variable PGDATABASE. If that is not set, the user name specified for the connection is used. </dd>
+
 <dt>-h host<br />
 --host host</dt>
 <dd>Specifies the host name of the machine on which the server is running. If the value begins with a slash, it is used as the directory for the Unix domain socket. </dd>
@@ -103,58 +167,17 @@ You can choose one of the following methods to reorganize.</p>
 <dd>This option is never essential, since pg_reorg will automatically prompt for a password if the server demands password authentication. However, vacuumdb will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing -W to avoid the extra connection attempt. </dd>
 </dl>
 
-<h3>message-options</h3>
-<p>Specifies message output by pg_reorg.
---quiet is ignored if some of the other options are specified.</p>
-
+<h3>Generic Options</h3>
 <dl>
-<dt>-q<br />--quiet</dt>
-<dd>Do not display progress messages. </dd>
-<dt>-v<br />--verbose</dt>
-<dd>Print detailed information during processing.</dd>
-</dl>
-
-<h3>order-options</h3>
-<p>Options to order rows.
-If not specified, pg_reorg do online CLUSTER using cluster indexes.
-Only one option can be specified.
-</p>
-
-<dl>
-<dt>-n<br />--no-order</dt>
-<dd>Do online VACUUM FULL.</dd>
-
-<dt>-o columns [,...]<br />
---order-by columns [,...]</dt>
-<dd>Do online CLUSTER ordered by specified columns.</dd>
-</dl>
-
-
-<h3>target-options</h3>
-<p>
-Options to specify target tables or databases.
-You cannot use --all and --dbname or --table together.
-</p>
-
-<dl>
-<dt>-a<br />--all</dt>
-<dd>Reorganize all databases.</dd>
-
-<dt>
--d dbname<br />
---dbname dbname
-</dt>
-<dd>Specifies the name of the database to be reorganized. If this is not specified and -a (or --all) is not used, the database name is read from the environment variable PGDATABASE. If that is not set, the user name specified for the connection is used. </dd>
-
-<dt>
--t table<br />
---table table
-</dt>
-<dd>Reorganize table only. If you don't specify this option, all tables in specified databases are reorganized.</dd>
-
-<dt>-Z<br />--no-analyze</dt>
-<dd>Do ANALYZE after reorganization. If you don't specify this option, ANALYZE is performed automatically after reorg.</dd>
-
+<dt>-e<br />--echo</dt>
+<dd>Echo commands sent to server.</dd>
+<dt>-E<br />--elevel</dt>
+<dd>Choose the output message level from DEBUG, INFO, NOTICE, WARNING, ERROR, LOG, FATAL, and PANIC.
+The default is INFO.</dd>
+<dt>--help</dt>
+<dd>Show usage of the program.</dd>
+<dt>--version</dt>
+<dd>Show the version number of the program.</dd>
 </dl>
 
 <h2 id="environment">Environment</h2>
@@ -253,9 +276,10 @@ Then, it updates system catalog directly to swap the work table and the original
 
 <h2 id="requirement">Requirements</h2>
 <dl>
-<dt>PostgreSQL version</dt><dd>PostgreSQL 8.3</dd>
+<dt>PostgreSQL version</dt>
+<dd>PostgreSQL 8.3, 8.4, 9.0</dd>
 <dt>OS</dt><dd>RHEL 5.2, Windows XP SP3</dd>
-<dt>Disks</dt><dd>Requires amount of disks twice larger than target table and indexes.</dd>
+<dt>Disks</dt><dd>Requires amount of disks twice larger than target table and indexes. (If the total size of targets are 1GB, additional 2GB of disks are required.)</dd>
 </dl>
 
 <h2 id="seealso">See Also</h2>
@@ -263,6 +287,10 @@ Then, it updates system catalog directly to swap the work table and the original
 <a href="http://developer.postgresql.org/pgdocs/postgres/app-vacuumdb.html">vacuumdb</a>
 
 <hr />
+<div class="navigation">
+  <a href="index.html">Top</a> &gt;
+  <a href="pg_reorg.html">pg_reorg</a>
+<div>
 <p class="footer">Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION</p>
 
 <script type="text/javascript">

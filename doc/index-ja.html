@@ -17,11 +17,21 @@
 <h1>pg_reorg ホームページへようこそ</h1>
 <hr />
 </center>
+
+<p>このプロジェクトでは <strong>pg_reorg</strong> と <strong>pg_batch</strong> の2つのツールを頒布しています。</p>
+
 <p>
-pg_reorg は PostgreSQL のテーブルを再編成するシェルコマンドです。
+<strong>pg_reorg</strong> は PostgreSQL のテーブルを再編成するシェルコマンドです。
 共有ロックや排他ロックを取得しないため、再編成中であっても行の参照や更新を行うことができます。
 このモジュールは CLUSTER や VACUUM FULL コマンドのより良い代替になります。
 </p>
+
+<p>
+<strong>pg_batch</strong> は PostgreSQL のためのSQLジョブ実行プログラムです。
+ジョブ一覧生成するスクリプトを SQL として外部から与え、その出力 SQL をジョブとしてシリアルまたはパラレルに実行します。
+VACUUM を行うスクリプトが付属しており、"より良い vacuumdb" として利用できます。
+</p>
+
 <p>この pg_reorg プロジェクトは <a href="http://www.postgresql.org">PostgreSQL</a> コミュニティによる <a href="http://pgfoundry.org">pgFoundry</a> の中の<a href="http://pgfoundry.org/projects/reorg">プロジェクト</a>です。</p>
 <ul>
 	<li><a href="http://pgfoundry.org/frs/?group_id=1000411">ダウンロード</a> : ソースコードのほか、Windows 用バイナリもダウンロードできます。</li>
@@ -34,9 +44,11 @@ pg_reorg は PostgreSQL のテーブルを再編成するシェルコマンド�
 <hr />
 
 <h2>ドキュメント</h2>
-<p>
-<a href="pg_reorg-ja.html">ドキュメントはこちら</a>。
-</p>
+
+<ul>
+<li><a href="pg_reorg-ja.html">pg_reorg 1.1.0 ドキュメント</a></li>
+<li><a href="pg_batch-ja.html">pg_batch 1.2.0 ドキュメント</a></li>
+</ul>
 
 <h2>実行時間</h2>
 <p>
