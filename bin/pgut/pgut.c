@@ -273,6 +273,7 @@ parse_int64(const char *value, int64 *result)
 #elif defined(HAVE_LONG_INT_64)
 	val = strtol(value, &endptr, 0);
 #elif defined(HAVE_LONG_LONG_INT_64)
+	val = strtoll(value, &endptr, 0);
 #else
 	val = strtol(value, &endptr, 0);
 #endif

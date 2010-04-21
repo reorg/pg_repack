@@ -39,6 +39,13 @@ ALTER INDEX tbl_with_dropped_column_pkey SET (fillfactor = 75);
 ALTER TABLE tbl_with_dropped_column CLUSTER ON tbl_with_dropped_column_pkey;
 CREATE INDEX idx_c1c2 ON tbl_with_dropped_column (c1, c2) WITH (fillfactor = 75);
 CREATE INDEX idx_c2c1 ON tbl_with_dropped_column (c2, c1);
+CREATE TABLE tbl_with_dropped_toast (
+	i integer,
+	j integer,
+	t text,
+	PRIMARY KEY (i, j)
+);
+ALTER TABLE tbl_with_dropped_toast CLUSTER ON tbl_with_dropped_toast_pkey;
 --
 -- insert data
 --
@@ -59,6 +66,9 @@ ALTER TABLE tbl_with_dropped_column DROP COLUMN d1;
 ALTER TABLE tbl_with_dropped_column DROP COLUMN d2;
 ALTER TABLE tbl_with_dropped_column DROP COLUMN d3;
 ALTER TABLE tbl_with_dropped_column ADD COLUMN c3 text;
+INSERT INTO tbl_with_dropped_toast VALUES(1, 10, 'abc');
+INSERT INTO tbl_with_dropped_toast VALUES(2, 20, sqrt(2::numeric(1000,999))::text || sqrt(3::numeric(1000,999))::text);
+ALTER TABLE tbl_with_dropped_toast DROP COLUMN t;
 --
 -- before
 --
@@ -67,6 +77,13 @@ SELECT * FROM tbl_with_dropped_column;
 ----+----+----+----
  c1 |  2 | c2 | 
  c1 |  1 | c2 | 
+(2 rows)
+
+SELECT * FROM tbl_with_dropped_toast;
+ i | j  
+---+----
+ 1 | 10
+ 2 | 20
 (2 rows)
 
 --
@@ -131,6 +148,15 @@ Indexes:
     "idx_c1c2" btree (c1, c2) WITH (fillfactor=75)
     "idx_c2c1" btree (c2, c1)
 
+\d tbl_with_dropped_toast
+Table "public.tbl_with_dropped_toast"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ i      | integer | not null
+ j      | integer | not null
+Indexes:
+    "tbl_with_dropped_toast_pkey" PRIMARY KEY, btree (i, j) CLUSTER
+
 SELECT col1, to_char(col2, 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
  col1 |       to_char       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ,")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
 ------+---------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -168,6 +194,33 @@ SELECT * FROM tbl_with_dropped_column;
  c1 |  1 | c2 | 
  c1 |  2 | c2 | 
 (2 rows)
+
+SELECT * FROM tbl_with_dropped_toast;
+ i | j  
+---+----
+ 1 | 10
+ 2 | 20
+(2 rows)
+
+--
+-- check broken links or orphan toast relations
+--
+SELECT oid, relname
+  FROM pg_class
+ WHERE relkind = 't'
+   AND oid NOT IN (SELECT reltoastrelid FROM pg_class WHERE relkind = 'r');
+ oid | relname 
+-----+---------
+(0 rows)
+
+SELECT oid, relname
+  FROM pg_class
+ WHERE relkind = 'r'
+   AND reltoastrelid <> 0
+   AND reltoastrelid NOT IN (SELECT oid FROM pg_class WHERE relkind = 't');
+ oid | relname 
+-----+---------
+(0 rows)
 
 --
 -- clean up

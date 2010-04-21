@@ -75,7 +75,7 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 Datum
 reorg_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_reorg 1.1.0");
+	return CStringGetTextDatum("pg_reorg 1.1.1");
 }
 
 /**
@@ -468,6 +468,12 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 	int				nattr;
 
 	parse_indexdef(&stmt, index, table);
+	elog(DEBUG2, "indexdef.create  = %s", stmt.create);
+	elog(DEBUG2, "indexdef.index   = %s", stmt.index);
+	elog(DEBUG2, "indexdef.table   = %s", stmt.table);
+	elog(DEBUG2, "indexdef.type    = %s", stmt.type);
+	elog(DEBUG2, "indexdef.columns = %s", stmt.columns);
+	elog(DEBUG2, "indexdef.options = %s", stmt.options);
 
 	/*
 	 * FIXME: this is very unreliable implementation but I don't want to
@@ -482,6 +488,8 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 		char *opcname;
 
 		token = next;
+		while (isspace((unsigned char) *token))
+			token++;
 		next = skip_until(index, next, ',');
 
 		opcname = token + strlen(token);
@@ -555,7 +563,7 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 		else
 			appendStringInfoString(&str, token);
 		if (next)
-			appendStringInfoChar(&str, ',');
+			appendStringInfoString(&str, ", ");
 	}
 
 	if (indexRel != NULL)
@@ -777,16 +785,6 @@ reorg_swap(PG_FUNCTION_ARGS)
 	natts1 = getint16(tuple, desc, 8);
 	natts2 = getint16(tuple, desc, 9);;
 
-	/* should be all-or-nothing */
-	if ((reltoastrelid1 == InvalidOid || reltoastidxid1 == InvalidOid ||
-		 reltoastrelid2 == InvalidOid || reltoastidxid2 == InvalidOid) &&
-		(reltoastrelid1 != InvalidOid || reltoastidxid1 != InvalidOid ||
-		 reltoastrelid2 != InvalidOid || reltoastidxid2 != InvalidOid))
-	{
-		elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
-			reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
-	}
-
 	/* change owner of new relation to original owner */
 	if (owner1 != owner2)
 	{
@@ -848,7 +846,32 @@ reorg_swap(PG_FUNCTION_ARGS)
 	}
 
 	/* swap names for toast tables and toast indexes */
-	if (reltoastrelid1 != InvalidOid)
+	if (reltoastrelid1 == InvalidOid)
+	{
+		if (reltoastidxid1 != InvalidOid ||
+			reltoastrelid2 != InvalidOid ||
+			reltoastidxid2 != InvalidOid)
+			elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
+				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
+		/* do nothing */
+	}
+	else if (reltoastrelid2 == InvalidOid)
+	{
+		char	name[NAMEDATALEN];
+
+		if (reltoastidxid1 == InvalidOid ||
+			reltoastidxid2 != InvalidOid)
+			elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
+				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
+
+		/* rename X to Y */
+		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
+		RenameRelationInternal(reltoastrelid1, name, PG_TOAST_NAMESPACE);
+		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
+		RenameRelationInternal(reltoastidxid1, name, PG_TOAST_NAMESPACE);
+		CommandCounterIncrement();
+	}
+	else if (reltoastrelid1 != InvalidOid)
 	{
 		char	name[NAMEDATALEN];
 		int		pid = getpid();

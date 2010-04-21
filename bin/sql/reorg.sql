@@ -47,6 +47,14 @@ ALTER TABLE tbl_with_dropped_column CLUSTER ON tbl_with_dropped_column_pkey;
 CREATE INDEX idx_c1c2 ON tbl_with_dropped_column (c1, c2) WITH (fillfactor = 75);
 CREATE INDEX idx_c2c1 ON tbl_with_dropped_column (c2, c1);
 
+CREATE TABLE tbl_with_dropped_toast (
+	i integer,
+	j integer,
+	t text,
+	PRIMARY KEY (i, j)
+);
+ALTER TABLE tbl_with_dropped_toast CLUSTER ON tbl_with_dropped_toast_pkey;
+
 --
 -- insert data
 --
@@ -72,11 +80,16 @@ ALTER TABLE tbl_with_dropped_column DROP COLUMN d1;
 ALTER TABLE tbl_with_dropped_column DROP COLUMN d2;
 ALTER TABLE tbl_with_dropped_column DROP COLUMN d3;
 ALTER TABLE tbl_with_dropped_column ADD COLUMN c3 text;
+
+INSERT INTO tbl_with_dropped_toast VALUES(1, 10, 'abc');
+INSERT INTO tbl_with_dropped_toast VALUES(2, 20, sqrt(2::numeric(1000,999))::text || sqrt(3::numeric(1000,999))::text);
+ALTER TABLE tbl_with_dropped_toast DROP COLUMN t;
 --
 -- before
 --
 
 SELECT * FROM tbl_with_dropped_column;
+SELECT * FROM tbl_with_dropped_toast;
 
 --
 -- do reorg
@@ -95,12 +108,28 @@ SELECT * FROM tbl_with_dropped_column;
 \d tbl_only_ckey
 \d tbl_only_pkey
 \d tbl_with_dropped_column
+\d tbl_with_dropped_toast
 
 SELECT col1, to_char(col2, 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;
 SELECT * FROM tbl_with_dropped_column;
+SELECT * FROM tbl_with_dropped_toast;
+
+--
+-- check broken links or orphan toast relations
+--
+SELECT oid, relname
+  FROM pg_class
+ WHERE relkind = 't'
+   AND oid NOT IN (SELECT reltoastrelid FROM pg_class WHERE relkind = 'r');
+
+SELECT oid, relname
+  FROM pg_class
+ WHERE relkind = 'r'
+   AND reltoastrelid <> 0
+   AND reltoastrelid NOT IN (SELECT oid FROM pg_class WHERE relkind = 't');
 
 --
 -- clean up
