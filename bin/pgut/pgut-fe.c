@@ -56,10 +56,11 @@ reconnect(int elevel)
 	if (connection)
 	{
 		new_password = PQpass(connection);
-		if (new_password && (!password || strcmp(new_password, password)))
+		if (new_password && new_password[0] &&
+			(password == NULL || strcmp(new_password, password) != 0))
 		{
 			free(password);
-			password = new_password;
+			password = pgut_strdup(new_password);
 		}
 	}
 
