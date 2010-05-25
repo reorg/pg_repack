@@ -46,7 +46,7 @@ reconnect(int elevel)
 	if (port && port[0])
 		appendStringInfo(&buf, "port=%s ", port);
 	if (username && username[0])
-		appendStringInfo(&buf, "username=%s ", username);
+		appendStringInfo(&buf, "user=%s ", username);
 	if (password && password[0])
 		appendStringInfo(&buf, "password=%s ", password);
 
