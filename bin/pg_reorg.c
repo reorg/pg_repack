@@ -8,7 +8,7 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_VERSION	= "1.1.1";
+const char *PROGRAM_VERSION	= "1.1.2";
 const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 

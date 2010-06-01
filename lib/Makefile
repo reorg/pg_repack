@@ -18,3 +18,7 @@ top_builddir = ../../..
 include $(top_builddir)/src/Makefile.global
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
+
+# remove dependency to libxml2 and libxslt
+LIBS := $(filter-out -lxml2, $(LIBS))
+LIBS := $(filter-out -lxslt, $(LIBS))

@@ -351,6 +351,7 @@ parse_time(const char *value, time_t *time)
 	tmp[len] = '\0';
 
 	/* parse for "YYYY-MM-DD HH:MI:SS" */
+	memset(&tm, 0, sizeof(tm));
 	tm.tm_year = 0;		/* tm_year is year - 1900 */
 	tm.tm_mon = 0;		/* tm_mon is 0 - 11 */
 	tm.tm_mday = 1;		/* tm_mday is 1 - 31 */
@@ -374,6 +375,9 @@ parse_time(const char *value, time_t *time)
 	/* adjust month */
 	if (i > 1)
 		tm.tm_mon -= 1;
+
+	/* determine whether Daylight Saving Time is in effect */
+	tm.tm_isdst = -1;
 
 	*time = mktime(&tm);
 
