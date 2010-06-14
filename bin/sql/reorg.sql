@@ -4,12 +4,12 @@ SET client_min_messages = warning;
 --
 CREATE TABLE tbl_cluster (
 	col1 int,
-	col2 timestamp,
+	"time" timestamp,
 	","")" text,
 	PRIMARY KEY (","")", col1) WITH (fillfactor = 75)
 ) WITH (fillfactor = 70);
 
-CREATE INDEX ","") cluster" ON tbl_cluster (col2, length(","")"), ","")" text_pattern_ops) WITH (fillfactor = 75);
+CREATE INDEX ","") cluster" ON tbl_cluster ("time", length(","")"), ","")" text_pattern_ops) WITH (fillfactor = 75);
 ALTER TABLE tbl_cluster CLUSTER ON ","") cluster";
 
 CREATE TABLE tbl_only_pkey (
@@ -110,7 +110,7 @@ SELECT * FROM tbl_with_dropped_toast;
 \d tbl_with_dropped_column
 \d tbl_with_dropped_toast
 
-SELECT col1, to_char(col2, 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
+SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;
@@ -130,14 +130,3 @@ SELECT oid, relname
  WHERE relkind = 'r'
    AND reltoastrelid <> 0
    AND reltoastrelid NOT IN (SELECT oid FROM pg_class WHERE relkind = 't');
-
---
--- clean up
---
-
-DROP TABLE tbl_cluster;
-DROP TABLE tbl_only_pkey;
-DROP TABLE tbl_only_ckey;
-DROP TABLE tbl_gistkey;
-DROP TABLE tbl_with_dropped_column;
-RESET client_min_messages;

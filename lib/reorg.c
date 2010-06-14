@@ -360,7 +360,6 @@ skip_until(Oid index, char *sql, char end)
 	char	instr = 0;
 	int		nopen = 0;
 
-	sql++;
 	for (; *sql && (nopen > 0 || instr != 0 || *sql != end); sql++)
 	{
 		if (instr)
@@ -491,29 +490,8 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 		while (isspace((unsigned char) *token))
 			token++;
 		next = skip_until(index, next, ',');
-
-		opcname = token + strlen(token);
-		if (opcname[-1] == '"')
-		{
-			opcname--;
-			for (;;)
-			{
-				char *beg = strrchr(opcname, '"');
-				if (beg == NULL)
-					parse_error(index);
-				else if (beg[-1] != '"')
-					break;
-				else	/* escaped quote ("") */
-					opcname = beg - 1;
-			}
-		}
-		else
-		{
-			while (opcname > token && IsToken(opcname[-1]))
-				opcname--;
-		}
-
-		if (opcname > token && *opcname)
+		opcname = skip_until(index, token, ' ');
+		if (opcname)
 		{
 			/* lookup default operator name from operator class */
 
