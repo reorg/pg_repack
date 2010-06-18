@@ -475,8 +475,8 @@ static pgut_option default_options[] =
 	{ 's', 'h', "host"			, &host },
 	{ 's', 'p', "port"			, &port },
 	{ 's', 'U', "username"		, &username },
-	{ 'y', 'w', "no-password"	, &prompt_password },
-	{ 'Y', 'W', "password"		, &prompt_password },
+	{ 'Y', 'w', "no-password"	, &prompt_password },
+	{ 'y', 'W', "password"		, &prompt_password },
 	{ 0 }
 };
 

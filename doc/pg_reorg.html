@@ -8,7 +8,7 @@
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg 1.1.2</h1>
+<h1 id="pg_reorg">pg_reorg 1.1.3</h1>
 <div class="navigation">
   <a href="index.html">Top</a> &gt;
   <a href="pg_reorg.html">pg_reorg</a>
@@ -55,6 +55,7 @@ See also "<a href="#options">Options</a>" for details.</p>
     <li>-h, --host=HOSTNAME : database server host or socket directory</li>
     <li>-p, --port=PORT : database server port</li>
     <li>-U, --username=USERNAME : user name to connect as</li>
+    <li>-w, --no-password : never prompt for password</li>
     <li>-W, --password : force password prompt</li>
   </ul></li>
   <li>Generic Options<ul>
@@ -162,9 +163,19 @@ You cannot use --all and --dbname or --table together.
 --username username</dt>
 <dd>User name to connect as. </dd>
 
-<dt>-W<br />--password</dt>
-<dd>Force pg_reorg to prompt for a password before connecting to a database.</dd>
-<dd>This option is never essential, since pg_reorg will automatically prompt for a password if the server demands password authentication. However, vacuumdb will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing -W to avoid the extra connection attempt. </dd>
+<dt>-w<br />
+--no-password</dt>
+<dd>
+Never issue a password prompt.
+If the server requires password authentication and a password is not available by other means such as a .pgpass file, the connection attempt will fail.
+This option can be useful in batch jobs and scripts where no user is present to enter a password.
+</dd>
+</dl>
+
+<dt>-W<br />
+--password</dt>
+<dd>Force the program to prompt for a password before connecting to a database.</dd>
+<dd>This option is never essential, since the program will automatically prompt for a password if the server demands password authentication. However, vacuumdb will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing -W to avoid the extra connection attempt. </dd>
 </dl>
 
 <h3>Generic Options</h3>
