@@ -279,11 +279,15 @@ In many case pg_reorg would fail and rollback collectly, but there are some case
 Then, it updates system catalog directly to swap the work table and the original one.</p>
 
 <h2 id="install">Installations</h2>
-<p>pg_reorg can be installed like standard contrib modules.</p>
-<h3>Build from source</h3>
-<p>Place pg_reorg to $PGHOME/contrib/ and input make, make install.</p>
-<h3>Register to database</h3>
-<p>Start PostgreSQL and execute pg_reorg.sql in $PGHOME/share/contrib.</p>
+<p>pg_reorg can be built with pgxs.</p>
+<pre>$ cd pg_reorg
+$ make USE_PGXS=1
+$ su
+$ make USE_PGXS=1 install</pre>
+
+<p>Start PostgreSQL and execute the script to register functions to your database.</p>
+<pre>$ pg_ctl start
+$ psql -f $PGSHARE/contrib/pg_reorg.sql your_database</pre>
 
 <h2 id="requirement">Requirements</h2>
 <dl>

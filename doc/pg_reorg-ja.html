@@ -291,11 +291,15 @@ pg_reorg の実行中には、VACUUM と ANALYZE <STRONG>以外</STRONG> のDDL�
 最後にシステムカタログを直接書き換えることで、元のテーブルと名前を交換しています。</p>
 
 <h2 id="install">インストール方法</h2>
-<p>pg_reorg のインストールは、標準のcontribモジュールと同様です。</p>
-<h3>ビルド</h3>
-<p>pg_reorg のフォルダを$PGHOME/contrib/に配置し、make, make installを行ってください。</p>
-<h3>データベースへの登録</h3>
-<p>PostgreSQLを起動し、対象のデータベースに対して $PGHOME/share/contrib にある pg_reorg.sql を実行し、インストールを行ってください。</p>
+<p>pgxs を使ってビルドできます。</p>
+<pre>$ cd pg_reorg
+$ make USE_PGXS=1
+$ su
+$ make USE_PGXS=1 install</pre>
+
+<p>その後、データベースに関数を登録します。</p>
+<pre>$ pg_ctl start
+$ psql -f $PGSHARE/contrib/pg_reorg.sql your_database</pre>
 
 <h2 id="requirement">動作環境</h2>
 <dl>
