@@ -402,11 +402,15 @@ PGconn *
 pgut_connect(const char *info, YesNo prompt, int elevel)
 {
 	char	   *passwd;
-
-	CHECK_FOR_INTERRUPTS();
+	StringInfoData add_pass;
 
 	if (prompt == YES)
+	{
 		passwd = prompt_for_password();
+		initStringInfo(&add_pass);
+		appendStringInfo(&add_pass, info);
+		appendStringInfo(&add_pass, " password=%s ", passwd);
+	}
 	else
 		passwd = NULL;
 
@@ -414,14 +418,16 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 	for (;;)
 	{
 		PGconn	   *conn;
+		CHECK_FOR_INTERRUPTS();
 
-		conn = PQconnectdb(info);
+		if(!passwd)
+			conn = PQconnectdb(info);
+		else
+			conn = PQconnectdb(add_pass.data);
 
 		if (PQstatus(conn) == CONNECTION_OK)
 		{
 			pgutConn *c;
-
-			free(passwd);
 
 			c = pgut_new(pgutConn);
 			c->conn = conn;
@@ -432,6 +438,10 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			pgut_connections = c;
 			pgut_conn_unlock();
 
+			if(passwd)
+				termStringInfo(&add_pass);
+
+			free(passwd);
 			return conn;
 		}
 
@@ -440,6 +450,9 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			PQfinish(conn);
 			free(passwd);
 			passwd = prompt_for_password();
+ 			initStringInfo(&add_pass);
+			appendStringInfo(&add_pass, info);
+			appendStringInfo(&add_pass, " password=%s ", passwd);
 			continue;
 		}
 		ereport(elevel,
