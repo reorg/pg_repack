@@ -408,11 +408,14 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 	{
 		passwd = prompt_for_password();
 		initStringInfo(&add_pass);
-		appendStringInfo(&add_pass, info);
+		appendStringInfoString(&add_pass, info);
 		appendStringInfo(&add_pass, " password=%s ", passwd);
 	}
 	else
+	{
 		passwd = NULL;
+		add_pass.data = NULL;
+	}
 
 	/* Start the connection. Loop until we have a password if requested by backend. */
 	for (;;)
@@ -420,7 +423,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 		PGconn	   *conn;
 		CHECK_FOR_INTERRUPTS();
 
-		if(!passwd)
+		if (!passwd)
 			conn = PQconnectdb(info);
 		else
 			conn = PQconnectdb(add_pass.data);
@@ -438,10 +441,10 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			pgut_connections = c;
 			pgut_conn_unlock();
 
-			if(passwd)
+			if (add_pass.data != NULL)
 				termStringInfo(&add_pass);
-
 			free(passwd);
+
 			return conn;
 		}
 
@@ -450,11 +453,19 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			PQfinish(conn);
 			free(passwd);
 			passwd = prompt_for_password();
- 			initStringInfo(&add_pass);
-			appendStringInfo(&add_pass, info);
+			if (add_pass.data != NULL)
+	 			resetStringInfo(&add_pass);
+			else
+	 			initStringInfo(&add_pass);
+			appendStringInfoString(&add_pass, info);
 			appendStringInfo(&add_pass, " password=%s ", passwd);
 			continue;
 		}
+
+		if (add_pass.data != NULL)
+			termStringInfo(&add_pass);
+		free(passwd);
+
 		ereport(elevel,
 			(errcode(E_PG_CONNECT),
 			 errmsg("could not connect to database with \"%s\": %s",

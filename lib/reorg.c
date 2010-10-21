@@ -75,7 +75,7 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 Datum
 reorg_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_reorg 1.1.2");
+	return CStringGetTextDatum("pg_reorg 1.1.5");
 }
 
 /**
@@ -605,7 +605,7 @@ remove_dropped_columns_and_adjust_attnum(Oid oid, int16 natts1, int16 natts2)
 			natts2 - natts1, SPI_processed);
 
 	/* renumber attnum */
-#if PG_VERSION_NUM >= 80500
+#if PG_VERSION_NUM >= 90000
 	execute_with_format(SPI_OK_UPDATE,
 		"UPDATE pg_catalog.pg_attribute m"
 		"   SET attnum = (SELECT count(*) FROM pg_attribute a"
@@ -802,7 +802,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 		/* adjust key attnum if the target table has dropped columns */
 		if (natts1 != natts2)
 		{
-#if PG_VERSION_NUM >= 80500
+#if PG_VERSION_NUM >= 90000
 			execute_with_format(SPI_OK_UPDATE,
 				"UPDATE pg_catalog.pg_index m SET indkey = n.indkey"
 				"  FROM pg_catalog.pg_index n"

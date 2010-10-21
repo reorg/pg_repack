@@ -4,7 +4,7 @@
 
 Summary:	Reorganize tables in PostgreSQL databases without any locks. 
 Name:		%{sname}
-Version:	1.1.4
+Version:	1.1.5
 Release:	1%{?dist}
 License:	BSD
 Group:		Applications/Databases
@@ -13,7 +13,7 @@ URL:		http://pgfoundry.org/projects/%{sname}/
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 
 BuildRequires:	postgresql-devel, postgresql
-Requires:	postgresql
+Requires:	postgresql, postgresql-libs
 
 %description 	
 pg_reorg can re-organize tables on a postgres database without any locks so that 
@@ -28,7 +28,11 @@ USE_PGXS=1 make %{?_smp_mflags}
 
 %install
 rm -rf %{buildroot}
-USE_PGXS=1 make DESTDIR=%{buildroot} install
+USE_PGXS=1 make DESTDIR=%{buildroot}
+
+install -d %{buildroot}%{_libdir}/pgsql
+install -d %{buildroot}%{_bindir}
+install -d %{buildroot}%{_datadir}/pgsql/contrib
 
 install -m 755 bin/pg_reorg			%{buildroot}%{_bindir}/pg_reorg
 install -m 755 lib/pg_reorg.so			%{buildroot}%{_libdir}/pgsql/pg_reorg.so
@@ -49,6 +53,7 @@ install -m 644 lib/uninstall_pg_reorg.sql	%{buildroot}%{_datadir}/pgsql/contrib/
 rm -rf %{buildroot}
 
 %changelog
+* Thu Oct 21 2010 - NTT OSS Center <sakamoto.masahiko@oss.ntt.co.jp> 1.1.5-1
 * Wed Sep 22 2010 - NTT OSS Center <sakamoto.masahiko@oss.ntt.co.jp> 1.1.4-1
 * Thu Apr 22 2010 - NTT OSS Center <itagaki.takahiro@oss.ntt.co.jp> 1.1.2-1
 * Mon Jan 15 2010 - Toru SHIMOGAKI <shimogaki.toru@oss.ntt.co.jp> 1.0.8-1
