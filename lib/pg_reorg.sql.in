@@ -106,6 +106,20 @@ $$
 $$
 LANGUAGE sql STABLE STRICT;
 
+-- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
+CREATE VIEW reorg.primary_keys AS
+  SELECT indrelid, (reorg.array_accum(indexrelid))[1] AS indexrelid
+    FROM (SELECT indrelid, indexrelid FROM pg_index
+   WHERE indisunique
+     AND 0 <> ALL(indkey)
+     AND NOT EXISTS(
+           SELECT 1 FROM pg_attribute
+            WHERE attrelid = indrelid
+              AND attnum = ANY(indkey)
+              AND NOT attnotnull)
+   ORDER BY indrelid, indisprimary DESC, indnatts, indkey) tmp
+   GROUP BY indrelid;
+
 CREATE VIEW reorg.tables AS
   SELECT R.oid::regclass AS relname,
          R.oid AS relid,
@@ -127,10 +141,13 @@ CREATE VIEW reorg.tables AS
          'DELETE FROM reorg.log_' || R.oid || ' WHERE id <= $1' AS sql_pop
     FROM pg_class R
          LEFT JOIN pg_class T ON R.reltoastrelid = T.oid
-         LEFT JOIN (SELECT * FROM pg_index WHERE indisprimary) PK
+         LEFT JOIN reorg.primary_keys PK
                 ON R.oid = PK.indrelid
          LEFT JOIN (SELECT CKI.* FROM pg_index CKI, pg_class CKT
-                    WHERE CKI.indexrelid = CKT.oid AND CKI.indisclustered AND CKT.relam = 403) CK
+                     WHERE CKI.indisvalid
+                       AND CKI.indexrelid = CKT.oid
+                       AND CKI.indisclustered
+                       AND CKT.relam = 403) CK
                 ON R.oid = CK.indrelid
          LEFT JOIN pg_namespace N ON N.oid = R.relnamespace
          LEFT JOIN pg_tablespace S ON S.oid = R.reltablespace

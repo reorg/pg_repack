@@ -293,7 +293,7 @@ reorg_one_database(const char *orderby, const char *table)
 		if (table.pkid == 0)
 			ereport(ERROR,
 				(errcode(E_PG_COMMAND),
-				 errmsg("relation \"%s\" has no primary key", table.target_name)));
+				 errmsg("relation \"%s\" must have a primary key or not-null unique keys", table.target_name)));
 
 		table.create_pktype = getstr(res, i, c++);
 		table.create_log = getstr(res, i, c++);

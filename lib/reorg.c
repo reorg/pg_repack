@@ -766,7 +766,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 	/* change owner of new relation to original owner */
 	if (owner1 != owner2)
 	{
-		ATExecChangeOwner(oid2, owner1, true);
+		ATExecChangeOwner(oid2, owner1, true, AccessExclusiveLock);
 		CommandCounterIncrement();
 	}
 

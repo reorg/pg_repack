@@ -151,6 +151,12 @@ extern void tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
 
 #endif
 
+#if PG_VERSION_NUM < 90100
+
+#define ATExecChangeOwner(relationOid, newOwnerId, recursing, lockmode) \
+	ATExecChangeOwner((relationOid), (newOwnerId), (recursing))
+#endif
+
 #if PG_VERSION_NUM < 80300
 #define RelationSetNewRelfilenode(rel, xid) \
 	setNewRelfilenode((rel))

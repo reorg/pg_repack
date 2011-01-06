@@ -130,3 +130,19 @@ SELECT oid, relname
  WHERE relkind = 'r'
    AND reltoastrelid <> 0
    AND reltoastrelid NOT IN (SELECT oid FROM pg_class WHERE relkind = 't');
+
+--
+-- NOT NULL UNIQUE
+--
+CREATE TABLE tbl_nn    (col1 int NOT NULL, col2 int NOT NULL);
+CREATE TABLE tbl_uk    (col1 int NOT NULL, col2 int         , UNIQUE(col1, col2));
+CREATE TABLE tbl_nn_uk (col1 int NOT NULL, col2 int NOT NULL, UNIQUE(col1, col2));
+CREATE TABLE tbl_pk_uk (col1 int NOT NULL, col2 int NOT NULL, PRIMARY KEY(col1, col2), UNIQUE(col2, col1));
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_nn
+-- => ERROR
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_uk
+-- => ERROR
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_nn_uk
+-- => OK
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_pk_uk
+-- => OK

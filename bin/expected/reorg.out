@@ -222,3 +222,20 @@ SELECT oid, relname
 -----+---------
 (0 rows)
 
+--
+-- NOT NULL UNIQUE
+--
+CREATE TABLE tbl_nn    (col1 int NOT NULL, col2 int NOT NULL);
+CREATE TABLE tbl_uk    (col1 int NOT NULL, col2 int         , UNIQUE(col1, col2));
+CREATE TABLE tbl_nn_uk (col1 int NOT NULL, col2 int NOT NULL, UNIQUE(col1, col2));
+CREATE TABLE tbl_pk_uk (col1 int NOT NULL, col2 int NOT NULL, PRIMARY KEY(col1, col2), UNIQUE(col2, col1));
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_nn
+ERROR: relation "tbl_nn" must have a primary key or not-null unique keys
+-- => ERROR
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_uk
+ERROR: relation "tbl_uk" must have a primary key or not-null unique keys
+-- => ERROR
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_nn_uk
+-- => OK
+\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_pk_uk
+-- => OK
