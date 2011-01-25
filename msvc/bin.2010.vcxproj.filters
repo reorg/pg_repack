@@ -1,0 +1,77 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="regress">
+      <UniqueIdentifier>{5f942836-8862-4aa3-8573-a6b80a4fbe4f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="regress\sql">
+      <UniqueIdentifier>{e0adaf77-900d-4307-9a5f-6be049d0d93b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="regress\expected">
+      <UniqueIdentifier>{5cf8792b-6351-4f2c-88db-784d7d8a425c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="doc">
+      <UniqueIdentifier>{6a46f2b1-6c15-44c2-bf14-500562f0fc30}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="readme.txt">
+      <Filter>doc</Filter>
+    </None>
+    <None Include="..\doc\index.html">
+      <Filter>doc</Filter>
+    </None>
+    <None Include="..\doc\index-ja.html">
+      <Filter>doc</Filter>
+    </None>
+    <None Include="..\doc\pg_reorg.html">
+      <Filter>doc</Filter>
+    </None>
+    <None Include="..\doc\pg_reorg-ja.html">
+      <Filter>doc</Filter>
+    </None>
+    <None Include="..\doc\style.css">
+      <Filter>doc</Filter>
+    </None>
+    <None Include="..\bin\Makefile" />
+    <None Include="..\bin\expected\init.out">
+      <Filter>regress\expected</Filter>
+    </None>
+    <None Include="..\bin\expected\reorg.out">
+      <Filter>regress\expected</Filter>
+    </None>
+    <None Include="..\bin\sql\init.sql">
+      <Filter>regress\sql</Filter>
+    </None>
+    <None Include="..\bin\sql\reorg.sql">
+      <Filter>regress\sql</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\bin\pg_reorg.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\bin\pgut\pgut.c">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\bin\pgut\pgut-fe.c">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\bin\pgut\pgut.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\bin\pgut\pgut-fe.h">
+      <Filter>include</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

@@ -626,8 +626,13 @@ pgut_getopt(int argc, char **argv, pgut_option options[])
 		}
 		if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)
 		{
-			fprintf(stderr, "%s %s\n", PROGRAM_NAME, PROGRAM_VERSION);
+			printf("%s %s\n", PROGRAM_NAME, PROGRAM_VERSION);
 			exit(1);
+		}
+		if (strcmp(argv[1], "--configuration") == 0)
+		{
+			printf("%s\n", PG_VERSION_STR);
+			exit(0);
 		}
 	}
 

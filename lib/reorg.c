@@ -1181,6 +1181,7 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 
 #if PG_VERSION_NUM < 80400
 
+/* XXX: You might need to add PGDLLIMPORT into your miscadmin.h. */
 extern PGDLLIMPORT bool allowSystemTableMods;
 
 static void
