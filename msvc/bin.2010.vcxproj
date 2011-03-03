@@ -92,17 +92,17 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">$(SolutionDir)/bin/$(Platform)/$(Configuration)/bin/</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">$(SolutionDir)/bin/x86/$(Configuration)/bin/</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='9.0|x64'">$(SolutionDir)/bin/$(Platform)/$(Configuration)/bin/</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='8.4|Win32'">$(SolutionDir)/bin/$(Platform)/$(Configuration)/bin/</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='8.4|Win32'">$(SolutionDir)/bin/x86/$(Configuration)/bin/</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='8.4|x64'">$(SolutionDir)/bin/$(Platform)/$(Configuration)/bin/</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='8.3|Win32'">$(SolutionDir)/bin/$(Platform)/$(Configuration)/bin/</OutDir>
+    <OutDir Condition="'$(Configuration)|$(Platform)'=='8.3|Win32'">$(SolutionDir)/bin/x86/$(Configuration)/bin/</OutDir>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='8.3|x64'">$(SolutionDir)/bin/$(Platform)/$(Configuration)/bin/</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">$(SolutionDir)/obj/$(Platform)/$(Configuration)/$(ProjectName)/</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">$(SolutionDir)/obj/x86/$(Configuration)/$(ProjectName)/</IntDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='9.0|x64'">$(SolutionDir)/obj/$(Platform)/$(Configuration)/$(ProjectName)/</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='8.4|Win32'">$(SolutionDir)/obj/$(Platform)/$(Configuration)/$(ProjectName)/</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='8.4|Win32'">$(SolutionDir)/obj/x86/$(Configuration)/$(ProjectName)/</IntDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='8.4|x64'">$(SolutionDir)/obj/$(Platform)/$(Configuration)/$(ProjectName)/</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='8.3|Win32'">$(SolutionDir)/obj/$(Platform)/$(Configuration)/$(ProjectName)/</IntDir>
+    <IntDir Condition="'$(Configuration)|$(Platform)'=='8.3|Win32'">$(SolutionDir)/obj/x86/$(Configuration)/$(ProjectName)/</IntDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='8.3|x64'">$(SolutionDir)/obj/$(Platform)/$(Configuration)/$(ProjectName)/</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">false</LinkIncremental>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='9.0|x64'">false</LinkIncremental>
@@ -146,7 +146,7 @@
       <DisableSpecificWarnings>4005;4996;4018;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>kernel32.lib;advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl-8.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl-8.lib</AdditionalDependencies>
       <OutputFile>$(OutDir)/$(TargetFileName)</OutputFile>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -176,7 +176,7 @@
       <DisableSpecificWarnings>4005;4996;4018;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>kernel32.lib;advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl.lib</AdditionalDependencies>
       <OutputFile>$(OutDir)/$(TargetFileName)</OutputFile>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -205,7 +205,7 @@
       <DisableSpecificWarnings>4005;4996;4018;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>kernel32.lib;advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl-8.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl-8.lib</AdditionalDependencies>
       <OutputFile>$(OutDir)/$(TargetFileName)</OutputFile>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
@@ -264,7 +264,7 @@
       <DisableSpecificWarnings>4005;4996;4018;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>kernel32.lib;advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl-8.lib</AdditionalDependencies>
+      <AdditionalDependencies>advapi32.lib;ws2_32.lib;libpq.lib;libpgport.lib;libintl-8.lib</AdditionalDependencies>
       <OutputFile>$(OutDir)/$(TargetFileName)</OutputFile>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>

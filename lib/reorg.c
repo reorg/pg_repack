@@ -1121,7 +1121,8 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 		if (relform1->reltoastrelid)
 		{
 			count = deleteDependencyRecordsFor(RelationRelationId,
-											   relform1->reltoastrelid);
+											   relform1->reltoastrelid,
+											   false);
 			if (count != 1)
 				elog(ERROR, "expected one dependency record for TOAST table, found %ld",
 					 count);
@@ -1129,7 +1130,8 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 		if (relform2->reltoastrelid)
 		{
 			count = deleteDependencyRecordsFor(RelationRelationId,
-											   relform2->reltoastrelid);
+											   relform2->reltoastrelid,
+											   false);
 			if (count != 1)
 				elog(ERROR, "expected one dependency record for TOAST table, found %ld",
 					 count);

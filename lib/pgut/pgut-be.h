@@ -155,6 +155,9 @@ extern void tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
 
 #define ATExecChangeOwner(relationOid, newOwnerId, recursing, lockmode) \
 	ATExecChangeOwner((relationOid), (newOwnerId), (recursing))
+#define deleteDependencyRecordsFor(classId, objectId, skipExtensionDeps) \
+	deleteDependencyRecordsFor((classId), (objectId))
+
 #endif
 
 #if PG_VERSION_NUM < 80300
