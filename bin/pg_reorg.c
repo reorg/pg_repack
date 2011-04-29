@@ -1,14 +1,15 @@
 /*
  * pg_reorg.c: bin/pg_reorg.c
  *
- * Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Portions Copyright (c) 2011, Itagaki Takahiro
  */
 
 /**
  * @brief Client Modules
  */
 
-const char *PROGRAM_VERSION	= "1.1.5";
+const char *PROGRAM_VERSION	= "1.1.6";
 const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
@@ -19,6 +20,10 @@ const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 #include <unistd.h>
 #include <time.h>
 
+/*
+ * APPLY_COUNT: Number of applied logs per transaction. Larger values
+ * could be faster, but will be long transactions in the REDO phase.
+ */
 #define APPLY_COUNT		1000
 
 #define SQL_XID_SNAPSHOT_80300 \
@@ -60,6 +65,7 @@ typedef struct reorg_table
 	const char	   *create_log;		/* CREATE TABLE log */
 	const char	   *create_trigger;	/* CREATE TRIGGER z_reorg_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
+	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
 	const char	   *lock_table;		/* LOCK TABLE table */
 	const char	   *sql_peek;		/* SQL used in flush */
@@ -300,6 +306,7 @@ reorg_one_database(const char *orderby, const char *table)
 		table.create_trigger = getstr(res, i, c++);
 
 		create_table = getstr(res, i, c++);
+		table.drop_columns = getstr(res, i, c++);
 		table.delete_log = getstr(res, i, c++);
 		table.lock_table = getstr(res, i, c++);
 		ckey = getstr(res, i, c++);
@@ -393,6 +400,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	elog(DEBUG2, "create_log     : %s", table->create_log);
 	elog(DEBUG2, "create_trigger : %s", table->create_trigger);
 	elog(DEBUG2, "create_table   : %s", table->create_table);
+	elog(DEBUG2, "drop_columns   : %s", table->drop_columns ? table->drop_columns : "(skipped)");
 	elog(DEBUG2, "delete_log     : %s", table->delete_log);
 	elog(DEBUG2, "lock_table     : %s", table->lock_table);
 	elog(DEBUG2, "sql_peek       : %s", table->sql_peek);
@@ -450,6 +458,8 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	command(table->delete_log, 0, NULL);
 	command(table->create_table, 0, NULL);
 	printfStringInfo(&sql, "SELECT reorg.disable_autovacuum('reorg.table_%u')", table->target_oid);
+	if (table->drop_columns)
+		command(table->drop_columns, 0, NULL);
 	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
 
@@ -635,7 +645,7 @@ reorg_cleanup(bool fatal, void *userdata)
 
 	if (fatal)
 	{
-		fprintf(stderr, "!!!FATAL ERROR!!! Please refer to a manual.\n\n");
+		fprintf(stderr, "!!!FATAL ERROR!!! Please refer to the manual.\n\n");
 	}
 	else
 	{
@@ -671,6 +681,6 @@ pgut_help(bool details)
 	printf("  -t, --table=TABLE         reorg specific table only\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -o, --order-by=columns    order by columns instead of cluster keys\n");
-	printf("  -T, --wait-timeout=secs   timeout to cancel other backends on conflict.\n");
+	printf("  -T, --wait-timeout=secs   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }

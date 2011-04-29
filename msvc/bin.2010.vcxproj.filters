@@ -54,6 +54,10 @@
     <None Include="..\bin\sql\reorg.sql">
       <Filter>regress\sql</Filter>
     </None>
+    <None Include="..\COPYRIGHT">
+      <Filter>doc</Filter>
+    </None>
+    <None Include="..\Makefile" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\bin\pg_reorg.c">

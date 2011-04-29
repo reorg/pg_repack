@@ -1,7 +1,8 @@
 /*
  * pg_reorg: lib/reorg.c
  *
- * Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Portions Copyright (c) 2011, Itagaki Takahiro
  */
 
 #include "postgres.h"
@@ -75,7 +76,7 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 Datum
 reorg_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_reorg 1.1.5");
+	return CStringGetTextDatum("pg_reorg 1.1.6");
 }
 
 /**
@@ -592,101 +593,6 @@ getint16(HeapTuple tuple, TupleDesc desc, int column)
 	return isnull ? 0 : DatumGetInt16(datum);
 }
 
-static void
-remove_dropped_columns_and_adjust_attnum(Oid oid, int16 natts1, int16 natts2)
-{
-	/* delete dropped columns */
-	execute_with_format(SPI_OK_DELETE,
-		"DELETE FROM pg_catalog.pg_attribute"
-		" WHERE attrelid = %u AND attisdropped",
-		oid);
-	if (SPI_processed != natts1 - natts2)
-		elog(ERROR, "cannot remove %d dropped columns (%u columns removed)",
-			natts2 - natts1, SPI_processed);
-
-	/* renumber attnum */
-#if PG_VERSION_NUM >= 90000
-	execute_with_format(SPI_OK_UPDATE,
-		"UPDATE pg_catalog.pg_attribute m"
-		"   SET attnum = (SELECT count(*) FROM pg_attribute a"
-		" WHERE m.attrelid = a.attrelid"
-		"   AND m.attnum >= a.attnum"
-		"   AND a.attnum > 0 AND NOT a.attisdropped)"
-		" WHERE attrelid = %u AND attnum > 0 AND NOT attisdropped",
-		oid);
-	if (SPI_processed != natts2)
-		elog(ERROR, "cannot update %d columns (%u columns updated)",
-			natts2, SPI_processed);
-#elif PG_VERSION_NUM >= 80300
-	execute_with_format(SPI_OK_UPDATE,
-		"UPDATE pg_catalog.pg_attribute"
-		"   SET attnum = (SELECT count(*) FROM pg_attribute a"
-		" WHERE pg_catalog.pg_attribute.attrelid = a.attrelid"
-		"   AND pg_catalog.pg_attribute.attnum >= a.attnum"
-		"   AND a.attnum > 0 AND NOT a.attisdropped)"
-		" WHERE attrelid = %u AND attnum > 0 AND NOT attisdropped",
-		oid);
-	if (SPI_processed != natts2)
-		elog(ERROR, "cannot update %d columns (%u columns updated)",
-			natts2, SPI_processed);
-#else
-	/*
-	 * Use count(*) in subquery because 8.2 doesn't support aggregates
-	 * in UPDATE SET.
-	 */
-	do
-	{
-		uint32			i;
-		uint32			ntuples;
-		SPITupleTable  *tuptable;
-		TupleDesc		desc;
-
-		execute_with_format(SPI_OK_SELECT,
-			"SELECT attnum FROM pg_catalog.pg_attribute"
-			" WHERE attrelid = %u AND attnum > 0 AND NOT attisdropped"
-			" ORDER BY attnum",
-			oid);
-		if (SPI_processed != natts2)
-			elog(ERROR, "number of columns should be %d (%d returned)",
-				natts2, SPI_processed);
-
-		ntuples = SPI_processed;
-		tuptable = SPI_tuptable;
-		desc = tuptable->tupdesc;
-
-		for (i = 0; i < ntuples; i++)
-		{
-			int		attnum;
-			int		count;
-
-			attnum = getint16(tuptable->vals[i], desc, 1);
-
-			execute_with_format(SPI_OK_SELECT,
-				"SELECT count(*)::smallint FROM pg_catalog.pg_attribute"
-				" WHERE attrelid = %u AND attnum > 0 AND attnum <= %d",
-				oid, attnum);
-			if (SPI_processed != 1)
-				elog(ERROR, "cannot adjust column %d", attnum);
-
-			count = getint16(SPI_tuptable->vals[0], SPI_tuptable->tupdesc, 1);
-
-			execute_with_format(SPI_OK_UPDATE,
-				"UPDATE pg_catalog.pg_attribute"
-				"   SET attnum = %d"
-				" WHERE attrelid = %u AND attnum = %d",
-				count, oid, attnum);
-			if (SPI_processed != 1)
-				elog(ERROR, "cannot update column %d", attnum);
-		}
-	} while(0);
-#endif
-
-	/* adjust attribute number of the table */
-	execute_with_format(SPI_OK_UPDATE,
-		"UPDATE pg_catalog.pg_class SET relnatts = %d WHERE oid = %u",
-		natts2, oid);
-}
-
 /**
  * @fn      Datum reorg_swap(PG_FUNCTION_ARGS)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
@@ -799,27 +705,6 @@ reorg_swap(PG_FUNCTION_ARGS)
 		idx2 = getoid(tuple, desc, 2);
 		swap_heap_or_index_files(idx1, idx2);
 
-		/* adjust key attnum if the target table has dropped columns */
-		if (natts1 != natts2)
-		{
-#if PG_VERSION_NUM >= 90000
-			execute_with_format(SPI_OK_UPDATE,
-				"UPDATE pg_catalog.pg_index m SET indkey = n.indkey"
-				"  FROM pg_catalog.pg_index n"
-				" WHERE m.indexrelid = %u"
-				"   AND n.indexrelid = 'reorg.index_%u'::regclass",
-				idx1, idx1);
-#else
-			execute_with_format(SPI_OK_UPDATE,
-				"UPDATE pg_catalog.pg_index SET indkey = n.indkey"
-				"  FROM pg_catalog.pg_index n"
-				" WHERE pg_catalog.pg_index.indexrelid = %u"
-				"   AND n.indexrelid = 'reorg.index_%u'::regclass",
-				idx1, idx1);
-#endif
-			if (SPI_processed != 1)
-				elog(ERROR, "failed to update pg_index.indkey (%u rows updated)", SPI_processed);
-		}
 		CommandCounterIncrement();
 	}
 
@@ -875,10 +760,6 @@ reorg_swap(PG_FUNCTION_ARGS)
 		RenameRelationInternal(reltoastidxid1, name, PG_TOAST_NAMESPACE);
 		CommandCounterIncrement();
 	}
-
-	/* adjust attribute numbers if the target table has dropped columns */
-	if (natts1 != natts2)
-		remove_dropped_columns_and_adjust_attnum(oid, natts1, natts2);
 
 	/* drop reorg trigger */
 	execute_with_format(

@@ -8,7 +8,7 @@
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg 1.1.3</h1>
+<h1 id="pg_reorg">pg_reorg 1.1.6</h1>
 <div class="navigation">
   <a href="index.html">Top</a> &gt;
   <a href="pg_reorg.html">pg_reorg</a>
@@ -279,20 +279,31 @@ In many case pg_reorg would fail and rollback collectly, but there are some case
 Then, it updates system catalog directly to swap the work table and the original one.</p>
 
 <h2 id="install">Installations</h2>
-<p>pg_reorg can be built with pgxs.</p>
+<p>
+pg_reorg can be built with "make" on UNIX or Linux.
+pgxs build framework is used automatically.
+Before build, you might need to install postgres packages for developper (postgresql-devel, etc.)
+and add <code>pg_config</code> to your $PATH.
+</p>
 <pre>$ cd pg_reorg
-$ make USE_PGXS=1
+$ make
 $ su
-$ make USE_PGXS=1 install</pre>
+$ make install</pre>
+<p>
+You can also use Microsoft Visual C++ 2010 to build the program on Windows.
+There are project files in the msvc folder.
+</p>
 
 <p>Start PostgreSQL and execute the script to register functions to your database.</p>
 <pre>$ pg_ctl start
-$ psql -f $PGSHARE/contrib/pg_reorg.sql your_database</pre>
+$ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
+
+<p>(NOTE: <code>CREATE EXTENSION</code> is not supported yet.)</p>
 
 <h2 id="requirement">Requirements</h2>
 <dl>
 <dt>PostgreSQL version</dt>
-<dd>PostgreSQL 8.3, 8.4, 9.0</dd>
+<dd>PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1</dd>
 <dt>OS</dt><dd>RHEL 5.2, Windows XP SP3</dd>
 <dt>Disks</dt><dd>Requires amount of disks twice larger than target table and indexes. (If the total size of targets are 1GB, additional 2GB of disks are required.)</dd>
 </dl>
@@ -306,7 +317,10 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql your_database</pre>
   <a href="index.html">Top</a> &gt;
   <a href="pg_reorg.html">pg_reorg</a>
 <div>
-<p class="footer">Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION</p>
+<p class="footer">
+Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION<br />
+Portions Copyright (c) 2011, Itagaki Takahiro
+</p>
 
 <script type="text/javascript">
 var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");

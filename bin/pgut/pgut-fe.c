@@ -1,9 +1,8 @@
 /*-------------------------------------------------------------------------
- *
  * pgut-fe.c
  *
- * Copyright (c) 2009-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
- *
+ * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Portions Copyright (c) 2011, Itagaki Takahiro
  *-------------------------------------------------------------------------
  */
 

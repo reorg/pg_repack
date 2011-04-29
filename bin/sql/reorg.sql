@@ -80,6 +80,8 @@ ALTER TABLE tbl_with_dropped_column DROP COLUMN d1;
 ALTER TABLE tbl_with_dropped_column DROP COLUMN d2;
 ALTER TABLE tbl_with_dropped_column DROP COLUMN d3;
 ALTER TABLE tbl_with_dropped_column ADD COLUMN c3 text;
+CREATE VIEW view_for_dropped_column AS
+	SELECT * FROM tbl_with_dropped_column;
 
 INSERT INTO tbl_with_dropped_toast VALUES(1, 10, 'abc');
 INSERT INTO tbl_with_dropped_toast VALUES(2, 20, sqrt(2::numeric(1000,999))::text || sqrt(3::numeric(1000,999))::text);
@@ -89,6 +91,7 @@ ALTER TABLE tbl_with_dropped_toast DROP COLUMN t;
 --
 
 SELECT * FROM tbl_with_dropped_column;
+SELECT * FROM view_for_dropped_column;
 SELECT * FROM tbl_with_dropped_toast;
 
 --
@@ -114,8 +117,19 @@ SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;
+
+SET enable_seqscan = on;
+SET enable_indexscan = off;
 SELECT * FROM tbl_with_dropped_column;
+SELECT * FROM view_for_dropped_column;
 SELECT * FROM tbl_with_dropped_toast;
+SET enable_seqscan = off;
+SET enable_indexscan = on;
+SELECT * FROM tbl_with_dropped_column;
+SELECT * FROM view_for_dropped_column;
+SELECT * FROM tbl_with_dropped_toast;
+RESET enable_seqscan;
+RESET enable_indexscan;
 
 --
 -- check broken links or orphan toast relations

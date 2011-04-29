@@ -1,7 +1,8 @@
 #
 # pg_reorg: bin/Makefile
 #
-#    Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#  Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#  Portions Copyright (c) 2011, Itagaki Takahiro
 #
 SRCS = pg_reorg.c pgut/pgut.c pgut/pgut-fe.c
 OBJS = $(SRCS:.c=.o)

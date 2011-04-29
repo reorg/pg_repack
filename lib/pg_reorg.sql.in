@@ -1,7 +1,8 @@
 /*
  * pg_reorg: lib/pg_reorg.sql.in
  *
- * Copyright (c) 2008-2010, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Portions Copyright (c) 2011, Itagaki Takahiro
  */
 
 -- Adjust this setting to control where the objects get created.
@@ -106,6 +107,43 @@ $$
 $$
 LANGUAGE sql STABLE STRICT;
 
+-- Get a column list for SELECT all columns including dropped ones.
+-- We use NULLs of integer types for dropped columns (types are not important).
+CREATE FUNCTION reorg.get_columns_for_create_as(oid)
+  RETURNS text AS
+$$
+SELECT array_to_string(reorg.array_accum(c), ',') FROM (SELECT
+	CASE WHEN attisdropped
+		THEN 'NULL::integer AS ' || quote_ident(attname)
+		ELSE quote_ident(attname)
+	END AS c
+FROM pg_attribute
+WHERE attrelid = $1 AND attnum > 0 ORDER BY attnum
+) AS COL
+$$
+LANGUAGE sql STABLE STRICT;
+
+-- Get a SQL text to DROP dropped columns for the table,
+-- or NULL if it has no dropped columns.
+CREATE FUNCTION reorg.get_drop_columns(oid, text)
+  RETURNS text AS
+$$
+SELECT
+	'ALTER TABLE ' || $2 || ' ' || array_to_string(dropped_columns, ', ')
+FROM (
+	SELECT
+		reorg.array_accum('DROP COLUMN ' || quote_ident(attname)) AS dropped_columns
+	FROM (
+		SELECT * FROM pg_attribute
+		WHERE attrelid = $1 AND attnum > 0 AND attisdropped
+		ORDER BY attnum
+	) T
+) T
+WHERE
+	array_upper(dropped_columns, 1) > 0
+$$
+LANGUAGE sql STABLE STRICT;
+
 -- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
 CREATE VIEW reorg.primary_keys AS
   SELECT indrelid, (reorg.array_accum(indexrelid))[1] AS indexrelid
@@ -130,7 +168,8 @@ CREATE VIEW reorg.tables AS
          reorg.get_create_index_type(PK.indexrelid, 'reorg.pk_' || R.oid) AS create_pktype,
          'CREATE TABLE reorg.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk reorg.pk_' || R.oid || ', row ' || reorg.oid2text(R.oid) || ')' AS create_log,
          reorg.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
-         'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT * FROM ONLY ' || reorg.oid2text(R.oid) AS create_table,
+         'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT ' || reorg.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || reorg.oid2text(R.oid) AS create_table,
+		 reorg.get_drop_columns(R.oid, 'reorg.table_' || R.oid) AS drop_columns,
          'DELETE FROM reorg.log_' || R.oid AS delete_log,
          'LOCK TABLE ' || reorg.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
          reorg.get_index_keys(CK.indexrelid, R.oid) AS ckey,

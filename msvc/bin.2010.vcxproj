@@ -312,11 +312,13 @@
     <None Include="..\bin\Makefile" />
     <None Include="..\bin\sql\init.sql" />
     <None Include="..\bin\sql\reorg.sql" />
+    <None Include="..\COPYRIGHT" />
     <None Include="..\doc\index-ja.html" />
     <None Include="..\doc\index.html" />
     <None Include="..\doc\pg_reorg-ja.html" />
     <None Include="..\doc\pg_reorg.html" />
     <None Include="..\doc\style.css" />
+    <None Include="..\Makefile" />
     <None Include="readme.txt" />
   </ItemGroup>
   <ItemGroup>
