@@ -23,6 +23,7 @@
 #include "miscadmin.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
+#include "utils/rel.h"
 #include "utils/relcache.h"
 #include "utils/syscache.h"
 

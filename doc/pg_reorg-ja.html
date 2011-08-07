@@ -8,7 +8,7 @@
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg 1.1.6</h1>
+<h1 id="pg_reorg">pg_reorg 1.1.7</h1>
 <div class="navigation">
   <a href="index-ja.html">Top</a> &gt;
   <a href="pg_reorg-ja.html">pg_reorg</a>
@@ -27,6 +27,7 @@
 <li><a href="#details">詳細</a></li>
 <li><a href="#install">インストール方法</a></li>
 <li><a href="#requirement">動作環境</a></li>
+<li><a href="#releases">更新履歴</a></li>
 <li><a href="#seealso">関連項目</a></li>
 </ol>
 </div>
@@ -319,6 +320,14 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
 <dt>ディスク容量</dt>
 <dd>処理対象のテーブル、インデックスサイズの2倍以上のディスク空き容量 (対象が1GBならば、さらに追加で2GB)</dd>
 </dl>
+
+<h2 id="releases">更新履歴</h2>
+<ul>
+<li>1.1.7 (2011-08-07)<ul>
+	<li>バグ修正: DROPされた列を持つテーブルを再編成した場合に、そのテーブルを使用するビューや関数が破損する可能性があった。</li>
+	<li>PostgreSQL 9.1, 9.2dev のサポート (EXTENSION はまだ)</li>
+</ul></li>
+</ul>
 
 <h2 id="seealso">関連項目</h2>
 <a href="http://www.postgresql.jp/document/current/html/app-clusterdb.html">clusterdb</a>,

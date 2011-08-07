@@ -1,8 +1,9 @@
 /*-------------------------------------------------------------------------
+ *
  * pgut-be.h
  *
- * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
- * Portions Copyright (c) 2011, Itagaki Takahiro
+ * Copyright (c) 2009-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ *
  *-------------------------------------------------------------------------
  */
 
@@ -99,6 +100,8 @@ extern int no_such_variable
 #define pgstat_end_function_usage(fcu, finalize)	((void)0)
 #define makeRangeVar(schemaname, relname, location) \
 	makeRangeVar((schemaname), (relname))
+#define tuplestore_gettupleslot(state, forward, copy, slot) \
+	tuplestore_gettupleslot(state, forward, slot)
 #define pgstat_track_activity_query_size	PGBE_ACTIVITY_SIZE
 typedef void *BulkInsertState;
 
@@ -134,6 +137,7 @@ extern char *text_to_cstring(const text *t);
 extern text *cstring_to_text(const char *s);
 extern void tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
 					 Datum *values, bool *isnull);
+extern Datum ExecFetchSlotTupleDatum(TupleTableSlot *slot);
 
 #define CStringGetTextDatum(s)		PointerGetDatum(cstring_to_text(s))
 #define TextDatumGetCString(d)		text_to_cstring((text *) DatumGetPointer(d))
@@ -146,7 +150,13 @@ extern void tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
 	reindex_index((indexId))
 #define func_signature_string(funcname, nargs, argnames, argtypes) \
 	func_signature_string((funcname), (nargs), (argtypes))
-#define GetConfigOption(name, restrict_superuser)	GetConfigOption((name))
+
+#endif
+
+#if PG_VERSION_NUM < 90200
+
+#define RangeVarGetRelid(relation, lockmode, missing_ok, nowait) \
+	RangeVarGetRelid((relation), (missing_ok))
 
 #endif
 
@@ -156,6 +166,7 @@ extern void tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
 	ATExecChangeOwner((relationOid), (newOwnerId), (recursing))
 #define deleteDependencyRecordsFor(classId, objectId, skipExtensionDeps) \
 	deleteDependencyRecordsFor((classId), (objectId))
+#define PG_GET_COLLATION()		(InvalidOid)
 
 #endif
 
@@ -173,6 +184,14 @@ extern void tuplestore_putvalues(Tuplestorestate *state, TupleDesc tdesc,
 #elif PG_VERSION_NUM < 90000
 #define FuncnameGetCandidates(names, nargs, argnames, variadic, defaults) \
 	FuncnameGetCandidates((names), (nargs), (variadic), (defaults))
+#endif
+
+#if PG_VERSION_NUM < 90000
+#define GetConfigOption(name, missing_ok, restrict_superuser) \
+	GetConfigOption((name))
+#elif PG_VERSION_NUM < 90200
+#define GetConfigOption(name, missing_ok, restrict_superuser) \
+	GetConfigOption((name), (restrict_superuser))
 #endif
 
 #endif   /* PGUT_BE_H */

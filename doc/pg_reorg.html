@@ -8,7 +8,7 @@
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg 1.1.6</h1>
+<h1 id="pg_reorg">pg_reorg 1.1.7</h1>
 <div class="navigation">
   <a href="index.html">Top</a> &gt;
   <a href="pg_reorg.html">pg_reorg</a>
@@ -307,6 +307,14 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
 <dt>OS</dt><dd>RHEL 5.2, Windows XP SP3</dd>
 <dt>Disks</dt><dd>Requires amount of disks twice larger than target table and indexes. (If the total size of targets are 1GB, additional 2GB of disks are required.)</dd>
 </dl>
+
+<h2 id="releases">Releases</h2>
+<ul>
+<li>1.1.7 (2011-08-07)<ul>
+	<li>Bugfix: VIEWs and FUNCTIONs could be corrupted that used a reorganized table which has a dropped column.</li>
+	<li>Supports PostgreSQL 9.1 and 9.2dev. (but EXTENSION is not yet)</li>
+</ul></li>
+</ul>
 
 <h2 id="seealso">See Also</h2>
 <a href="http://developer.postgresql.org/pgdocs/postgres/app-clusterdb.html">clusterdb</a>,
