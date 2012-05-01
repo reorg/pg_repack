@@ -70,9 +70,24 @@ must_be_superuser(const char *func)
 		elog(ERROR, "must be superuser to use %s function", func);
 }
 
+
+/* Include an implementation of RenameRelationInternal for old
+ * versions which don't have one.
+ */
 #if PG_VERSION_NUM < 80400
 static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId);
 #endif
+
+
+/* The API of RenameRelationInternal() was changed in 9.2.
+ * Use the RENAME_REL macro for compatibility across versions.
+ */
+#if PG_VERSION_NUM < 90200
+#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
+#else
+#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
+#endif
+
 
 Datum
 reorg_version(PG_FUNCTION_ARGS)
@@ -730,9 +745,9 @@ reorg_swap(PG_FUNCTION_ARGS)
 
 		/* rename X to Y */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
-		RenameRelationInternal(reltoastrelid1, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RenameRelationInternal(reltoastidxid1, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastidxid1, name);
 		CommandCounterIncrement();
 	}
 	else if (reltoastrelid1 != InvalidOid)
@@ -742,23 +757,23 @@ reorg_swap(PG_FUNCTION_ARGS)
 
 		/* rename X to TEMP */
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d", pid);
-		RenameRelationInternal(reltoastrelid1, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d_index", pid);
-		RenameRelationInternal(reltoastidxid1, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastidxid1, name);
 		CommandCounterIncrement();
 
 		/* rename Y to X */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid);
-		RenameRelationInternal(reltoastrelid2, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastrelid2, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid);
-		RenameRelationInternal(reltoastidxid2, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastidxid2, name);
 		CommandCounterIncrement();
 
 		/* rename TEMP to Y */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
-		RenameRelationInternal(reltoastrelid1, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RenameRelationInternal(reltoastidxid1, name, PG_TOAST_NAMESPACE);
+		RENAME_REL(reltoastidxid1, name);
 		CommandCounterIncrement();
 	}
 

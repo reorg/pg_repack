@@ -14,7 +14,7 @@ CREATE SCHEMA reorg;
 
 CREATE FUNCTION reorg.version() RETURNS text AS
 'MODULE_PATHNAME', 'reorg_version'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE AGGREGATE reorg.array_accum (
     sfunc = array_append,
@@ -46,7 +46,7 @@ LANGUAGE sql STABLE STRICT;
 
 CREATE FUNCTION reorg.get_index_keys(oid, oid) RETURNS text AS
 'MODULE_PATHNAME', 'reorg_get_index_keys'
-LANGUAGE 'C' STABLE STRICT;
+LANGUAGE C STABLE STRICT;
 
 CREATE FUNCTION reorg.get_create_index_type(oid, name) RETURNS text AS
 $$
@@ -196,11 +196,11 @@ CREATE VIEW reorg.tables AS
 
 CREATE FUNCTION reorg.reorg_indexdef(oid, oid) RETURNS text AS
 'MODULE_PATHNAME', 'reorg_indexdef'
-LANGUAGE 'C' STABLE STRICT;
+LANGUAGE C STABLE STRICT;
 
 CREATE FUNCTION reorg.reorg_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'reorg_trigger'
-LANGUAGE 'C' VOLATILE STRICT SECURITY DEFINER;
+LANGUAGE C VOLATILE STRICT SECURITY DEFINER;
 
 CREATE FUNCTION reorg.conflicted_triggers(oid) RETURNS SETOF name AS
 $$
@@ -211,7 +211,7 @@ LANGUAGE sql STABLE STRICT;
 
 CREATE FUNCTION reorg.disable_autovacuum(regclass) RETURNS void AS
 'MODULE_PATHNAME', 'reorg_disable_autovacuum'
-LANGUAGE 'C' VOLATILE STRICT;
+LANGUAGE C VOLATILE STRICT;
 
 CREATE FUNCTION reorg.reorg_apply(
   sql_peek      cstring,
@@ -222,14 +222,14 @@ CREATE FUNCTION reorg.reorg_apply(
   count         integer)
 RETURNS integer AS
 'MODULE_PATHNAME', 'reorg_apply'
-LANGUAGE 'C' VOLATILE;
+LANGUAGE C VOLATILE;
 
 CREATE FUNCTION reorg.reorg_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'reorg_swap'
-LANGUAGE 'C' VOLATILE STRICT;
+LANGUAGE C VOLATILE STRICT;
 
 CREATE FUNCTION reorg.reorg_drop(oid) RETURNS void AS
 'MODULE_PATHNAME', 'reorg_drop'
-LANGUAGE 'C' VOLATILE STRICT;
+LANGUAGE C VOLATILE STRICT;
 
 COMMIT;
