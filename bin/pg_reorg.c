@@ -34,11 +34,11 @@ const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 	" WHERE locktype = 'transactionid' AND pid <> pg_backend_pid()"
 
 #define SQL_XID_ALIVE_80300 \
-	"SELECT 1 FROM pg_locks WHERE locktype = 'virtualxid'"\
-	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1) LIMIT 1"
+	"SELECT pid FROM pg_locks WHERE locktype = 'virtualxid'"\
+	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1)"
 #define SQL_XID_ALIVE_80200 \
-	"SELECT 1 FROM pg_locks WHERE locktype = 'transactionid'"\
-	" AND pid <> pg_backend_pid() AND transactionid = ANY($1) LIMIT 1"
+	"SELECT pid FROM pg_locks WHERE locktype = 'transactionid'"\
+	" AND pid <> pg_backend_pid() AND transactionid = ANY($1)"
 
 #define SQL_XID_SNAPSHOT \
 	(PQserverVersion(connection) >= 80300 \
@@ -383,6 +383,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	const char	   *params[1];
 	int				num;
 	int				i;
+	int				num_waiting = 0;
 	char		   *vxid;
 	char			buffer[12];
 	StringInfoData	sql;
@@ -509,16 +510,32 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 		params[0] = vxid;
 		res = execute(SQL_XID_ALIVE, 1, params);
 		num = PQntuples(res);
-		PQclear(res);
 
 		if (num > 0)
 		{
-			sleep(1);
-			continue;	/* wait for old transactions */
-		}
+			/* Wait for old transactions.
+			 * Only display the message below when the number of
+			 * transactions we are waiting on changes (presumably,
+			 * num_waiting should only go down), so as not to
+			 * be too noisy.
+			 */
+			if (num != num_waiting)
+			{
+				elog(NOTICE, "Waiting for %d transactions to finish. First PID: %s", num, PQgetvalue(res, 0, 0));
+				num_waiting = num;
+			}
 
-		/* ok, go to next step. */
-		break;
+			PQclear(res);
+			sleep(1);
+			continue;
+		}
+		else
+		{
+			/* All old transactions are finished;
+			 * go to next step. */
+			PQclear(res);
+			break;
+		}
 	}
 
 	/*
