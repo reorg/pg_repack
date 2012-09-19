@@ -80,7 +80,7 @@ LANGUAGE sql STABLE STRICT;
 
 CREATE FUNCTION reorg.get_assign(oid, text) RETURNS text AS
 $$
-  SELECT '(' || array_to_string(reorg.array_accum(attname), ', ') ||
+  SELECT '(' || array_to_string(reorg.array_accum(quote_ident(attname)), ', ') ||
          ') = (' || $2 || '.' ||
          array_to_string(reorg.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
     FROM (SELECT attname FROM pg_attribute
