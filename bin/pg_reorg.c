@@ -696,9 +696,9 @@ pgut_help(bool details)
 
 	printf("Options:\n");
 	printf("  -a, --all                 reorg all databases\n");
-	printf("  -t, --table=TABLE         reorg specific table only\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -o, --order-by=columns    order by columns instead of cluster keys\n");
+	printf("  -t, --table=TABLE         reorg specific table only\n");
 	printf("  -T, --wait-timeout=secs   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }
