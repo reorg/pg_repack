@@ -1,0 +1,224 @@
+/* pg_reorg/pg_reorg--1.0.sql */
+
+-- complain if script is sourced in psql, rather than via CREATE EXTENSION
+\echo Use "CREATE EXTENSION pg_reorg" to load this file. \quit
+
+CREATE FUNCTION reorg.version() RETURNS text AS
+'MODULE_PATHNAME', 'reorg_version'
+LANGUAGE C IMMUTABLE STRICT;
+
+CREATE AGGREGATE reorg.array_accum (
+    sfunc = array_append,
+    basetype = anyelement,
+    stype = anyarray,
+    initcond = '{}'
+);
+
+CREATE FUNCTION reorg.oid2text(oid) RETURNS text AS
+$$
+	SELECT textin(regclassout($1));
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_index_columns(oid, text) RETURNS text AS
+$$
+  SELECT array_to_string(reorg.array_accum(quote_ident(attname)), $2)
+    FROM pg_attribute,
+         (SELECT indrelid,
+                 indkey,
+                 generate_series(0, indnatts-1) AS i
+            FROM pg_index
+           WHERE indexrelid = $1
+         ) AS keys
+   WHERE attrelid = indrelid
+     AND attnum = indkey[i];
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_index_keys(oid, oid) RETURNS text AS
+'MODULE_PATHNAME', 'reorg_get_index_keys'
+LANGUAGE C STABLE STRICT;
+
+CREATE FUNCTION reorg.get_create_index_type(oid, name) RETURNS text AS
+$$
+  SELECT 'CREATE TYPE ' || $2 || ' AS (' ||
+         array_to_string(reorg.array_accum(quote_ident(attname) || ' ' ||
+           pg_catalog.format_type(atttypid, atttypmod)), ', ') || ')'
+    FROM pg_attribute,
+         (SELECT indrelid,
+                 indkey,
+                 generate_series(0, indnatts-1) AS i
+            FROM pg_index
+           WHERE indexrelid = $1
+         ) AS keys
+   WHERE attrelid = indrelid
+     AND attnum = indkey[i];
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_create_trigger(relid oid, pkid oid)
+  RETURNS text AS
+$$
+  SELECT 'CREATE TRIGGER z_reorg_trigger' ||
+         ' BEFORE INSERT OR DELETE OR UPDATE ON ' || reorg.oid2text($1) ||
+         ' FOR EACH ROW EXECUTE PROCEDURE reorg.reorg_trigger(' ||
+         '''INSERT INTO reorg.log_' || $1 || '(pk, row) VALUES(' ||
+         ' CASE WHEN $1 IS NULL THEN NULL ELSE (ROW($1.' ||
+         reorg.get_index_columns($2, ', $1.') || ')::reorg.pk_' ||
+         $1 || ') END, $2)'')';
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_assign(oid, text) RETURNS text AS
+$$
+  SELECT '(' || array_to_string(reorg.array_accum(attname), ', ') ||
+         ') = (' || $2 || '.' ||
+         array_to_string(reorg.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
+    FROM (SELECT attname FROM pg_attribute
+           WHERE attrelid = $1 AND attnum > 0 AND NOT attisdropped
+           ORDER BY attnum) tmp;
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.get_compare_pkey(oid, text)
+  RETURNS text AS
+$$
+  SELECT '(' || array_to_string(reorg.array_accum(quote_ident(attname)), ', ') ||
+         ') = (' || $2 || '.' ||
+         array_to_string(reorg.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
+    FROM pg_attribute,
+         (SELECT indrelid,
+                 indkey,
+                 generate_series(0, indnatts-1) AS i
+            FROM pg_index
+           WHERE indexrelid = $1
+         ) AS keys
+   WHERE attrelid = indrelid
+     AND attnum = indkey[i];
+$$
+LANGUAGE sql STABLE STRICT;
+
+-- Get a column list for SELECT all columns including dropped ones.
+-- We use NULLs of integer types for dropped columns (types are not important).
+CREATE FUNCTION reorg.get_columns_for_create_as(oid)
+  RETURNS text AS
+$$
+SELECT array_to_string(reorg.array_accum(c), ',') FROM (SELECT
+	CASE WHEN attisdropped
+		THEN 'NULL::integer AS ' || quote_ident(attname)
+		ELSE quote_ident(attname)
+	END AS c
+FROM pg_attribute
+WHERE attrelid = $1 AND attnum > 0 ORDER BY attnum
+) AS COL
+$$
+LANGUAGE sql STABLE STRICT;
+
+-- Get a SQL text to DROP dropped columns for the table,
+-- or NULL if it has no dropped columns.
+CREATE FUNCTION reorg.get_drop_columns(oid, text)
+  RETURNS text AS
+$$
+SELECT
+	'ALTER TABLE ' || $2 || ' ' || array_to_string(dropped_columns, ', ')
+FROM (
+	SELECT
+		reorg.array_accum('DROP COLUMN ' || quote_ident(attname)) AS dropped_columns
+	FROM (
+		SELECT * FROM pg_attribute
+		WHERE attrelid = $1 AND attnum > 0 AND attisdropped
+		ORDER BY attnum
+	) T
+) T
+WHERE
+	array_upper(dropped_columns, 1) > 0
+$$
+LANGUAGE sql STABLE STRICT;
+
+-- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
+CREATE VIEW reorg.primary_keys AS
+  SELECT indrelid, (reorg.array_accum(indexrelid))[1] AS indexrelid
+    FROM (SELECT indrelid, indexrelid FROM pg_index
+   WHERE indisunique
+     AND 0 <> ALL(indkey)
+     AND NOT EXISTS(
+           SELECT 1 FROM pg_attribute
+            WHERE attrelid = indrelid
+              AND attnum = ANY(indkey)
+              AND NOT attnotnull)
+   ORDER BY indrelid, indisprimary DESC, indnatts, indkey) tmp
+   GROUP BY indrelid;
+
+CREATE VIEW reorg.tables AS
+  SELECT R.oid::regclass AS relname,
+         R.oid AS relid,
+         R.reltoastrelid AS reltoastrelid,
+         CASE WHEN R.reltoastrelid = 0 THEN 0 ELSE (SELECT reltoastidxid FROM pg_class WHERE oid = R.reltoastrelid) END AS reltoastidxid,
+         PK.indexrelid AS pkid,
+         CK.indexrelid AS ckid,
+         reorg.get_create_index_type(PK.indexrelid, 'reorg.pk_' || R.oid) AS create_pktype,
+         'CREATE TABLE reorg.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk reorg.pk_' || R.oid || ', row ' || reorg.oid2text(R.oid) || ')' AS create_log,
+         reorg.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
+         'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT ' || reorg.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || reorg.oid2text(R.oid) AS create_table,
+		 reorg.get_drop_columns(R.oid, 'reorg.table_' || R.oid) AS drop_columns,
+         'DELETE FROM reorg.log_' || R.oid AS delete_log,
+         'LOCK TABLE ' || reorg.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
+         reorg.get_index_keys(CK.indexrelid, R.oid) AS ckey,
+         'SELECT * FROM reorg.log_' || R.oid || ' ORDER BY id LIMIT $1' AS sql_peek,
+         'INSERT INTO reorg.table_' || R.oid || ' VALUES ($1.*)' AS sql_insert,
+         'DELETE FROM reorg.table_' || R.oid || ' WHERE ' || reorg.get_compare_pkey(PK.indexrelid, '$1') AS sql_delete,
+         'UPDATE reorg.table_' || R.oid || ' SET ' || reorg.get_assign(R.oid, '$2') || ' WHERE ' || reorg.get_compare_pkey(PK.indexrelid, '$1') AS sql_update,
+         'DELETE FROM reorg.log_' || R.oid || ' WHERE id <= $1' AS sql_pop
+    FROM pg_class R
+         LEFT JOIN pg_class T ON R.reltoastrelid = T.oid
+         LEFT JOIN reorg.primary_keys PK
+                ON R.oid = PK.indrelid
+         LEFT JOIN (SELECT CKI.* FROM pg_index CKI, pg_class CKT
+                     WHERE CKI.indisvalid
+                       AND CKI.indexrelid = CKT.oid
+                       AND CKI.indisclustered
+                       AND CKT.relam = 403) CK
+                ON R.oid = CK.indrelid
+         LEFT JOIN pg_namespace N ON N.oid = R.relnamespace
+         LEFT JOIN pg_tablespace S ON S.oid = R.reltablespace
+   WHERE R.relkind = 'r'
+     AND N.nspname NOT IN ('pg_catalog', 'information_schema')
+     AND N.nspname NOT LIKE E'pg\\_temp\\_%';
+
+CREATE FUNCTION reorg.reorg_indexdef(oid, oid) RETURNS text AS
+'MODULE_PATHNAME', 'reorg_indexdef'
+LANGUAGE C STABLE STRICT;
+
+CREATE FUNCTION reorg.reorg_trigger() RETURNS trigger AS
+'MODULE_PATHNAME', 'reorg_trigger'
+LANGUAGE C VOLATILE STRICT SECURITY DEFINER;
+
+CREATE FUNCTION reorg.conflicted_triggers(oid) RETURNS SETOF name AS
+$$
+SELECT tgname FROM pg_trigger
+ WHERE tgrelid = $1 AND tgname >= 'z_reorg_trigger'
+$$
+LANGUAGE sql STABLE STRICT;
+
+CREATE FUNCTION reorg.disable_autovacuum(regclass) RETURNS void AS
+'MODULE_PATHNAME', 'reorg_disable_autovacuum'
+LANGUAGE C VOLATILE STRICT;
+
+CREATE FUNCTION reorg.reorg_apply(
+  sql_peek      cstring,
+  sql_insert    cstring,
+  sql_delete    cstring,
+  sql_update    cstring,
+  sql_pop       cstring,
+  count         integer)
+RETURNS integer AS
+'MODULE_PATHNAME', 'reorg_apply'
+LANGUAGE C VOLATILE;
+
+CREATE FUNCTION reorg.reorg_swap(oid) RETURNS void AS
+'MODULE_PATHNAME', 'reorg_swap'
+LANGUAGE C VOLATILE STRICT;
+
+CREATE FUNCTION reorg.reorg_drop(oid) RETURNS void AS
+'MODULE_PATHNAME', 'reorg_drop'
+LANGUAGE C VOLATILE STRICT;
