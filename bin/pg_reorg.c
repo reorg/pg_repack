@@ -427,6 +427,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 			(errcode(E_PG_COMMAND),
 			 errmsg("trigger %s conflicted for %s",
 					PQgetvalue(res, 0, 0), table->target_name)));
+	PQclear(res);
 
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
