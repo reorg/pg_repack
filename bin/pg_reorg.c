@@ -26,29 +26,13 @@ const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
  */
 #define APPLY_COUNT		1000
 
-#define SQL_XID_SNAPSHOT_80300 \
+#define SQL_XID_SNAPSHOT \
 	"SELECT reorg.array_accum(virtualtransaction) FROM pg_locks"\
 	" WHERE locktype = 'virtualxid' AND pid <> pg_backend_pid()"
-#define SQL_XID_SNAPSHOT_80200 \
-	"SELECT reorg.array_accum(transactionid) FROM pg_locks"\
-	" WHERE locktype = 'transactionid' AND pid <> pg_backend_pid()"
-
-#define SQL_XID_ALIVE_80300 \
-	"SELECT pid FROM pg_locks WHERE locktype = 'virtualxid'"\
-	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1)"
-#define SQL_XID_ALIVE_80200 \
-	"SELECT pid FROM pg_locks WHERE locktype = 'transactionid'"\
-	" AND pid <> pg_backend_pid() AND transactionid = ANY($1)"
-
-#define SQL_XID_SNAPSHOT \
-	(PQserverVersion(connection) >= 80300 \
-	? SQL_XID_SNAPSHOT_80300 \
-	: SQL_XID_SNAPSHOT_80200)
 
 #define SQL_XID_ALIVE \
-	(PQserverVersion(connection) >= 80300 \
-	? SQL_XID_ALIVE_80300 \
-	: SQL_XID_ALIVE_80200)
+	"SELECT pid FROM pg_locks WHERE locktype = 'virtualxid'"\
+	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1)"
 
 /*
  * per-table information
@@ -452,7 +436,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
 	/* SET work_mem = maintenance_work_mem */
 	command("SELECT set_config('work_mem', current_setting('maintenance_work_mem'), true)", 0, NULL);
-	if (PQserverVersion(connection) >= 80300 && orderby && !orderby[0])
+	if (orderby && !orderby[0])
 		command("SET LOCAL synchronize_seqscans = off", 0, NULL);
 	res = execute(SQL_XID_SNAPSHOT, 0, NULL);
 	vxid = strdup(PQgetvalue(res, 0, 0));

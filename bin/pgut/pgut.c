@@ -389,13 +389,6 @@ prompt_for_password(void)
 	return simple_prompt("Password: ", 100, false);
 }
 
-#if PG_VERSION_NUM < 80300
-static bool
-PQconnectionNeedsPassword(PGconn *conn)
-{
-	return strcmp(PQerrorMessage(conn), PQnoPasswordSupplied) == 0 && !feof(stdin);
-}
-#endif
 
 PGconn *
 pgut_connect(const char *info, YesNo prompt, int elevel)
