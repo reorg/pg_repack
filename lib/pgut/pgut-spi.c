@@ -8,6 +8,7 @@
 
 #include "postgres.h"
 #include "pgut-spi.h"
+#include "lib/stringinfo.h"
 
 #define EXEC_FAILED(ret, expected) \
 	(((expected) > 0 && (ret) != (expected)) || (ret) < 0)

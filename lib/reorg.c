@@ -30,6 +30,11 @@
 #include "pgut/pgut-spi.h"
 #include "pgut/pgut-be.h"
 
+/* htup.h was reorganized for 9.3, so now we need this header */
+#if PG_VERSION_NUM >= 90300
+#include "access/htup_details.h"
+#endif
+
 PG_MODULE_MAGIC;
 
 extern Datum PGUT_EXPORT reorg_version(PG_FUNCTION_ARGS);
@@ -972,7 +977,11 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 
 	/* swap size statistics too, since new rel has freshly-updated stats */
 	{
+#if PG_VERSION_NUM >= 90300
+		int32		swap_pages;
+#else
 		int4		swap_pages;
+#endif
 		float4		swap_tuples;
 
 		swap_pages = relform1->relpages;
