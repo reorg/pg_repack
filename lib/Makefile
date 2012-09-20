@@ -1,14 +1,17 @@
 #
 # pg_reorg: lib/Makefile
 #
-#  Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#  Portions Copyright (c) 2008-2012, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #  Portions Copyright (c) 2011, Itagaki Takahiro
 #
-SRCS = reorg.c pgut/pgut-be.c pgut/pgut-spi.c
-OBJS = $(SRCS:.c=.o)
 MODULE_big = pg_reorg
+OBJS = reorg.o pgut/pgut-be.o pgut/pgut-spi.o
+
+EXTENSION = pg_reorg
+
+#supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
 DATA_built = pg_reorg.sql
-DATA = uninstall_pg_reorg.sql
+DATA = pg_reorg--1.0.sql pg_reorg--unpackaged--1.0.sql uninstall_pg_reorg.sql
 
 ifndef USE_PGXS
 top_builddir = ../../..

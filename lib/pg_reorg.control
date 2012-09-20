@@ -1,0 +1,6 @@
+# pg_reorg extension
+comment = 're-organizes a PostgreSQL database'
+default_version = '1.0'
+module_pathname = '$libdir/pg_reorg'
+relocatable = false
+schema = reorg
