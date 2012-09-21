@@ -4,7 +4,7 @@
 \echo Use "CREATE EXTENSION pg_reorg" to load this file. \quit
 
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.version();
-ALTER EXTENSION pg_reorg ADD AGGREGATE reorg.array_accum (array_append, anyelement, anyarray,'{}');
+ALTER EXTENSION pg_reorg ADD AGGREGATE reorg.array_accum(anyelement);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.oid2text(oid);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.get_index_columns(oid, text);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.get_index_keys(oid, oid);
@@ -20,6 +20,7 @@ ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_indexdef(oid, oid);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_trigger();
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.conflicted_triggers(oid);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.disable_autovacuum(regclass);
-ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_apply((cstring,cstring,cstring,cstring,cstring,integer);
+ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_apply(cstring,cstring,cstring,cstring,cstring,integer);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_swap(oid);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_drop(oid);
+ALTER EXTENSION pg_reorg ADD SCHEMA reorg;
