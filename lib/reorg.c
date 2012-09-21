@@ -285,7 +285,7 @@ reorg_apply(PG_FUNCTION_ARGS)
 }
 
 /*
- * Parsed CREATE INDEX statement. You can rebuild sql using 
+ * Parsed CREATE INDEX statement. You can rebuild sql using
  * sprintf(buf, "%s %s ON %s USING %s (%s)%s",
  *		create, index, table type, columns, options)
  */
@@ -526,7 +526,7 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 			HeapTuple		tp;
 			Form_pg_opclass	opclassTup;
 #endif
-			
+
 			opclass = OpclassnameGetOpcid(BTREE_AM_OID, opcname);
 
 #if PG_VERSION_NUM >= 80300
@@ -648,8 +648,6 @@ reorg_swap(PG_FUNCTION_ARGS)
 	Oid				reltoastidxid2;
 	Oid				owner1;
 	Oid				owner2;
-	int16			natts1;
-	int16			natts2;
 
 	/* authority check */
 	must_be_superuser("reorg_swap");
@@ -661,8 +659,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 	values[0] = ObjectIdGetDatum(oid);
 	execute_with_args(SPI_OK_SELECT,
 		"SELECT X.reltoastrelid, TX.reltoastidxid, X.relowner,"
-		"       Y.oid, Y.reltoastrelid, TY.reltoastidxid, Y.relowner,"
-		"       X.relnatts, Y.relnatts"
+		"       Y.oid, Y.reltoastrelid, TY.reltoastidxid, Y.relowner"
 		"  FROM pg_catalog.pg_class X LEFT JOIN pg_catalog.pg_class TX"
 		"         ON X.reltoastrelid = TX.oid,"
 		"       pg_catalog.pg_class Y LEFT JOIN pg_catalog.pg_class TY"
@@ -687,8 +684,6 @@ reorg_swap(PG_FUNCTION_ARGS)
 	reltoastrelid2 = getoid(tuple, desc, 5);
 	reltoastidxid2 = getoid(tuple, desc, 6);
 	owner2 = getoid(tuple, desc, 7);
-	natts1 = getint16(tuple, desc, 8);
-	natts2 = getint16(tuple, desc, 9);;
 
 	/* change owner of new relation to original owner */
 	if (owner1 != owner2)
