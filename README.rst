@@ -11,7 +11,7 @@ discussion`__.
 
 .. __: http://archives.postgresql.org/pgsql-hackers/2012-09/msg00746.php
 
-The current maintainers will be invited to the organization and will receive
+The current maintainers have been be invited to the organization with
 administrative privileges, keeping total control of the project.
 
 ----
