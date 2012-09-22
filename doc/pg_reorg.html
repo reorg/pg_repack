@@ -1,9 +1,9 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD html 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
 <title>pg_reorg</title>
 <link rel="home" title="pg_reorg " href="index.html">
-<link rel="stylesheet" TYPE="text/css"href="style.css">
+<link rel="stylesheet" TYPE="text/css" href="style.css">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 
@@ -12,8 +12,8 @@
 <div class="navigation">
   <a href="index.html">Top</a> &gt;
   <a href="pg_reorg.html">pg_reorg</a>
-<div>
-<hr />
+</div>
+<hr>
 
 <div class="index">
 <ol>
@@ -44,6 +44,7 @@ pg_reorg [OPTIONS]
 See also "<a href="#options">Options</a>" for details.</p>
 <ul>
   <li>Reorg Options<ul>
+    <li>-a, --all : reorganize all databases</li>
     <li>-o [--order-by]  columns [,...]</li>
     <li>-n [--no-order]</li>
     <li>-t [--table] table</li>
@@ -51,7 +52,6 @@ See also "<a href="#options">Options</a>" for details.</p>
     <li>-Z [--no-analyze]</li>
   </ul></li>
   <li>Connection Options<ul>
-    <li>-a, --all : reorganize all databases</li>
     <li>-d, --dbname=DBNAME : database to connect</li>
     <li>-h, --host=HOSTNAME : database server host or socket directory</li>
     <li>-p, --port=PORT : database server port</li>
@@ -83,43 +83,39 @@ You can choose one of the following methods to reorganize.</p>
 </ul>
 
 <h2 id="examples">Examples</h2>
-<p>Execute the following command to do online CLUSTER to all tables in test database.</p>
+<p>Execute the following command to perform an online CLUSTER of all tables in test database.</p>
 <PRE><SAMP>$ </SAMP><KBD>pg_reorg test</KBD></PRE>
-<p>Execute the following command to do online VACUUM FULL to foo table in test database.</p>
+<p>Execute the following command to perform an online VACUUM FULL to foo table in test database.</p>
 <PRE><SAMP>$ </SAMP><KBD>pg_reorg --no-order --table foo -d test</KBD></PRE><p>
 </p>
 
 <h2 id="options">Options</h2>
 <p>pg_reorg has the following command line options:</p>
-<dl>
 
 <h3>Reorg Options</h3>
 <p>Options to order rows.
-If not specified, pg_reorg do online CLUSTER using cluster indexes.
+If not specified, pg_reorg performs an online CLUSTER using cluster indexes.
 Only one option can be specified.
 
-Options to specify target tables or databases.
+You may also specify target tables or databases.
 </p>
 
 <dl>
-<dt>-n<br />--no-order</dt>
+<dt>-n<br>--no-order</dt>
 <dd>Do online VACUUM FULL.</dd>
 
-<dt>-o columns [,...]<br />
+<dt>-o columns [,...]<br>
 --order-by=columns [,...]</dt>
 <dd>Do online CLUSTER ordered by specified columns.</dd>
 
 <dt>
--t table<br />
+-t table<br>
 --table=table
 </dt>
 <dd>Reorganize table only. If you don't specify this option, all tables in specified databases are reorganized.</dd>
 
-<dt>-Z<br />--no-analyze</dt>
-<dd>Do ANALYZE after reorganization. If you don't specify this option, ANALYZE is performed automatically after reorg.</dd>
-
 <dt>
--T seconds<br />
+-T seconds<br>
 --wait-timeout=seconds
 </dt>
 <dd>
@@ -130,7 +126,7 @@ Also, if the server version is 8.4 or newer, pg_reorg forces to disconnect confl
 The default is 60 seconds.
 </dd>
 
-<dt>-Z<br />--no-analyze</dt>
+<dt>-Z<br>--no-analyze</dt>
 <dd>Disable ANALYZE after the reorganization.
 If not specified, run ANALYZE after the reorganization.</dd>
 
@@ -143,47 +139,46 @@ You cannot use --all and --dbname or --table together.
 </p>
 
 <dl>
-<dt>-a<br />--all</dt>
+<dt>-a<br>--all</dt>
 <dd>Reorganize all databases.</dd>
 
 <dt>
--d dbname<br />
+-d dbname<br>
 --dbname dbname
 </dt>
 <dd>Specifies the name of the database to be reorganized. If this is not specified and -a (or --all) is not used, the database name is read from the environment variable PGDATABASE. If that is not set, the user name specified for the connection is used. </dd>
 
-<dt>-h host<br />
+<dt>-h host<br>
 --host host</dt>
 <dd>Specifies the host name of the machine on which the server is running. If the value begins with a slash, it is used as the directory for the Unix domain socket. </dd>
 
-<dt>-p port<br />
+<dt>-p port<br>
 --port port</dt>
 <dd>Specifies the TCP port or local Unix domain socket file extension on which the server is listening for connections.</dd>
 
-<dt>-U username<br />
+<dt>-U username<br>
 --username username</dt>
 <dd>User name to connect as. </dd>
 
-<dt>-w<br />
+<dt>-w<br>
 --no-password</dt>
 <dd>
 Never issue a password prompt.
 If the server requires password authentication and a password is not available by other means such as a .pgpass file, the connection attempt will fail.
 This option can be useful in batch jobs and scripts where no user is present to enter a password.
 </dd>
-</dl>
 
-<dt>-W<br />
+<dt>-W<br>
 --password</dt>
 <dd>Force the program to prompt for a password before connecting to a database.</dd>
-<dd>This option is never essential, since the program will automatically prompt for a password if the server demands password authentication. However, vacuumdb will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing -W to avoid the extra connection attempt. </dd>
+<dd>This option is never essential, since the program will automatically prompt for a password if the server demands password authentication. However, pg_reorg will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing -W to avoid the extra connection attempt. </dd>
 </dl>
 
 <h3>Generic Options</h3>
 <dl>
-<dt>-e<br />--echo</dt>
+<dt>-e<br>--echo</dt>
 <dd>Echo commands sent to server.</dd>
-<dt>-E<br />--elevel</dt>
+<dt>-E<br>--elevel</dt>
 <dd>Choose the output message level from DEBUG, INFO, NOTICE, WARNING, ERROR, LOG, FATAL, and PANIC.
 The default is INFO.</dd>
 <dt>--help</dt>
@@ -195,9 +190,9 @@ The default is INFO.</dd>
 <h2 id="environment">Environment</h2>
 <dl>
 	<dt>
-		PGDATABASE<br />
-		PGHOST<br />
-		PGPORT<br />
+		PGDATABASE<br>
+		PGHOST<br>
+		PGPORT<br>
 		PGUSER
 	</dt>
 	<dd>Default connection parameters</dd>
@@ -207,7 +202,7 @@ The default is INFO.</dd>
 <h2 id="diagnostics">Diagnostics</h2>
 <p>Error messages are reported when pg_reorg fails.
 The following list shows the cause of errors.</p>
-<p>You need to cleanup by hand after fatal erros.
+<p>You need to cleanup by hand after fatal errors.
 To cleanup, execute $PGHOME/share/contrib/uninstall_pg_reorg.sql to the database where the error occured and then execute $PGHOME/share/contrib/pg_reorg.sql. (Do uninstall and reinstall.)</p>
 
 <dl>
@@ -256,7 +251,7 @@ Be careful to avoid data corruptions.</p>
 
 <h3>DDL commands</h3>
 <p>You cannot do DDL commands <strong>except</strong> VACUUM and ANALYZE during pg_reorg.
-In many case pg_reorg would fail and rollback collectly, but there are some cases ending with data-corruption .</p>
+In many cases pg_reorg will fail and rollback collectly, but there are some cases which may result in data-corruption .</p>
 
 <dl>
 <dt>TRUNCATE</dt>
@@ -276,14 +271,14 @@ In many case pg_reorg would fail and rollback collectly, but there are some case
 </dl>
 
 <h2 id="details">Details</h2>
-<p>pg_reorg creates a work table in reorg schema and sorts rows in it.
-Then, it updates system catalog directly to swap the work table and the original one.</p>
+<p>pg_reorg creates a work table in the reorg schema and sorts the rows in this table.
+Then, it updates the system catalogs directly to swap the work table and the original one.</p>
 
 <h2 id="install">Installations</h2>
 <p>
 pg_reorg can be built with "make" on UNIX or Linux.
 pgxs build framework is used automatically.
-Before build, you might need to install postgres packages for developper (postgresql-devel, etc.)
+Before building, you might need to install postgres packages for developer (postgresql-devel, etc.)
 and add <code>pg_config</code> to your $PATH.
 </p>
 <pre>$ cd pg_reorg
@@ -303,10 +298,13 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
 
 <h2 id="requirement">Requirements</h2>
 <dl>
-<dt>PostgreSQL version</dt>
-<dd>PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1</dd>
+<dt>PostgreSQL versions</dt>
+<dd>PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1, 9.2</dd>
 <dt>OS</dt><dd>RHEL 5.2, Windows XP SP3</dd>
-<dt>Disks</dt><dd>Requires amount of disks twice larger than target table and indexes. (If the total size of targets are 1GB, additional 2GB of disks are required.)</dd>
+<dt>Disks</dt><dd>Requires free disk space twice as large as the target
+table(s) and indexes. For example, if the total size of the tables and
+indexes to be reorganized is 1GB, an additional 2GB of disk space is
+required.</dd>
 </dl>
 
 <h2 id="releases">Releases</h2>
@@ -321,15 +319,18 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
 <a href="http://developer.postgresql.org/pgdocs/postgres/app-clusterdb.html">clusterdb</a>,
 <a href="http://developer.postgresql.org/pgdocs/postgres/app-vacuumdb.html">vacuumdb</a>
 
-<hr />
+<hr>
 <div class="navigation">
   <a href="index.html">Top</a> &gt;
   <a href="pg_reorg.html">pg_reorg</a>
+</div>
+
 <div>
 <p class="footer">
-Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION<br />
+Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION<br>
 Portions Copyright (c) 2011, Itagaki Takahiro
 </p>
+</div>
 
 <script type="text/javascript">
 var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");

@@ -1,9 +1,9 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD html 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
 <title>pg_reorg</title>
 <link rel="home" title="pg_reorg " href="index.html">
-<link rel="stylesheet" TYPE="text/css"href="style.css">
+<link rel="stylesheet" TYPE="text/css" href="style.css">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 
@@ -12,8 +12,8 @@
 <div class="navigation">
   <a href="index-ja.html">Top</a> &gt;
   <a href="pg_reorg-ja.html">pg_reorg</a>
-<div>
-<hr />
+</div>
+<hr>
 
 <div class="index">
 <ol>
@@ -44,6 +44,7 @@ pg_reorg [OPTIONS]
 詳細は<a href="#options">オプション</a>を参照してください。</p>
 <ul>
   <li>固有オプション<ul>
+    <li>-a, --all : 全てのデータベースに対して実行します</li>
     <li>-o [--order-by]  columns [,...]</li>
     <li>-n [--no-order]</li>
     <li>-t [--table] table</li>
@@ -51,7 +52,6 @@ pg_reorg [OPTIONS]
     <li>-Z [--no-analyze]</li>
   </ul></li>
   <li>接続オプション<ul>
-    <li>-a, --all : 全てのデータベースに対して実行します</li>
     <li>-d, --dbname=DBNAME : 接続するデータベース</li>
     <li>-h, --host=HOSTNAME : データベースサーバホスト、またはソケットディレクトリ</li>
     <li>-p, --port=PORT : データベースサーバのポート</li>
@@ -91,7 +91,6 @@ pg_reorg [OPTIONS]
 
 <h2 id="options">オプション</h2>
 <p>pg_reorg では、下記のコマンドライン引数を指定できます。</p>
-<dl>
 
 <h3>固有オプション</h3>
 <p>pg_reorg を実行する対象と並び替えの基準を指定するパラメータです。
@@ -100,16 +99,15 @@ pg_reorg [OPTIONS]
 </p>
 
 <dl>
-<dt>-n<br />--no-order</dt>
+<dt>-n<br>--no-order</dt>
 <dd>オンライン VACUUM FULL の処理を行います。</dd>
 
-<dt>-o columns [,...]<br />
+<dt>-o columns [,...]<br>
 --order-by columns [,...]</dt>
 <dd>指定したカラムをキーにオンライン CLUSTER を行います。</dd>
-</dl>
 
 <dt>
--t table<br />
+-t table<br>
 --table=table
 </dt>
 <dd>オンライン CLUSTER 、または、オンライン VACUUM FULL を行うテーブルを指定します。
@@ -117,7 +115,7 @@ pg_reorg [OPTIONS]
 </dd>
 
 <dt>
--T seconds<br />
+-T seconds<br>
 --wait-timeout=seconds
 </dt>
 <dd>
@@ -127,7 +125,7 @@ pg_reorg [OPTIONS]
 デフォルトは60秒です。
 </dd>
 
-<dt>-Z<br />--no-analyze</dt>
+<dt>-Z<br>--no-analyze</dt>
 <dd>再編成後に ANALYZE を行いません。
 このオプションが指定されていない場合は、再編成後に ANALYZE します。</dd>
 
@@ -140,11 +138,11 @@ PostgreSQLに接続するためのパラメータです。
 </p>
 
 <dl>
-<dt>-a<br />--all</dt>
+<dt>-a<br>--all</dt>
 <dd>対象となる全てのデータベースに対してオンライン CLUSTER、または、オンラインVACUUM  FULLを行います。</dd>
 
 <dt>
--d DBNAME<br />
+-d DBNAME<br>
 --dbname=DBNAME
 </dt>
 <dd>オンライン CLUSTER、または、オンライン VACUUM FULL を行うデータベース名を指定します。
@@ -152,27 +150,27 @@ PostgreSQLに接続するためのパラメータです。
 データベース名はPGDATABASE環境変数から読み取られます。
 この変数も設定されていない場合は、接続時に指定したユーザ名が使用されます。</dd>
 
-<dt>-h HOSTNAME<br />
+<dt>-h HOSTNAME<br>
 --host=HOSTNAME</dt>
 <dd>サーバが稼働しているマシンのホスト名を指定します。ホスト名がスラッシュから始まる場合、Unixドメインソケット用のディレクトリとして使用されます。</dd>
 
-<dt>-p PORT<br />
+<dt>-p PORT<br>
 --port=PORT</dt>
 <dd>サーバが接続を監視するTCPポートもしくはUnixドメインソケットファイルの拡張子を指定します。</dd>
 
-<dt>-U USERNAME<br />
+<dt>-U USERNAME<br>
 --username=USERNAME</dt>
 <dd>接続するユーザ名を指定します。</dd>
 
-<dt>-w<br />
+<dt>-w<br>
 --no-password</dt>
 <dd>
 パスワードの入力を促しません。
 サーバがパスワード認証を必要とし、かつ、.pgpassファイルなどの他の方法が利用できない場合、接続試行は失敗します。
-バッチジョブやパスワードを入力するユーザが存在しない場合にこのオプションは有用かもしれません。 
+バッチジョブやパスワードを入力するユーザが存在しない場合にこのオプションは有用かもしれません。
 </dd>
 
-<dt>-W<br />
+<dt>-W<br>
 --password</dt>
 <dd>データベースに接続する前に、強制的にパスワード入力を促します。</dd>
 <dd>
@@ -184,9 +182,9 @@ PostgreSQLに接続するためのパラメータです。
 
 <h3>一般オプション</h3>
 <dl>
-<dt>-e<br />--echo</dt>
+<dt>-e<br>--echo</dt>
 <dd>サーバに送信するSQLを表示します。</dd>
-<dt>-E<br />--elevel</dt>
+<dt>-E<br>--elevel</dt>
 <dd>ログ出力レベルを設定します。
 DEBUG, INFO, NOTICE, WARNING, ERROR, LOG, FATAL, PANIC から選択します。
 デフォルトは INFO です。</dd>
@@ -199,9 +197,9 @@ DEBUG, INFO, NOTICE, WARNING, ERROR, LOG, FATAL, PANIC から選択します。
 <h2 id="environment">環境変数</h2>
 <dl>
 	<dt>
-		PGDATABASE<br />
-		PGHOST<br />
-		PGPORT<br />
+		PGDATABASE<br>
+		PGHOST<br>
+		PGPORT<br>
 		PGUSER
 	</dt>
 	<dd>デフォルトの接続パラメータです。</dd>
@@ -314,7 +312,7 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
 <h2 id="requirement">動作環境</h2>
 <dl>
 <dt>PostgreSQLバージョン</dt>
-<dd>PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1</dd>
+<dd>PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1, 9.2</dd>
 <dt>OS</dt>
 <dd>RHEL 5.2, Windows XP SP3</dd>
 <dt>ディスク容量</dt>
@@ -333,13 +331,13 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
 <a href="http://www.postgresql.jp/document/current/html/app-clusterdb.html">clusterdb</a>,
 <a href="http://www.postgresql.jp/document/current/html/app-vacuumdb.html">vacuumdb</a>
 
-<hr />
+<hr>
 <div class="navigation">
   <a href="index-ja.html">Top</a> &gt;
   <a href="pg_reorg-ja.html">pg_reorg</a>
-<div>
+</div>
 <p class="footer">
-Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION<br />
+Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION<br>
 Portions Copyright (c) 2011, Itagaki Takahiro
 </p>
 
