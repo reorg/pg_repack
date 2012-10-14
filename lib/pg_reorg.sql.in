@@ -78,6 +78,14 @@ $$
 $$
 LANGUAGE sql STABLE STRICT;
 
+CREATE FUNCTION reorg.get_alter_table(relid oid)
+  RETURNS text AS
+$$
+  SELECT 'ALTER TABLE ' || reorg.oid2text($1) ||
+    ' ENABLE ALWAYS TRIGGER z_reorg_trigger';     
+$$
+LANGUAGE sql STABLE STRICT;
+
 CREATE FUNCTION reorg.get_assign(oid, text) RETURNS text AS
 $$
   SELECT '(' || array_to_string(reorg.array_accum(quote_ident(attname)), ', ') ||
@@ -168,6 +176,7 @@ CREATE VIEW reorg.tables AS
          reorg.get_create_index_type(PK.indexrelid, 'reorg.pk_' || R.oid) AS create_pktype,
          'CREATE TABLE reorg.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk reorg.pk_' || R.oid || ', row ' || reorg.oid2text(R.oid) || ')' AS create_log,
          reorg.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
+	 reorg.get_alter_table(R.oid) as alter_table,
          'CREATE TABLE reorg.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT ' || reorg.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || reorg.oid2text(R.oid) AS create_table,
 		 reorg.get_drop_columns(R.oid, 'reorg.table_' || R.oid) AS drop_columns,
          'DELETE FROM reorg.log_' || R.oid AS delete_log,
