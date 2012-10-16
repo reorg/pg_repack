@@ -460,7 +460,9 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 
 	params[0] = utoa(table->target_oid, buffer);
 	res = execute("SELECT indexrelid,"
-		" reorg.reorg_indexdef(indexrelid, indrelid)"
+		" reorg.reorg_indexdef(indexrelid, indrelid),"
+		" indisvalid,"
+		" pg_get_indexdef(indexrelid)"
 		" FROM pg_index WHERE indrelid = $1", 1, params);
 
 	num = PQntuples(res);
@@ -468,9 +470,18 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	{
 		reorg_index	index;
 		int			c = 0;
+		const char *isvalid;
+		const char *indexdef;
 
 		index.target_oid = getoid(res, i, c++);
 		index.create_index = getstr(res, i, c++);
+		isvalid = getstr(res, i, c++);
+		indexdef = getstr(res, i, c++);
+
+		if (isvalid && isvalid[0] == 'f') {
+			elog(WARNING, "skipping invalid index: %s", indexdef);
+			continue;
+		}
 
 		elog(DEBUG2, "[%d]", i);
 		elog(DEBUG2, "target_oid   : %u", index.target_oid);

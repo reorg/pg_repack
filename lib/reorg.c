@@ -705,6 +705,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 		"       pg_catalog.pg_class Y"
 		" WHERE I.indrelid = $1"
 		"   AND I.indexrelid = X.oid"
+		"   AND I.indisvalid"
 		"   AND Y.oid = ('reorg.index_' || X.oid)::regclass",
 		1, argtypes, values, nulls);
 
