@@ -55,6 +55,11 @@ CREATE TABLE tbl_with_dropped_toast (
 );
 ALTER TABLE tbl_with_dropped_toast CLUSTER ON tbl_with_dropped_toast_pkey;
 
+CREATE TABLE tbl_badindex (
+	id integer PRIMARY KEY,
+	n integer
+);
+
 --
 -- insert data
 --
@@ -86,6 +91,11 @@ CREATE VIEW view_for_dropped_column AS
 INSERT INTO tbl_with_dropped_toast VALUES(1, 10, 'abc');
 INSERT INTO tbl_with_dropped_toast VALUES(2, 20, sqrt(2::numeric(1000,999))::text || sqrt(3::numeric(1000,999))::text);
 ALTER TABLE tbl_with_dropped_toast DROP COLUMN t;
+
+INSERT INTO tbl_badindex VALUES(1, 10);
+INSERT INTO tbl_badindex VALUES(2, 10);
+CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
+
 --
 -- before
 --
