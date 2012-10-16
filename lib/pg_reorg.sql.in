@@ -157,6 +157,7 @@ CREATE VIEW reorg.primary_keys AS
   SELECT indrelid, (reorg.array_accum(indexrelid))[1] AS indexrelid
     FROM (SELECT indrelid, indexrelid FROM pg_index
    WHERE indisunique
+     AND indisvalid
      AND 0 <> ALL(indkey)
      AND NOT EXISTS(
            SELECT 1 FROM pg_attribute
