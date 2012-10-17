@@ -270,7 +270,7 @@ version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
 database where the error occured and then load
 ``$SHAREDIR/contrib/pg_repack.sql`` again.
 
-pg_repack: repack database "template1" ... skipped
+pg_repack: reorg database "template1" ... skipped: pg_repack is not installed in the database
     pg_repack is not installed in the database when ``--all`` option is
     specified.
 
