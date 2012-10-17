@@ -24,6 +24,15 @@ endif
 
 SUBDIRS = bin lib
 
+# Pull out the version number from pg_config
+VERSION = $(shell $(PG_CONFIG) --version | awk '{print $$2}')
+
+# We support PostgreSQL 8.3 and later.
+ifneq ($(shell echo $(VERSION) | grep -E "^7\.|^8\.[012]"),)
+$(error pg_reorg requires PostgreSQL 8.3 or later. This is $(VERSION))
+endif
+
+
 all install installdirs uninstall distprep clean distclean maintainer-clean debug:
 	@for dir in $(SUBDIRS); do \
 		$(MAKE) -C $$dir $@ || exit; \

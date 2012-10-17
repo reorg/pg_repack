@@ -520,16 +520,13 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 			Oid				opclass;
 			Oid				oprid;
 			int16			strategy = BTLessStrategyNumber;
-#if PG_VERSION_NUM >= 80300
 			Oid				opcintype;
 			Oid				opfamily;
 			HeapTuple		tp;
 			Form_pg_opclass	opclassTup;
-#endif
 
 			opclass = OpclassnameGetOpcid(BTREE_AM_OID, opcname);
 
-#if PG_VERSION_NUM >= 80300
 			/* Retrieve operator information. */
 			tp = SearchSysCache(CLAOID, ObjectIdGetDatum(opclass), 0, 0, 0);
 			if (!HeapTupleIsValid(tp))
@@ -551,13 +548,9 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 			if (!OidIsValid(oprid))
 				elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
 					 strategy, opcintype, opcintype, opfamily);
-#else
-			oprid = get_opclass_member(opclass, 0, strategy);
-			if (!OidIsValid(oprid))
-				elog(ERROR, "missing operator %d for %s", strategy, opcname);
-#endif
 
-				opcname[-1] = '\0';
+
+			opcname[-1] = '\0';
 			appendStringInfo(&str, "%s USING %s", token, get_opname(oprid));
 		}
 		else
@@ -1096,11 +1089,7 @@ RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId)
 	allowSystemTableMods = true;
 	PG_TRY();
 	{
-		renamerel(myrelid, newrelname
-#if PG_VERSION_NUM >= 80300
-			, OBJECT_TABLE
-#endif
-			);
+		renamerel(myrelid, newrelname, OBJECT_TABLE);
 		allowSystemTableMods = save_allowSystemTableMods;
 	}
 	PG_CATCH();
