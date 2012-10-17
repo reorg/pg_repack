@@ -236,7 +236,7 @@ getoid(PGresult *res, int row, int col)
 static bool
 repack_one_database(const char *orderby, const char *table, char *errbuf, size_t errsize)
 {
-	bool			ret = true;
+	bool			ret = false;
 	PGresult	   *res;
 	int				i;
 	int				num;
@@ -245,6 +245,43 @@ repack_one_database(const char *orderby, const char *table, char *errbuf, size_t
 	initStringInfo(&sql);
 
 	reconnect(ERROR);
+
+	/* Query the extension version. Exit if no match */
+	res = execute_elevel("select repack.version()", 0, NULL, DEBUG2);
+	if (PQresultStatus(res) == PGRES_TUPLES_OK)
+	{
+		const char	   *libver;
+		char			buf[64];
+
+		/* the string is something like "pg_repack 1.1.7" */
+		libver = getstr(res, 0, 0);
+		snprintf(buf, sizeof(buf), "%s %s", PROGRAM_NAME, PROGRAM_VERSION);
+		if (0 != strcmp(buf, libver))
+		{
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"program '%s' does not match database library '%s'",
+					buf, libver);
+			goto cleanup;
+		}
+	}
+	else
+	{
+		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
+		{
+			/* Schema repack does not exist. Skip the database. */
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"%s is not installed in the database", PROGRAM_NAME);
+		}
+		else
+		{
+			/* Return the error message otherwise */
+			if (errbuf)
+				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+		}
+		goto cleanup;
+	}
 
 	/* Disable statement timeout. */
 	command("SET statement_timeout = 0", 0, NULL);
@@ -352,6 +389,7 @@ repack_one_database(const char *orderby, const char *table, char *errbuf, size_t
 
 		repack_one_table(&table, orderby);
 	}
+	ret = true;
 
 cleanup:
 	PQclear(res);
