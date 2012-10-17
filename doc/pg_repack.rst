@@ -281,6 +281,15 @@ ERROR: pg_repack is not installed
 
     Do register pg_repack to the database.
 
+ERROR: program 'pg_repack V1' does not match database library 'pg_repack V2'
+    There is a mismatch between the ``pg_repack`` binary and the database
+    library (``.so`` or ``.dll``).
+
+    The mismatch could be due to the wrong binary in the ``$PATH`` or the
+    wrong database being addressed. Check the program directory and the
+    database; if they are what expected you may need to repeat pg_repack
+    installation.
+
 ERROR: relation "table" has no primary key
     The target table doesn't have PRIMARY KEY.
 
