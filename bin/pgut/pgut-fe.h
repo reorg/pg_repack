@@ -56,6 +56,7 @@ extern char	   *password;
 extern YesNo	prompt_password;
 
 extern PGconn	   *connection;
+extern PGconn      *conn2;
 
 extern void	pgut_help(bool details);
 extern void help(bool details);

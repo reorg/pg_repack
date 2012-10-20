@@ -24,6 +24,7 @@ char	   *password = NULL;
 YesNo		prompt_password = DEFAULT;
 
 PGconn	   *connection = NULL;
+PGconn     *conn2      = NULL;
 
 static bool parse_pair(const char buffer[], char key[], char value[]);
 static char *get_username(void);
@@ -51,6 +52,7 @@ reconnect(int elevel)
 		appendStringInfo(&buf, "password=%s ", password);
 
 	connection = pgut_connect(buf.data, prompt_password, elevel);
+	conn2      = pgut_connect(buf.data, prompt_password, elevel);
 
 	/* update password */
 	if (connection)
