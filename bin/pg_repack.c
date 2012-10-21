@@ -446,13 +446,13 @@ repack_one_table(const repack_table *table, const char *orderby)
 	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
 
-	PQclear(PQexec(conn2, "BEGIN ISOLATION LEVEL READ COMMITTED"));
+	pgut_command(conn2, "BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 	elog(DEBUG2, "Obtaining ACCESS SHARE lock for %s", table->target_name);
 
 	/* XXX: table name escaping? */
 	printfStringInfo(&sql, "LOCK TABLE %s IN ACCESS SHARE MODE",
 					 table->target_name);
-	res = PQexec(conn2, sql.data);
+	res = pgut_execute(conn2, sql.data, 0, NULL);
 	if (PQresultStatus(res) != PGRES_COMMAND_OK)
 	{
 		printf("%s", PQerrorMessage(conn2));
@@ -466,7 +466,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	/* store the backend PID of our connection keeping an ACCESS SHARE
 	   lock on the target table.
 	 */
-	res = PQexec(conn2, "SELECT pg_backend_pid()");
+	res = pgut_execute(conn2, "SELECT pg_backend_pid()", 0, NULL);
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		printf("%s", PQerrorMessage(conn2));
@@ -688,7 +688,7 @@ lock_exclusive(const char *relid, const char *lock_query, bool release_conn2)
 		 * lock.
 		 */
 		if (release_conn2)
-			PQclear(PQexec(conn2, "COMMIT"));
+			pgut_command(conn2, "COMMIT", 0, NULL);
 
 		/* wait for a while to lock the table. */
 		wait_msec = Min(1000, i * 100);
@@ -740,7 +740,7 @@ repack_cleanup(bool fatal, void *userdata)
 
 		/* Rollback current transaction */
 		if (conn2)
-			PQclear(PQexec(conn2, "ROLLBACK"));
+			pgut_command(conn2, "ROLLBACK", 0, NULL);
 
 		if (connection)
 			command("ROLLBACK", 0, NULL);
