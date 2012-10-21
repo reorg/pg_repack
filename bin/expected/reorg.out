@@ -50,6 +50,11 @@ CREATE TABLE tbl_badindex (
 	id integer PRIMARY KEY,
 	n integer
 );
+CREATE TABLE tbl_idxopts (
+       i integer PRIMARY KEY,
+       t text
+);
+CREATE INDEX idxopts_t ON tbl_idxopts (t DESC NULLS LAST) WHERE (t != 'aaa');
 --
 -- insert data
 --
@@ -80,6 +85,7 @@ INSERT INTO tbl_badindex VALUES(2, 10);
 CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
 ERROR:  could not create unique index "idx_badindex_n"
 DETAIL:  Key (n)=(10) is duplicated.
+INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
 --
 -- before
 --
@@ -175,6 +181,16 @@ Table "public.tbl_with_dropped_toast"
  j      | integer | not null
 Indexes:
     "tbl_with_dropped_toast_pkey" PRIMARY KEY, btree (i, j) CLUSTER
+
+\d tbl_idxopts
+  Table "public.tbl_idxopts"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ i      | integer | not null
+ t      | text    | 
+Indexes:
+    "tbl_idxopts_pkey" PRIMARY KEY, btree (i)
+    "idxopts_t" btree (t DESC NULLS LAST) WHERE t <> 'aaa'::text
 
 SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
  col1 |       to_char       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ,")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         

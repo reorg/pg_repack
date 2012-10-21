@@ -499,8 +499,6 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 	/*
 	 * FIXME: this is very unreliable implementation but I don't want to
 	 * re-implement customized versions of pg_get_indexdef_string...
-	 *
-	 * TODO: Support ASC/DESC and NULL FIRST/LAST.
 	 */
 
 	initStringInfo(&str);

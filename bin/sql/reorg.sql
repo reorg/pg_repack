@@ -60,6 +60,12 @@ CREATE TABLE tbl_badindex (
 	n integer
 );
 
+CREATE TABLE tbl_idxopts (
+       i integer PRIMARY KEY,
+       t text
+);
+CREATE INDEX idxopts_t ON tbl_idxopts (t DESC NULLS LAST) WHERE (t != 'aaa');
+
 --
 -- insert data
 --
@@ -96,6 +102,8 @@ INSERT INTO tbl_badindex VALUES(1, 10);
 INSERT INTO tbl_badindex VALUES(2, 10);
 CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
 
+INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
+
 --
 -- before
 --
@@ -122,6 +130,7 @@ SELECT * FROM tbl_with_dropped_toast;
 \d tbl_only_pkey
 \d tbl_with_dropped_column
 \d tbl_with_dropped_toast
+\d tbl_idxopts
 
 SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
