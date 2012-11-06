@@ -26,9 +26,13 @@ const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
  */
 #define APPLY_COUNT		1000
 
+/* The '1/1, -1/0' lock skipped is from the bgwriter on newly promoted
+ * servers. See GH ticket #1.
+ */
 #define SQL_XID_SNAPSHOT_80300 \
 	"SELECT reorg.array_accum(virtualtransaction) FROM pg_locks"\
-	" WHERE locktype = 'virtualxid' AND pid <> pg_backend_pid()"
+	" WHERE locktype = 'virtualxid' AND pid <> pg_backend_pid()"\
+	" AND (virtualxid, virtualtransaction) <> ('1/1', '-1/0')"
 #define SQL_XID_SNAPSHOT_80200 \
 	"SELECT reorg.array_accum(transactionid) FROM pg_locks"\
 	" WHERE locktype = 'transactionid' AND pid <> pg_backend_pid()"
