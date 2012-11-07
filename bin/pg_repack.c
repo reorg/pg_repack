@@ -125,12 +125,12 @@ static bool sqlstate_equals(PGresult *res, const char *state)
 	return strcmp(PQresultErrorField(res, PG_DIAG_SQLSTATE), state) == 0;
 }
 
-static bool		analyze = true;
-static bool		alldb = false;
-static bool		noorder = false;
-static char	   *table = NULL;
-static char	   *orderby = NULL;
-static int		wait_timeout = 60;	/* in seconds */
+static bool				analyze = true;
+static bool				alldb = false;
+static bool				noorder = false;
+static SimpleStringList	table_list = {NULL, NULL};
+static char				*orderby = NULL;
+static int				wait_timeout = 60;	/* in seconds */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -143,7 +143,7 @@ utoa(unsigned int value, char *buffer)
 static pgut_option options[] =
 {
 	{ 'b', 'a', "all", &alldb },
-	{ 's', 't', "table", &table },
+	{ 'l', 't', "table", &table_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 's', 'o', "order-by", &orderby },
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
@@ -154,7 +154,8 @@ static pgut_option options[] =
 int
 main(int argc, char *argv[])
 {
-	int		i;
+	int						i;
+	SimpleStringListCell	*cell;
 
 	i = pgut_getopt(argc, argv, options);
 
@@ -170,7 +171,7 @@ main(int argc, char *argv[])
 
 	if (alldb)
 	{
-		if (table)
+		if (table_list.head != NULL)
 			ereport(ERROR,
 				(errcode(EINVAL),
 				 errmsg("cannot repack a specific table in all databases")));
@@ -178,10 +179,17 @@ main(int argc, char *argv[])
 	}
 	else
 	{
-		if (!repack_one_database(orderby, table))
+		if (table_list.head != NULL)
+		{
+			for (cell = table_list.head; cell; cell = cell->next)
+			{
+				repack_one_database(orderby, cell->val);
+			}
+		}
+		else if (!repack_one_database(orderby, NULL))
 			ereport(ERROR,
-				(errcode(ENOENT),
-				 errmsg("%s is not installed", PROGRAM_NAME)));
+					(errcode(ENOENT),
+					 errmsg("%s is not installed", PROGRAM_NAME)));
 	}
 
 	return 0;

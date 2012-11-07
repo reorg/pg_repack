@@ -144,9 +144,12 @@ pgut_setopt(pgut_option *opt, const char *optarg, pgut_optsrc src)
 		/* high prior value has been set already. */
 		return;
 	}
-	else if (src >= SOURCE_CMDLINE && opt->source >= src)
+	else if (src >= SOURCE_CMDLINE && opt->source >= src && opt->type != 'l')
 	{
-		/* duplicated option in command line */
+		/* duplicated option in command line -- don't worry if the option
+		 * type is 'l' i.e. SimpleStringList, since we are allowed to have
+		 * multiples of these.
+		 */
 		message = "specified only once";
 	}
 	else
@@ -177,6 +180,10 @@ pgut_setopt(pgut_option *opt, const char *optarg, pgut_optsrc src)
 					return;
 				message = "a 32bit signed integer";
 				break;
+			case 'l':
+				message = "a List";
+				simple_string_list_append(opt->var, optarg);
+				return;
 			case 'u':
 				if (parse_uint32(optarg, opt->var))
 					return;
