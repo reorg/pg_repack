@@ -606,14 +606,6 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
 	return isnull ? InvalidOid : DatumGetObjectId(datum);
 }
 
-static int16
-getint16(HeapTuple tuple, TupleDesc desc, int column)
-{
-	bool	isnull;
-	Datum	datum = SPI_getbinval(tuple, desc, column, &isnull);
-	return isnull ? 0 : DatumGetInt16(datum);
-}
-
 /**
  * @fn      Datum reorg_swap(PG_FUNCTION_ARGS)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
