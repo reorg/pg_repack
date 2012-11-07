@@ -52,7 +52,7 @@ typedef struct reorg_table
 	const char	   *create_pktype;	/* CREATE TYPE pk */
 	const char	   *create_log;		/* CREATE TABLE log */
 	const char	   *create_trigger;	/* CREATE TRIGGER z_reorg_trigger */
-        const char         *alter_table;        /* ALTER TABLE ENABLE ALWAYS TRIGGER z_reorg_trigger */
+	const char	   *alter_table;	/* ALTER TABLE ENABLE ALWAYS TRIGGER z_reorg_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
