@@ -1,7 +1,7 @@
 /* pg_reorg/pg_reorg--unpackaged--1.0.sql */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION pg_reorg" to load this file. \quit
+\echo Use "CREATE EXTENSION pg_reorg FROM unpackaged" to load this file. \quit
 
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.version();
 ALTER EXTENSION pg_reorg ADD AGGREGATE reorg.array_accum(anyelement);
@@ -23,4 +23,3 @@ ALTER EXTENSION pg_reorg ADD FUNCTION reorg.disable_autovacuum(regclass);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_apply(cstring,cstring,cstring,cstring,cstring,integer);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_swap(oid);
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.reorg_drop(oid);
-ALTER EXTENSION pg_reorg ADD SCHEMA reorg;
