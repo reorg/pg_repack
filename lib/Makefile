@@ -10,9 +10,8 @@ OBJS = reorg.o pgut/pgut-be.o pgut/pgut-spi.o
 EXTENSION = pg_reorg
 
 #supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
-DATA_built = pg_reorg.sql
-DATA = pg_reorg--1.0.sql pg_reorg--unpackaged--1.0.sql uninstall_pg_reorg.sql
-
+DATA_built = pg_reorg.sql pg_reorg--1.0.sql
+DATA = pg_reorg--unpackaged--1.0.sql uninstall_pg_reorg.sql
 ifndef USE_PGXS
 top_builddir = ../../..
 makefile_global = $(top_builddir)/src/Makefile.global
@@ -34,3 +33,13 @@ endif
 # remove dependency to libxml2 and libxslt
 LIBS := $(filter-out -lxml2, $(LIBS))
 LIBS := $(filter-out -lxslt, $(LIBS))
+
+pg_reorg.sql: pg_reorg.sql.in
+	echo "BEGIN;\n" > $@; \
+	echo "CREATE SCHEMA reorg;\n" >> $@; \
+	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< >> $@; \
+	echo "\nCOMMIT;" >> $@;
+
+pg_reorg--1.0.sql: pg_reorg.sql.in
+	echo '\echo Use "CREATE EXTENSION pg_reorg" to load this file. \quit' > $@; \
+	cat $< >> $@;

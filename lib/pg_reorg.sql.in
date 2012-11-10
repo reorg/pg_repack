@@ -5,13 +5,6 @@
  * Portions Copyright (c) 2011, Itagaki Takahiro
  */
 
--- Adjust this setting to control where the objects get created.
-SET search_path = public;
-
-BEGIN;
-
-CREATE SCHEMA reorg;
-
 CREATE FUNCTION reorg.version() RETURNS text AS
 'MODULE_PATHNAME', 'reorg_version'
 LANGUAGE C IMMUTABLE STRICT;
@@ -241,5 +234,3 @@ LANGUAGE C VOLATILE STRICT;
 CREATE FUNCTION reorg.reorg_drop(oid) RETURNS void AS
 'MODULE_PATHNAME', 'reorg_drop'
 LANGUAGE C VOLATILE STRICT;
-
-COMMIT;
