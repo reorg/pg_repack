@@ -9,6 +9,8 @@ OBJS = $(SRCS:.c=.o)
 PROGRAM = pg_reorg
 REGRESS = init reorg
 
+EXTRA_CLEAN = sql/init-$(MAJORVERSION).sql sql/init.sql
+
 ifdef DEBUG_REORG
 PG_CPPFLAGS = -I$(libpq_srcdir) -DDEBUG_REORG
 else
@@ -58,10 +60,5 @@ sql/init-9.2.sql:
 	cp sql/init-extension.sql sql/init-9.2.sql
 sql/init-9.3.sql:
 	cp sql/init-extension.sql sql/init-9.3.sql
-
-.PHONY: subclean
-clean: subclean
-subclean:
-	rm -f sql/init.sql sql/init-{8.3,8.4,9.0,9.1,9.2,9.3}.sql
 
 installcheck: sql/init.sql
