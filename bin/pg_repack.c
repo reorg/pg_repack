@@ -712,8 +712,8 @@ pgut_help(bool details)
 	printf("Options:\n");
 	printf("  -a, --all                 repack all databases\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
-	printf("  -o, --order-by=columns    order by columns instead of cluster keys\n");
+	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
-	printf("  -T, --wait-timeout=secs   timeout to cancel other backends on conflict\n");
+	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }
