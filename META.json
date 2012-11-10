@@ -3,7 +3,10 @@
    "abstract": "PostgreSQL module for data reorganization",
    "description": "pg_repack is a PostgreSQL module allowing to reorganize a table without any locks.",
    "version": "1.2dev0",
-   "maintainer": "Takahiro Itagaki",
+   "maintainer": [
+       "Josh Kupershmidt <schmiddy@gmail.com>",
+       "Daniele Varrazzo <daniele.varrazzo@gmail.com>"
+    ],
    "tags": [ "bloat", "maintenance", "vacuum", "cluster" ],
    "release_status": "stable",
    "license": "bsd",
@@ -17,14 +20,14 @@
    "prereqs": {
       "runtime": {
          "requires": {
-            "PostgreSQL": "8.2.0"
+            "PostgreSQL": "8.3.0"
          }
       }
    },
    "resources": {
-      "homepage": "http://repack.projects.postgresql.org/",
+      "homepage": "https://github.com/reorg/pg_repack",
       "bugtracker": {
-         "web": "http://pgfoundry.org/tracker/?atid=1376&group_id=1000411&func=browse"
+         "web": "https://github.com/reorg/pg_reorg/issues"
       }
    },
    "meta-spec": {
