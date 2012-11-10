@@ -105,12 +105,12 @@ SELECT * FROM view_for_dropped_column;
 SELECT * FROM tbl_with_dropped_toast;
 
 --
--- do reorg
+-- do repack
 --
 
-\! pg_reorg --dbname=contrib_regression --no-order
-\! pg_reorg --dbname=contrib_regression
-\! pg_reorg --dbname=contrib_regression --table=tbl_cluster
+\! pg_repack --dbname=contrib_regression --no-order
+\! pg_repack --dbname=contrib_regression
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster
 
 --
 -- after
@@ -162,11 +162,11 @@ CREATE TABLE tbl_nn    (col1 int NOT NULL, col2 int NOT NULL);
 CREATE TABLE tbl_uk    (col1 int NOT NULL, col2 int         , UNIQUE(col1, col2));
 CREATE TABLE tbl_nn_uk (col1 int NOT NULL, col2 int NOT NULL, UNIQUE(col1, col2));
 CREATE TABLE tbl_pk_uk (col1 int NOT NULL, col2 int NOT NULL, PRIMARY KEY(col1, col2), UNIQUE(col2, col1));
-\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_nn
+\! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn
 -- => ERROR
-\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_uk
+\! pg_repack --dbname=contrib_regression --no-order --table=tbl_uk
 -- => ERROR
-\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_nn_uk
+\! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn_uk
 -- => OK
-\! pg_reorg --dbname=contrib_regression --no-order --table=tbl_pk_uk
+\! pg_repack --dbname=contrib_regression --no-order --table=tbl_pk_uk
 -- => OK

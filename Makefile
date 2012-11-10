@@ -1,5 +1,5 @@
 #
-# pg_reorg: Makefile
+# pg_repack: Makefile
 #
 #  Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #  Portions Copyright (c) 2011, Itagaki Takahiro
@@ -17,7 +17,7 @@ PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 else
-subdir = pg_reorg
+subdir = pg_repack
 include $(makefile_global)
 include $(top_srcdir)/contrib/contrib-global.mk
 endif

@@ -1,5 +1,5 @@
 /*
- * pg_reorg.c: bin/pg_reorg.c
+ * pg_repack.c: bin/pg_repack.c
  *
  * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  * Portions Copyright (c) 2011, Itagaki Takahiro
@@ -10,8 +10,8 @@
  */
 
 const char *PROGRAM_VERSION	= "1.1.7";
-const char *PROGRAM_URL		= "http://reorg.projects.postgresql.org/";
-const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
+const char *PROGRAM_URL		= "http://repack.projects.postgresql.org/";
+const char *PROGRAM_EMAIL	= "repack-general@lists.pgfoundry.org";
 
 #include "pgut/pgut-fe.h"
 
@@ -30,11 +30,11 @@ const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
  * servers. See GH ticket #1.
  */
 #define SQL_XID_SNAPSHOT_80300 \
-	"SELECT reorg.array_accum(virtualtransaction) FROM pg_locks"\
+	"SELECT repack.array_accum(virtualtransaction) FROM pg_locks"\
 	" WHERE locktype = 'virtualxid' AND pid <> pg_backend_pid()"\
 	" AND (virtualxid, virtualtransaction) <> ('1/1', '-1/0')"
 #define SQL_XID_SNAPSHOT_80200 \
-	"SELECT reorg.array_accum(transactionid) FROM pg_locks"\
+	"SELECT repack.array_accum(transactionid) FROM pg_locks"\
 	" WHERE locktype = 'transactionid' AND pid <> pg_backend_pid()"
 
 #define SQL_XID_ALIVE_80300 \
@@ -57,7 +57,7 @@ const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 /*
  * per-table information
  */
-typedef struct reorg_table
+typedef struct repack_table
 {
 	const char	   *target_name;	/* target: relname */
 	Oid				target_oid;		/* target: OID */
@@ -67,7 +67,7 @@ typedef struct reorg_table
 	Oid				ckid;			/* target: CK OID */
 	const char	   *create_pktype;	/* CREATE TYPE pk */
 	const char	   *create_log;		/* CREATE TABLE log */
-	const char	   *create_trigger;	/* CREATE TRIGGER z_reorg_trigger */
+	const char	   *create_trigger;	/* CREATE TRIGGER z_repack_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
@@ -77,21 +77,21 @@ typedef struct reorg_table
 	const char	   *sql_delete;		/* SQL used in flush */
 	const char	   *sql_update;		/* SQL used in flush */
 	const char	   *sql_pop;		/* SQL used in flush */
-} reorg_table;
+} repack_table;
 
 /*
  * per-index information
  */
-typedef struct reorg_index
+typedef struct repack_index
 {
 	Oid				target_oid;		/* target: OID */
 	const char	   *create_index;	/* CREATE INDEX */
-} reorg_index;
+} repack_index;
 
-static void reorg_all_databases(const char *order_by);
-static bool reorg_one_database(const char *order_by, const char *table);
-static void reorg_one_table(const reorg_table *table, const char *order_by);
-static void reorg_cleanup(bool fatal, void *userdata);
+static void repack_all_databases(const char *order_by);
+static bool repack_one_database(const char *order_by, const char *table);
+static void repack_one_table(const repack_table *table, const char *order_by);
+static void repack_cleanup(bool fatal, void *userdata);
 
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
@@ -153,12 +153,12 @@ main(int argc, char *argv[])
 		if (table)
 			ereport(ERROR,
 				(errcode(EINVAL),
-				 errmsg("cannot reorg a specific table in all databases")));
-		reorg_all_databases(orderby);
+				 errmsg("cannot repack a specific table in all databases")));
+		repack_all_databases(orderby);
 	}
 	else
 	{
-		if (!reorg_one_database(orderby, table))
+		if (!repack_one_database(orderby, table))
 			ereport(ERROR,
 				(errcode(ENOENT),
 				 errmsg("%s is not installed", PROGRAM_NAME)));
@@ -168,10 +168,10 @@ main(int argc, char *argv[])
 }
 
 /*
- * Call reorg_one_database for each database.
+ * Call repack_one_database for each database.
  */
 static void
-reorg_all_databases(const char *orderby)
+repack_all_databases(const char *orderby)
 {
 	PGresult   *result;
 	int			i;
@@ -189,11 +189,11 @@ reorg_all_databases(const char *orderby)
 
 		if (pgut_log_level >= INFO)
 		{
-			printf("%s: reorg database \"%s\"", PROGRAM_NAME, dbname);
+			printf("%s: repack database \"%s\"", PROGRAM_NAME, dbname);
 			fflush(stdout);
 		}
 
-		ret = reorg_one_database(orderby, NULL);
+		ret = repack_one_database(orderby, NULL);
 
 		if (pgut_log_level >= INFO)
 		{
@@ -228,10 +228,10 @@ getoid(PGresult *res, int row, int col)
 }
 
 /*
- * Call reorg_one_table for the target table or each table in a database.
+ * Call repack_one_table for the target table or each table in a database.
  */
 static bool
-reorg_one_database(const char *orderby, const char *table)
+repack_one_database(const char *orderby, const char *table)
 {
 	bool			ret = true;
 	PGresult	   *res;
@@ -253,7 +253,7 @@ reorg_one_database(const char *orderby, const char *table)
 	command("SET client_min_messages = warning", 0, NULL);
 
 	/* acquire target tables */
-	appendStringInfoString(&sql, "SELECT * FROM reorg.tables WHERE ");
+	appendStringInfoString(&sql, "SELECT * FROM repack.tables WHERE ");
 	if (table)
 	{
 		appendStringInfoString(&sql, "relid = $1::regclass");
@@ -271,7 +271,7 @@ reorg_one_database(const char *orderby, const char *table)
 	{
 		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
 		{
-			/* Schema reorg does not exist. Skip the database. */
+			/* Schema repack does not exist. Skip the database. */
 			ret = false;
 			goto cleanup;
 		}
@@ -288,7 +288,7 @@ reorg_one_database(const char *orderby, const char *table)
 
 	for (i = 0; i < num; i++)
 	{
-		reorg_table	table;
+		repack_table	table;
 		const char *create_table;
 		const char *ckey;
 		int			c = 0;
@@ -344,7 +344,7 @@ reorg_one_database(const char *orderby, const char *table)
 		table.sql_update = getstr(res, i, c++);
 		table.sql_pop = getstr(res, i, c++);
 
-		reorg_one_table(&table, orderby);
+		repack_one_table(&table, orderby);
 	}
 
 cleanup:
@@ -355,7 +355,7 @@ cleanup:
 }
 
 static int
-apply_log(const reorg_table *table, int count)
+apply_log(const repack_table *table, int count)
 {
 	int			result;
 	PGresult   *res;
@@ -369,7 +369,7 @@ apply_log(const reorg_table *table, int count)
 	params[4] = table->sql_pop;
 	params[5] = utoa(count, buffer);
 
-	res = execute("SELECT reorg.reorg_apply($1, $2, $3, $4, $5, $6)",
+	res = execute("SELECT repack.repack_apply($1, $2, $3, $4, $5, $6)",
 		6, params);
 	result = atoi(PQgetvalue(res, 0, 0));
 	PQclear(res);
@@ -381,7 +381,7 @@ apply_log(const reorg_table *table, int count)
  * Re-organize one table.
  */
 static void
-reorg_one_table(const reorg_table *table, const char *orderby)
+repack_one_table(const repack_table *table, const char *orderby)
 {
 	PGresult	   *res;
 	const char	   *params[1];
@@ -394,7 +394,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 
 	initStringInfo(&sql);
 
-	elog(DEBUG2, "---- reorg_one_table ----");
+	elog(DEBUG2, "---- repack_one_table ----");
 	elog(DEBUG2, "target_name    : %s", table->target_name);
 	elog(DEBUG2, "target_oid     : %u", table->target_oid);
 	elog(DEBUG2, "target_toast   : %u", table->target_toast);
@@ -421,12 +421,12 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	lock_exclusive(utoa(table->target_oid, buffer), table->lock_table);
 
 	/*
-	 * Check z_reorg_trigger is the trigger executed at last so that
+	 * Check z_repack_trigger is the trigger executed at last so that
 	 * other before triggers cannot modify triggered tuples.
 	 */
 	params[0] = utoa(table->target_oid, buffer);
 
-	res = execute("SELECT reorg.conflicted_triggers($1)", 1, params);
+	res = execute("SELECT repack.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
 		ereport(ERROR,
 			(errcode(E_PG_COMMAND),
@@ -437,7 +437,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
 	command(table->create_trigger, 0, NULL);
-	printfStringInfo(&sql, "SELECT reorg.disable_autovacuum('reorg.log_%u')", table->target_oid);
+	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.log_%u')", table->target_oid);
 	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
 
@@ -446,7 +446,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	 * an advisory lock. The registration should be done after
 	 * the first command succeeds.
 	 */
-	pgut_atexit_push(&reorg_cleanup, (void *) table);
+	pgut_atexit_push(&repack_cleanup, (void *) table);
 
 	/*
 	 * 2. Copy tuples into temp table.
@@ -463,7 +463,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	PQclear(res);
 	command(table->delete_log, 0, NULL);
 	command(table->create_table, 0, NULL);
-	printfStringInfo(&sql, "SELECT reorg.disable_autovacuum('reorg.table_%u')", table->target_oid);
+	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
 	if (table->drop_columns)
 		command(table->drop_columns, 0, NULL);
 	command(sql.data, 0, NULL);
@@ -476,7 +476,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 
 	params[0] = utoa(table->target_oid, buffer);
 	res = execute("SELECT indexrelid,"
-		" reorg.reorg_indexdef(indexrelid, indrelid),"
+		" repack.repack_indexdef(indexrelid, indrelid),"
 		" indisvalid,"
 		" pg_get_indexdef(indexrelid)"
 		" FROM pg_index WHERE indrelid = $1", 1, params);
@@ -484,7 +484,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	num = PQntuples(res);
 	for (i = 0; i < num; i++)
 	{
-		reorg_index	index;
+		repack_index	index;
 		int			c = 0;
 		const char *isvalid;
 		const char *indexdef;
@@ -560,7 +560,7 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 	lock_exclusive(utoa(table->target_oid, buffer), table->lock_table);
 	apply_log(table, 0);
 	params[0] = utoa(table->target_oid, buffer);
-	command("SELECT reorg.reorg_swap($1)", 1, params);
+	command("SELECT repack.repack_swap($1)", 1, params);
 	command("COMMIT", 0, NULL);
 
 	/*
@@ -570,10 +570,10 @@ reorg_one_table(const reorg_table *table, const char *orderby)
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 	params[0] = utoa(table->target_oid, buffer);
-	command("SELECT reorg.reorg_drop($1)", 1, params);
+	command("SELECT repack.repack_drop($1)", 1, params);
 	command("COMMIT", 0, NULL);
 
-	pgut_atexit_pop(&reorg_cleanup, (void *) table);
+	pgut_atexit_pop(&repack_cleanup, (void *) table);
 	free(vxid);
 
 	/*
@@ -672,9 +672,9 @@ lock_exclusive(const char *relid, const char *lock_query)
  * objects before the program exits.
  */
 static void
-reorg_cleanup(bool fatal, void *userdata)
+repack_cleanup(bool fatal, void *userdata)
 {
-	const reorg_table *table = (const reorg_table *) userdata;
+	const repack_table *table = (const repack_table *) userdata;
 
 	if (fatal)
 	{
@@ -695,7 +695,7 @@ reorg_cleanup(bool fatal, void *userdata)
 
 		/* do cleanup */
 		params[0] = utoa(table->target_oid, buffer);
-		command("SELECT reorg.reorg_drop($1)", 1, params);
+		command("SELECT repack.repack_drop($1)", 1, params);
 	}
 }
 
@@ -710,10 +710,10 @@ pgut_help(bool details)
 		return;
 
 	printf("Options:\n");
-	printf("  -a, --all                 reorg all databases\n");
+	printf("  -a, --all                 repack all databases\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -o, --order-by=columns    order by columns instead of cluster keys\n");
-	printf("  -t, --table=TABLE         reorg specific table only\n");
+	printf("  -t, --table=TABLE         repack specific table only\n");
 	printf("  -T, --wait-timeout=secs   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }

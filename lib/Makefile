@@ -1,13 +1,13 @@
 #
-# pg_reorg: lib/Makefile
+# pg_repack: lib/Makefile
 #
 #  Portions Copyright (c) 2008-2012, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #  Portions Copyright (c) 2011, Itagaki Takahiro
 #
-MODULE_big = pg_reorg
-OBJS = reorg.o pgut/pgut-be.o pgut/pgut-spi.o
+MODULE_big = pg_repack
+OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
 
-EXTENSION = pg_reorg
+EXTENSION = pg_repack
 
 # The version of the extension, read from the .control file.
 # Note that it doesn't need to be the same of the library version: it should
@@ -16,8 +16,8 @@ EXTVER = $(shell grep -e '^default_version' $(EXTENSION).control \
 	| sed -e "s/[^']*'\([^']*\)'.*/\1/")
 
 #supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
-DATA_built = pg_reorg.sql pg_reorg--$(EXTVER).sql
-DATA = pg_reorg--1.1.7--1.1.8.sql uninstall_pg_reorg.sql
+DATA_built = pg_repack.sql pg_repack--$(EXTVER).sql
+DATA = pg_repack--1.1.7--1.1.8.sql uninstall_pg_repack.sql
 
 ifndef USE_PGXS
 top_builddir = ../../..
@@ -41,12 +41,12 @@ endif
 LIBS := $(filter-out -lxml2, $(LIBS))
 LIBS := $(filter-out -lxslt, $(LIBS))
 
-pg_reorg.sql: pg_reorg.sql.in
+pg_repack.sql: pg_repack.sql.in
 	echo "BEGIN;\n" > $@; \
-	echo "CREATE SCHEMA reorg;\n" >> $@; \
+	echo "CREATE SCHEMA repack;\n" >> $@; \
 	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< >> $@; \
 	echo "\nCOMMIT;" >> $@;
 
-pg_reorg--$(EXTVER).sql: pg_reorg.sql.in
-	echo '\echo Use "CREATE EXTENSION pg_reorg" to load this file. \quit' > $@; \
+pg_repack--$(EXTVER).sql: pg_repack.sql.in
+	echo '\echo Use "CREATE EXTENSION pg_repack" to load this file. \quit' > $@; \
 	cat $< >> $@;

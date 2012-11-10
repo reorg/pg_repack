@@ -8,22 +8,22 @@
 	<link rel="icon" type="image/png" href="http://pgfoundry.org/images/elephant-icon.png" />
 	<link rel="stylesheet" type="text/css" href="style.css" />
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-	<title>pg_reorg: Project Home Page</title>
+	<title>pg_repack: Project Home Page</title>
 </head>
 
 <body>
 <center><img style="border: none; margin-left: auto; margin-right: auto; " src="http://pgfoundry.org/images/elephantSmall.png" height="75" width="75" />
 <hr />
-<h1>Welcome to the pg_reorg Project Home Page</h1>
+<h1>Welcome to the pg_repack Project Home Page</h1>
 <hr />
 </center>
 
 <p>
-This project provides two tools for PostgreSQL; <strong>pg_reorg</strong> and <strong>pg_batch</strong>.
+This project provides two tools for PostgreSQL; <strong>pg_repack</strong> and <strong>pg_batch</strong>.
 </p>
 
 <p>
-<strong>pg_reorg</strong> can re-organize tables on a postgres database without any locks so that you can retrieve or update rows in tables being reorganized.
+<strong>pg_repack</strong> can re-organize tables on a postgres database without any locks so that you can retrieve or update rows in tables being reorganized.
 The module is developed to be a better alternative of CLUSTER and VACUUM FULL.
 </p>
 
@@ -34,10 +34,10 @@ It can be used as "a better vacuumdb" with the attached script to run VACUUM.
 </p>
 
 <p>
-The pg_reorg project is a <a href="http://www.postgresql.org">PostgreSQL</a> Community project that is a part of the <a href="http://pgfoundry.org">pgFoundry</a>.
+The pg_repack project is a <a href="http://www.postgresql.org">PostgreSQL</a> Community project that is a part of the <a href="http://pgfoundry.org">pgFoundry</a>.
 </p>
 <p>
-The pgFoundry page for the project is at <a href="http://pgfoundry.org/projects/reorg">http://pgfoundry.org/projects/reorg</a>, 
+The pgFoundry page for the project is at <a href="http://pgfoundry.org/projects/repack">http://pgfoundry.org/projects/repack</a>, 
 where you can find <a href="http://pgfoundry.org/frs/?group_id=1000411">downloads</a>, documentation, bug reports, mailing lists, and a whole lot more.
 </p>
 <div>
@@ -48,15 +48,15 @@ where you can find <a href="http://pgfoundry.org/frs/?group_id=1000411">download
 <h2>Documentation</h2>
 
 <ul>
-<li><a href="pg_reorg.html">pg_reorg 1.1 documentation</a></li>
+<li><a href="pg_repack.html">pg_repack 1.1 documentation</a></li>
 <li><a href="pg_batch.html">pg_batch 1.2 documentation</a></li>
 </ul>
 
 <h2>Execution time</h2>
 <p>
-Here is a comparison between pg_reorg and clusterdb.
-Clusterdb is faster on not fragmented conditions, but pg_reorg is faster on fully fragmented conditions.
-Since reorganization is needed only if tables are fragmented, pg_reorg should be faster than clusterdb.
+Here is a comparison between pg_repack and clusterdb.
+Clusterdb is faster on not fragmented conditions, but pg_repack is faster on fully fragmented conditions.
+Since reorganization is needed only if tables are fragmented, pg_repack should be faster than clusterdb.
 </p>
 
 <center>
@@ -94,7 +94,7 @@ Since reorganization is needed only if tables are fragmented, pg_reorg should be
 	<td>PostgreSQL 8.3.3</td>
 </tr>
 <tr>
-	<td>pg_reorg</td>
+	<td>pg_repack</td>
 	<td>1.0.0</td>
 </tr>
 <tr>

@@ -115,7 +115,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\lib\reorg.c"
+				RelativePath="..\lib\repack.c"
 				>
 			</File>
 		</Filter>
@@ -138,11 +138,11 @@
 			>
 		</File>
 		<File
-			RelativePath="..\lib\pg_reorg.sql.in"
+			RelativePath="..\lib\pg_repack.sql.in"
 			>
 		</File>
 		<File
-			RelativePath="..\lib\uninstall_pg_reorg.sql"
+			RelativePath="..\lib\uninstall_pg_repack.sql"
 			>
 		</File>
 	</Files>

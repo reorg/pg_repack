@@ -107,7 +107,7 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath="..\bin\pg_reorg.c"
+				RelativePath="..\bin\pg_repack.c"
 				>
 			</File>
 			<File
@@ -145,11 +145,11 @@
 				>
 			</File>
 			<File
-				RelativePath="..\bin\expected\reorg.out"
+				RelativePath="..\bin\expected\repack.out"
 				>
 			</File>
 			<File
-				RelativePath="..\bin\sql\reorg.sql"
+				RelativePath="..\bin\sql\repack.sql"
 				>
 			</File>
 		</Filter>

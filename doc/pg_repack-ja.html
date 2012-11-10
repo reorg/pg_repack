@@ -1,17 +1,17 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
-<title>pg_reorg</title>
-<link rel="home" title="pg_reorg " href="index.html">
+<title>pg_repack</title>
+<link rel="home" title="pg_repack " href="index.html">
 <link rel="stylesheet" TYPE="text/css" href="style.css">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg 1.1.7</h1>
+<h1 id="pg_repack">pg_repack 1.1.7</h1>
 <div class="navigation">
   <a href="index-ja.html">Top</a> &gt;
-  <a href="pg_reorg-ja.html">pg_reorg</a>
+  <a href="pg_repack-ja.html">pg_repack</a>
 </div>
 <hr>
 
@@ -33,11 +33,11 @@
 </div>
 
 <h2 id="name">名前</h2>
-pg_reorg -- PostgreSQLデータベース内のテーブルに対して、参照/更新処理をブロックせずに再編成を行います。
+pg_repack -- PostgreSQLデータベース内のテーブルに対して、参照/更新処理をブロックせずに再編成を行います。
 
 <h2 id="synopsis">概要</h2>
 <p>
-pg_reorg [OPTIONS]
+pg_repack [OPTIONS]
 </p>
 
 <p>オプション OPTIONS には以下を指定できます。
@@ -68,7 +68,7 @@ pg_reorg [OPTIONS]
 </ul>
 
 <h2 id="description">説明</h2>
-<p>pg_reorg は、PostgreSQLデータベース内のテーブルを再編成(行の並び替え)するユーティリティです。
+<p>pg_repack は、PostgreSQLデータベース内のテーブルを再編成(行の並び替え)するユーティリティです。
 <a href="http://www.postgresql.jp/document/current/html/app-clusterdb.html">clusterdb</a> と異なり、参照/更新処理をブロックしません。
 再編成の方式として、以下のいずれか1つを選択できます。</p>
 <ul>
@@ -84,16 +84,16 @@ pg_reorg [OPTIONS]
 
 <h2 id="examples">例</h2>
 <p>testというデータベースをオンライン CLUSTER するには、下記のコマンドを実行します。</p>
-<PRE><SAMP>$ </SAMP><KBD>pg_reorg test</KBD></PRE>
+<PRE><SAMP>$ </SAMP><KBD>pg_repack test</KBD></PRE>
 <p>testという名前のデータベースのfooという1つのテーブルに対してオンライン VACUUM FULL を行うには、下記のコマンドを実行します。</p>
-<PRE><SAMP>$ </SAMP><KBD>pg_reorg --no-order --table foo -d test</KBD></PRE><p>
+<PRE><SAMP>$ </SAMP><KBD>pg_repack --no-order --table foo -d test</KBD></PRE><p>
 </p>
 
 <h2 id="options">オプション</h2>
-<p>pg_reorg では、下記のコマンドライン引数を指定できます。</p>
+<p>pg_repack では、下記のコマンドライン引数を指定できます。</p>
 
 <h3>固有オプション</h3>
-<p>pg_reorg を実行する対象と並び替えの基準を指定するパラメータです。
+<p>pg_repack を実行する対象と並び替えの基準を指定するパラメータです。
 何も指定されていない場合は、cluster index順にオンライン CLUSTER を行います。
 この2つを同時に指定することはできません。
 </p>
@@ -210,19 +210,19 @@ DEBUG, INFO, NOTICE, WARNING, ERROR, LOG, FATAL, PANIC から選択します。
 </p>
 
 <h2 id="diagnostics">トラブルシューティング</h2>
-<p>pg_reorg の実行に失敗した場合にエラーが表示されます。
+<p>pg_repack の実行に失敗した場合にエラーが表示されます。
 想像されるエラー原因と対処を示します。</p>
 <p>致命的なエラーで終了した場合、手動によるクリーンアップを行う必要があります。
-クリーンアップは、エラーが発生したデータベースに対して、$PGHOME/share/contrib/uninstall_pg_reorg.sql を実行し、その後、$PGHOME/share/contrib/pg_reorg.sql を実行します。</p>
+クリーンアップは、エラーが発生したデータベースに対して、$PGHOME/share/contrib/uninstall_pg_repack.sql を実行し、その後、$PGHOME/share/contrib/pg_repack.sql を実行します。</p>
 
 <dl>
-<dt>pg_reorg : reorg database "template1" ... skipped</dt>
-<dd>--allオプションを指定した際に、pg_reorg がインストールされていないデータベースに対して表示されます。</dd>
-<dd>pg_reorg スキーマのインストールを行ってください。</dd>
+<dt>pg_repack : repack database "template1" ... skipped</dt>
+<dd>--allオプションを指定した際に、pg_repack がインストールされていないデータベースに対して表示されます。</dd>
+<dd>pg_repack スキーマのインストールを行ってください。</dd>
 
-<dt>ERROR: pg_reorg is not installed</dt>
-<dd>--dbnameで指定したデータベースにpg_reorg がインストールされていません。</dd>
-<dd>pg_reorg のインストールを行ってください。</dd>
+<dt>ERROR: pg_repack is not installed</dt>
+<dd>--dbnameで指定したデータベースにpg_repack がインストールされていません。</dd>
+<dd>pg_repack のインストールを行ってください。</dd>
 
 <dt>ERROR: relation "table" has no primary key</dt>
 <dd>指定したテーブルにPRIMARY KEYが存在していません。</dd>
@@ -232,45 +232,45 @@ DEBUG, INFO, NOTICE, WARNING, ERROR, LOG, FATAL, PANIC から選択します。
 <dd>指定したテーブルに CLUSTER KEYが存在していません。</dd>
 <dd>対象のテーブルに CLUSTER KEYの作成を行ってください。(ALTER TABLE CLUSTER)</dd>
 
-<dt>pg_reorg : query failed: ERROR:  column "col" does not exist</dt>
+<dt>pg_repack : query failed: ERROR:  column "col" does not exist</dt>
 <dd>--order-by で指定したカラムが対象のテーブルに存在していません。</dd>
 <dd>対象のテーブルに存在するカラムを指定してください。</dd>
 
-<dt>ERROR: permission denied for schema reorg</dt>
+<dt>ERROR: permission denied for schema repack</dt>
 <dd>操作を行おうとした対象に権限がありません。</dd>
 <dd>スーパーユーザで操作を行ってください。</dd>
 
-<dt>pg_reorg : query failed: ERROR:  trigger "z_reorg_trigger" for relation "tbl" already exists</dt>
-<dd>操作を行おうとした対象にpg_reorg が処理のために作成するトリガと同名のものが存在しています。</dd>
+<dt>pg_repack : query failed: ERROR:  trigger "z_repack_trigger" for relation "tbl" already exists</dt>
+<dd>操作を行おうとした対象にpg_repack が処理のために作成するトリガと同名のものが存在しています。</dd>
 <dd>トリガの改名か削除を行ってください。</dd>
 
-<dt>pg_reorg : trigger conflicted for tbl</dt>
-<dd>操作を行おうとした対象にpg_reorg が処理のために作成するトリガより後に実行されるトリガが存在しています。</dd>
+<dt>pg_repack : trigger conflicted for tbl</dt>
+<dd>操作を行おうとした対象にpg_repack が処理のために作成するトリガより後に実行されるトリガが存在しています。</dd>
 <dd>トリガの改名か削除を行ってください。</dd>
 </dl>
 
 <h2 id="restrictions">使用上の注意と制約</h2>
-<p>pg_reorg を使用する際には、以下の制約があります。以下の制約に関する操作を行った場合の動作は保証されません。注意してください。</p>
+<p>pg_repack を使用する際には、以下の制約があります。以下の制約に関する操作を行った場合の動作は保証されません。注意してください。</p>
 
 <h3>一時テーブルへの操作</h3>
-<p>pg_reorg では、一時テーブルは操作の対象外です。</p>
+<p>pg_repack では、一時テーブルは操作の対象外です。</p>
 
 <h3>GiSTインデックスの使用</h3>
 <p>インデックス種別がGiSTとなっているインデックスがクラスタインデックスとなっている
-テーブルはpg_reorg コマンドを使用して操作を行うことはできません。
+テーブルはpg_repack コマンドを使用して操作を行うことはできません。
 これは、GiSTインデックスのソート順序は一意ではないため、ORDER BYによる
 ソートが行えないためです。</p>
 
 <h3>DDLコマンドの発行</h3>
 <p>
-pg_reorg の実行中には、VACUUM と ANALYZE <STRONG>以外</STRONG> のDDL操作は行わないでください。
-多くの場合、pg_reorg は失敗しロールバックされます。
+pg_repack の実行中には、VACUUM と ANALYZE <STRONG>以外</STRONG> のDDL操作は行わないでください。
+多くの場合、pg_repack は失敗しロールバックされます。
 しかし、以下の操作ではデータが破損するため、非常に危険です。
 </p>
 
 <dl>
 <dt>TRUNCATE</dt>
-<dd>削除した行が pg_reorg 実行後には復元しています。操作結果が消失します。</dd>
+<dd>削除した行が pg_repack 実行後には復元しています。操作結果が消失します。</dd>
 
 <dt>CREATE INDEX</dt>
 <dd>スワップされない索引が残る可能性があります。データの不整合が生じます。</dd>
@@ -282,11 +282,11 @@ pg_reorg の実行中には、VACUUM と ANALYZE <STRONG>以外</STRONG> のDDL�
 <dd>実行するとスキーマで定義された型と実際の格納状態に齟齬をきたします。データの不整合が生じます。</dd>
 
 <dt>ALTER TABLE ... SET TABLESPACE</dt>
-<dd>pg_reorg 実行後にrelfilenodeとの不整合が起こるため、対象のテーブルに対する参照/更新操作時にエラーが発生します。</dd>
+<dd>pg_repack 実行後にrelfilenodeとの不整合が起こるため、対象のテーブルに対する参照/更新操作時にエラーが発生します。</dd>
 </dl>
 
 <h2 id="details">詳細</h2>
-<p>pg_reorg は reorg スキーマに作業用テーブルを作成し、そこでデータの並び替えを行います。
+<p>pg_repack は repack スキーマに作業用テーブルを作成し、そこでデータの並び替えを行います。
 最後にシステムカタログを直接書き換えることで、元のテーブルと名前を交換しています。</p>
 
 <h2 id="install">インストール方法</h2>
@@ -294,7 +294,7 @@ pg_reorg の実行中には、VACUUM と ANALYZE <STRONG>以外</STRONG> のDDL�
 UNIX や Linux では、make を実行すると自動的に pgxs を使ってビルドできます。
 前もって PostgreSQL 開発用パッケージ (postgresql-devel 等) をインストールし、pg_config にパスを通してください。
 </p>
-<pre>$ cd pg_reorg
+<pre>$ cd pg_repack
 $ make
 $ su
 $ make install</pre>
@@ -305,7 +305,7 @@ msvc フォルダ内にプロジェクトファイルがあります。
 
 <p>その後、データベースに関数を登録します。</p>
 <pre>$ pg_ctl start
-$ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
+$ psql -f $PGSHARE/contrib/pg_repack.sql -d your_database</pre>
 
 <p>(注意: <code>CREATE EXTENSION</code> はまだサポートしていません。)</p>
 
@@ -334,7 +334,7 @@ $ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
 <hr>
 <div class="navigation">
   <a href="index-ja.html">Top</a> &gt;
-  <a href="pg_reorg-ja.html">pg_reorg</a>
+  <a href="pg_repack-ja.html">pg_repack</a>
 </div>
 <p class="footer">
 Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION<br>
