@@ -10,8 +10,8 @@
  */
 
 const char *PROGRAM_VERSION	= "1.1.7";
-const char *PROGRAM_URL		= "http://repack.projects.postgresql.org/";
-const char *PROGRAM_EMAIL	= "repack-general@lists.pgfoundry.org";
+const char *PROGRAM_URL		= "https://github.com/reorg/pg_reorg";
+const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
 #include "pgut/pgut-fe.h"
 
