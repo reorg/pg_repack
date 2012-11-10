@@ -1,2 +1,5 @@
 /.deps/
 /pg_reorg
+/results/
+/sql/init.sql
+/sql/init-*.*.sql
