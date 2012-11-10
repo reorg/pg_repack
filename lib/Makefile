@@ -9,9 +9,16 @@ OBJS = reorg.o pgut/pgut-be.o pgut/pgut-spi.o
 
 EXTENSION = pg_reorg
 
+# The version of the extension, read from the .control file.
+# Note that it doesn't need to be the same of the library version: it should
+# be increased only when the sql changes.
+EXTVER = $(shell grep -e '^default_version' $(EXTENSION).control \
+	| sed -e "s/[^']*'\([^']*\)'.*/\1/")
+
 #supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
-DATA_built = pg_reorg.sql pg_reorg--1.0.sql
-DATA = pg_reorg--unpackaged--1.0.sql uninstall_pg_reorg.sql
+DATA_built = pg_reorg.sql pg_reorg--$(EXTVER).sql
+DATA = pg_reorg--unpackaged--1.1.8.sql uninstall_pg_reorg.sql
+
 ifndef USE_PGXS
 top_builddir = ../../..
 makefile_global = $(top_builddir)/src/Makefile.global
@@ -40,6 +47,6 @@ pg_reorg.sql: pg_reorg.sql.in
 	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< >> $@; \
 	echo "\nCOMMIT;" >> $@;
 
-pg_reorg--1.0.sql: pg_reorg.sql.in
+pg_reorg--$(EXTVER).sql: pg_reorg.sql.in
 	echo '\echo Use "CREATE EXTENSION pg_reorg" to load this file. \quit' > $@; \
 	cat $< >> $@;

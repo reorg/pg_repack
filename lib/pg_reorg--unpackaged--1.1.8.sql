@@ -1,4 +1,4 @@
-/* pg_reorg/pg_reorg--unpackaged--1.0.sql */
+/* pg_reorg/pg_reorg--unpackaged--1.1.8.sql */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
 \echo Use "CREATE EXTENSION pg_reorg FROM unpackaged" to load this file. \quit

@@ -2,7 +2,7 @@
    "name": "pg_reorg",
    "abstract": "PostgreSQL module for data reorganization",
    "description": "pg_reorg is a PostgreSQL module allowing to reorganize a table without any locks.",
-   "version": "1.1.7",
+   "version": "1.2dev0",
    "maintainer": "Takahiro Itagaki",
    "tags": [ "bloat", "maintenance", "vacuum", "cluster" ],
    "release_status": "stable",
@@ -10,7 +10,7 @@
    "provides": {
       "pg_reorg": {
          "file": "lib/pg_reorg.sql",
-         "version": "1.1.7",
+         "version": "1.2dev0",
          "abstract": "PostgreSQL module for data reorganization"
       }
    },

@@ -1,3 +1,4 @@
 /.deps/
 /pg_reorg.sql
-/pg_reorg--1.0.sql
+/pg_reorg--[0-9.]*.sql
+/pg_reorg--unpackaged--[0-9.]*.sql
