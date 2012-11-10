@@ -1,17 +1,17 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
-<title>pg_reorg</title>
-<link rel="home" title="pg_reorg " href="index.html">
+<title>pg_repack</title>
+<link rel="home" title="pg_repack " href="index.html">
 <link rel="stylesheet" TYPE="text/css" href="style.css">
 <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 </head>
 
 <body>
-<h1 id="pg_reorg">pg_reorg 1.1.7</h1>
+<h1 id="pg_repack">pg_repack 1.1.7</h1>
 <div class="navigation">
   <a href="index.html">Top</a> &gt;
-  <a href="pg_reorg.html">pg_reorg</a>
+  <a href="pg_repack.html">pg_repack</a>
 </div>
 <hr>
 
@@ -33,11 +33,11 @@
 </div>
 
 <h2 id="name">Name</h2>
-pg_reorg -- Reorganize tables in PostgreSQL databases without any locks.
+pg_repack -- Reorganize tables in PostgreSQL databases without any locks.
 
 <h2 id="synopsis">Synopsis</h2>
 <p>
-pg_reorg [OPTIONS]
+pg_repack [OPTIONS]
 </p>
 
 <p>The following options can be specified in OPTIONS.
@@ -68,7 +68,7 @@ See also "<a href="#options">Options</a>" for details.</p>
 </ul>
 
 <h2 id="description">Description</h2>
-<p>pg_reorg is an utility program to reorganize tables in PostgreSQL databases.
+<p>pg_repack is an utility program to reorganize tables in PostgreSQL databases.
 Unlike <a href="http://developer.postgresql.org/pgdocs/postgres/app-clusterdb.html">clusterdb</a>, it doesn't block any selections and updates during reorganization.
 You can choose one of the following methods to reorganize.</p>
 <ul>
@@ -84,17 +84,17 @@ You can choose one of the following methods to reorganize.</p>
 
 <h2 id="examples">Examples</h2>
 <p>Execute the following command to perform an online CLUSTER of all tables in test database.</p>
-<PRE><SAMP>$ </SAMP><KBD>pg_reorg test</KBD></PRE>
+<PRE><SAMP>$ </SAMP><KBD>pg_repack test</KBD></PRE>
 <p>Execute the following command to perform an online VACUUM FULL to foo table in test database.</p>
-<PRE><SAMP>$ </SAMP><KBD>pg_reorg --no-order --table foo -d test</KBD></PRE><p>
+<PRE><SAMP>$ </SAMP><KBD>pg_repack --no-order --table foo -d test</KBD></PRE><p>
 </p>
 
 <h2 id="options">Options</h2>
-<p>pg_reorg has the following command line options:</p>
+<p>pg_repack has the following command line options:</p>
 
 <h3>Reorg Options</h3>
 <p>Options to order rows.
-If not specified, pg_reorg performs an online CLUSTER using cluster indexes.
+If not specified, pg_repack performs an online CLUSTER using cluster indexes.
 Only one option can be specified.
 
 You may also specify target tables or databases.
@@ -119,10 +119,10 @@ You may also specify target tables or databases.
 --wait-timeout=seconds
 </dt>
 <dd>
-pg_reorg needs to take an exclusive lock at the end of the reorganization.
+pg_repack needs to take an exclusive lock at the end of the reorganization.
 This setting controls how long it wait for acquiring the lock in seconds.
-If the lock cannot be taken even after the duration, pg_reorg forces to cancel conflicted queries.
-Also, if the server version is 8.4 or newer, pg_reorg forces to disconnect conflicted backends after twice time passed.
+If the lock cannot be taken even after the duration, pg_repack forces to cancel conflicted queries.
+Also, if the server version is 8.4 or newer, pg_repack forces to disconnect conflicted backends after twice time passed.
 The default is 60 seconds.
 </dd>
 
@@ -171,7 +171,7 @@ This option can be useful in batch jobs and scripts where no user is present to 
 <dt>-W<br>
 --password</dt>
 <dd>Force the program to prompt for a password before connecting to a database.</dd>
-<dd>This option is never essential, since the program will automatically prompt for a password if the server demands password authentication. However, pg_reorg will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing -W to avoid the extra connection attempt. </dd>
+<dd>This option is never essential, since the program will automatically prompt for a password if the server demands password authentication. However, pg_repack will waste a connection attempt finding out that the server wants a password. In some cases it is worth typing -W to avoid the extra connection attempt. </dd>
 </dl>
 
 <h3>Generic Options</h3>
@@ -200,19 +200,19 @@ The default is INFO.</dd>
 <p>This utility, like most other PostgreSQL utilities, also uses the environment variables supported by libpq  (see <a href="http://developer.postgresql.org/pgdocs/postgres/libpq-envars.html">Environment Variables</a>).</p>
 
 <h2 id="diagnostics">Diagnostics</h2>
-<p>Error messages are reported when pg_reorg fails.
+<p>Error messages are reported when pg_repack fails.
 The following list shows the cause of errors.</p>
 <p>You need to cleanup by hand after fatal errors.
-To cleanup, execute $PGHOME/share/contrib/uninstall_pg_reorg.sql to the database where the error occured and then execute $PGHOME/share/contrib/pg_reorg.sql. (Do uninstall and reinstall.)</p>
+To cleanup, execute $PGHOME/share/contrib/uninstall_pg_repack.sql to the database where the error occured and then execute $PGHOME/share/contrib/pg_repack.sql. (Do uninstall and reinstall.)</p>
 
 <dl>
-<dt>pg_reorg : reorg database "template1" ... skipped</dt>
-<dd>pg_reorg is not installed in the database when --all option is specified.</dd>
-<dd>Do register pg_reorg to the database.</dd>
+<dt>pg_repack : repack database "template1" ... skipped</dt>
+<dd>pg_repack is not installed in the database when --all option is specified.</dd>
+<dd>Do register pg_repack to the database.</dd>
 
-<dt>ERROR: pg_reorg is not installed</dt>
-<dd>pg_reorg is not installed in the database specified by --dbname.</dd>
-<dd>Do register pg_reorg to the database.</dd>
+<dt>ERROR: pg_repack is not installed</dt>
+<dd>pg_repack is not installed in the database specified by --dbname.</dd>
+<dd>Do register pg_repack to the database.</dd>
 
 <dt>ERROR: relation "table" has no primary key</dt>
 <dd>The target table doesn't have PRIMARY KEY.</dd>
@@ -222,40 +222,40 @@ To cleanup, execute $PGHOME/share/contrib/uninstall_pg_reorg.sql to the database
 <dd>The target table doesn't have CLUSTER KEY.</dd>
 <dd>Define CLUSTER KEY to the table. (ALTER TABLE CLUSTER)</dd>
 
-<dt>pg_reorg : query failed: ERROR:  column "col" does not exist</dt>
+<dt>pg_repack : query failed: ERROR:  column "col" does not exist</dt>
 <dd>The target table doesn't have columns specified by --order-by option.</dd>
 <dd>Specify existing columns.</dd>
 
-<dt>ERROR: permission denied for schema reorg</dt>
+<dt>ERROR: permission denied for schema repack</dt>
 <dd>Permission error.</dd>
-<dd>pg_reorg must be executed by superusers.</dd>
+<dd>pg_repack must be executed by superusers.</dd>
 
-<dt>pg_reorg : query failed: ERROR:  trigger "z_reorg_trigger" for relation "tbl" already exists</dt>
-<dd>The target table already has a trigger named "z_reorg_trigger".</dd>
+<dt>pg_repack : query failed: ERROR:  trigger "z_repack_trigger" for relation "tbl" already exists</dt>
+<dd>The target table already has a trigger named "z_repack_trigger".</dd>
 <dd>Delete or rename the trigger.</dd>
 
-<dt>pg_reorg : trigger conflicted for tbl</dt>
-<dd>The target table already has a trigger which follows by "z_reorg_trigger" in alphabetical order.</dd>
+<dt>pg_repack : trigger conflicted for tbl</dt>
+<dd>The target table already has a trigger which follows by "z_repack_trigger" in alphabetical order.</dd>
 <dd>Delete or rename the trigger.</dd>
 </dl>
 
 <h2 id="restrictions">Restrictions</h2>
-<p>pg_reorg has the following restrictions.
+<p>pg_repack has the following restrictions.
 Be careful to avoid data corruptions.</p>
 
 <h3>Temp tables</h3>
-<p>pg_reorg cannot reorganize temp tables.</p>
+<p>pg_repack cannot reorganize temp tables.</p>
 
 <h3>GiST indexes</h3>
-<p>pg_reorg cannot reorganize tables using GiST indexes.</p>
+<p>pg_repack cannot reorganize tables using GiST indexes.</p>
 
 <h3>DDL commands</h3>
-<p>You cannot do DDL commands <strong>except</strong> VACUUM and ANALYZE during pg_reorg.
-In many cases pg_reorg will fail and rollback collectly, but there are some cases which may result in data-corruption .</p>
+<p>You cannot do DDL commands <strong>except</strong> VACUUM and ANALYZE during pg_repack.
+In many cases pg_repack will fail and rollback collectly, but there are some cases which may result in data-corruption .</p>
 
 <dl>
 <dt>TRUNCATE</dt>
-<dd>TRUNCATE is lost. Deleted rows still exist after pg_reorg.</dd>
+<dd>TRUNCATE is lost. Deleted rows still exist after pg_repack.</dd>
 
 <dt>CREATE INDEX</dt>
 <dd>It causes index corruptions.</dd>
@@ -271,17 +271,17 @@ In many cases pg_reorg will fail and rollback collectly, but there are some case
 </dl>
 
 <h2 id="details">Details</h2>
-<p>pg_reorg creates a work table in the reorg schema and sorts the rows in this table.
+<p>pg_repack creates a work table in the repack schema and sorts the rows in this table.
 Then, it updates the system catalogs directly to swap the work table and the original one.</p>
 
 <h2 id="install">Installations</h2>
 <p>
-pg_reorg can be built with "make" on UNIX or Linux.
+pg_repack can be built with "make" on UNIX or Linux.
 pgxs build framework is used automatically.
 Before building, you might need to install postgres packages for developer (postgresql-devel, etc.)
 and add <code>pg_config</code> to your $PATH.
 </p>
-<pre>$ cd pg_reorg
+<pre>$ cd pg_repack
 $ make
 $ su
 $ make install</pre>
@@ -292,7 +292,7 @@ There are project files in the msvc folder.
 
 <p>Start PostgreSQL and execute the script to register functions to your database.</p>
 <pre>$ pg_ctl start
-$ psql -f $PGSHARE/contrib/pg_reorg.sql -d your_database</pre>
+$ psql -f $PGSHARE/contrib/pg_repack.sql -d your_database</pre>
 
 <p>(NOTE: <code>CREATE EXTENSION</code> is not supported yet.)</p>
 
@@ -322,7 +322,7 @@ required.</dd>
 <hr>
 <div class="navigation">
   <a href="index.html">Top</a> &gt;
-  <a href="pg_reorg.html">pg_reorg</a>
+  <a href="pg_repack.html">pg_repack</a>
 </div>
 
 <div>

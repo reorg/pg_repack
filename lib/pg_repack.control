@@ -1,6 +1,6 @@
-# pg_reorg extension
+# pg_repack extension
 comment = 're-organizes a PostgreSQL database'
 default_version = '1.2dev0'
-module_pathname = '$libdir/pg_reorg'
+module_pathname = '$libdir/pg_repack'
 relocatable = false
-schema = reorg
+schema = repack

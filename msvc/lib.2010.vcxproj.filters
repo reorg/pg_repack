@@ -12,11 +12,11 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\lib\Makefile" />
-    <None Include="..\lib\pg_reorg.sql.in" />
-    <None Include="..\lib\uninstall_pg_reorg.sql" />
+    <None Include="..\lib\pg_repack.sql.in" />
+    <None Include="..\lib\uninstall_pg_repack.sql" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\lib\reorg.c">
+    <ClCompile Include="..\lib\repack.c">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\lib\pgut\pgut-spi.c">

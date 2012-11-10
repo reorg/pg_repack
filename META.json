@@ -1,15 +1,15 @@
 {
-   "name": "pg_reorg",
+   "name": "pg_repack",
    "abstract": "PostgreSQL module for data reorganization",
-   "description": "pg_reorg is a PostgreSQL module allowing to reorganize a table without any locks.",
+   "description": "pg_repack is a PostgreSQL module allowing to reorganize a table without any locks.",
    "version": "1.2dev0",
    "maintainer": "Takahiro Itagaki",
    "tags": [ "bloat", "maintenance", "vacuum", "cluster" ],
    "release_status": "stable",
    "license": "bsd",
    "provides": {
-      "pg_reorg": {
-         "file": "lib/pg_reorg.sql",
+      "pg_repack": {
+         "file": "lib/pg_repack.sql",
          "version": "1.2dev0",
          "abstract": "PostgreSQL module for data reorganization"
       }
@@ -22,7 +22,7 @@
       }
    },
    "resources": {
-      "homepage": "http://reorg.projects.postgresql.org/",
+      "homepage": "http://repack.projects.postgresql.org/",
       "bugtracker": {
          "web": "http://pgfoundry.org/tracker/?atid=1376&group_id=1000411&func=browse"
       }

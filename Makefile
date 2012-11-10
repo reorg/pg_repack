@@ -1,5 +1,5 @@
 #
-# pg_reorg: Makefile
+# pg_repack: Makefile
 #
 #  Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #  Portions Copyright (c) 2011, Itagaki Takahiro
@@ -17,7 +17,7 @@ PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 else
-subdir = pg_reorg
+subdir = pg_repack
 include $(makefile_global)
 include $(top_srcdir)/contrib/contrib-global.mk
 endif
@@ -29,7 +29,7 @@ VERSION = $(shell $(PG_CONFIG) --version | awk '{print $$2}')
 
 # We support PostgreSQL 8.3 and later.
 ifneq ($(shell echo $(VERSION) | grep -E "^7\.|^8\.[012]"),)
-$(error pg_reorg requires PostgreSQL 8.3 or later. This is $(VERSION))
+$(error pg_repack requires PostgreSQL 8.3 or later. This is $(VERSION))
 endif
 
 

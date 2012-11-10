@@ -1,5 +1,5 @@
 /*
- * pg_reorg: lib/reorg.c
+ * pg_repack: lib/repack.c
  *
  * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  * Portions Copyright (c) 2011, Itagaki Takahiro
@@ -37,26 +37,26 @@
 
 PG_MODULE_MAGIC;
 
-extern Datum PGUT_EXPORT reorg_version(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_trigger(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_apply(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_get_index_keys(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_indexdef(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_swap(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_drop(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT reorg_disable_autovacuum(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_trigger(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_apply(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_get_index_keys(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_indexdef(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_swap(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_drop(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_disable_autovacuum(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(reorg_version);
-PG_FUNCTION_INFO_V1(reorg_trigger);
-PG_FUNCTION_INFO_V1(reorg_apply);
-PG_FUNCTION_INFO_V1(reorg_get_index_keys);
-PG_FUNCTION_INFO_V1(reorg_indexdef);
-PG_FUNCTION_INFO_V1(reorg_swap);
-PG_FUNCTION_INFO_V1(reorg_drop);
-PG_FUNCTION_INFO_V1(reorg_disable_autovacuum);
+PG_FUNCTION_INFO_V1(repack_version);
+PG_FUNCTION_INFO_V1(repack_trigger);
+PG_FUNCTION_INFO_V1(repack_apply);
+PG_FUNCTION_INFO_V1(repack_get_index_keys);
+PG_FUNCTION_INFO_V1(repack_indexdef);
+PG_FUNCTION_INFO_V1(repack_swap);
+PG_FUNCTION_INFO_V1(repack_drop);
+PG_FUNCTION_INFO_V1(repack_disable_autovacuum);
 
-static void	reorg_init(void);
-static SPIPlanPtr reorg_prepare(const char *src, int nargs, Oid *argtypes);
+static void	repack_init(void);
+static SPIPlanPtr repack_prepare(const char *src, int nargs, Oid *argtypes);
 static const char *get_quoted_relname(Oid oid);
 static const char *get_quoted_nspname(Oid oid);
 static void swap_heap_or_index_files(Oid r1, Oid r2);
@@ -95,21 +95,21 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 
 
 Datum
-reorg_version(PG_FUNCTION_ARGS)
+repack_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_reorg 1.1.6");
+	return CStringGetTextDatum("pg_repack 1.1.6");
 }
 
 /**
- * @fn      Datum reorg_trigger(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_trigger(PG_FUNCTION_ARGS)
  * @brief   Insert a operation log into log-table.
  *
- * reorg_trigger(sql)
+ * repack_trigger(sql)
  *
  * @param	sql	SQL to insert a operation log into log-table.
  */
 Datum
-reorg_trigger(PG_FUNCTION_ARGS)
+repack_trigger(PG_FUNCTION_ARGS)
 {
 	TriggerData	   *trigdata = (TriggerData *) fcinfo->context;
 	TupleDesc		desc;
@@ -120,14 +120,14 @@ reorg_trigger(PG_FUNCTION_ARGS)
 	const char	   *sql;
 
 	/* authority check */
-	must_be_superuser("reorg_trigger");
+	must_be_superuser("repack_trigger");
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
 		!TRIGGER_FIRED_BEFORE(trigdata->tg_event) ||
 		!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event) ||
 		trigdata->tg_trigger->tgnargs != 1)
-		elog(ERROR, "reorg_trigger: invalid trigger call");
+		elog(ERROR, "repack_trigger: invalid trigger call");
 
 	/* retrieve parameters */
 	sql = trigdata->tg_trigger->tgargs[0];
@@ -135,7 +135,7 @@ reorg_trigger(PG_FUNCTION_ARGS)
 	argtypes[0] = argtypes[1] = trigdata->tg_relation->rd_rel->reltype;
 
 	/* connect to SPI manager */
-	reorg_init();
+	repack_init();
 
 	if (TRIGGER_FIRED_BY_INSERT(trigdata->tg_event))
 	{
@@ -159,7 +159,7 @@ reorg_trigger(PG_FUNCTION_ARGS)
 		values[1] = copy_tuple(tuple, desc);
 	}
 
-	/* INSERT INTO reorg.log VALUES ($1, $2) */
+	/* INSERT INTO repack.log VALUES ($1, $2) */
 	execute_with_args(SPI_OK_INSERT, sql, 2, argtypes, values, nulls);
 
 	SPI_finish();
@@ -168,10 +168,10 @@ reorg_trigger(PG_FUNCTION_ARGS)
 }
 
 /**
- * @fn      Datum reorg_apply(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_apply(PG_FUNCTION_ARGS)
  * @brief   Apply operations in log table into temp table.
  *
- * reorg_apply(sql_peek, sql_insert, sql_delete, sql_update, sql_pop,  count)
+ * repack_apply(sql_peek, sql_insert, sql_delete, sql_update, sql_pop,  count)
  *
  * @param	sql_peek	SQL to pop tuple from log table.
  * @param	sql_insert	SQL to insert into temp table.
@@ -182,7 +182,7 @@ reorg_trigger(PG_FUNCTION_ARGS)
  * @retval				Number of performed operations.
  */
 Datum
-reorg_apply(PG_FUNCTION_ARGS)
+repack_apply(PG_FUNCTION_ARGS)
 {
 #define DEFAULT_PEEK_COUNT	1000
 
@@ -204,13 +204,13 @@ reorg_apply(PG_FUNCTION_ARGS)
 	bool			nulls_peek[1] = { 0 };
 
 	/* authority check */
-	must_be_superuser("reorg_apply");
+	must_be_superuser("repack_apply");
 
 	/* connect to SPI manager */
-	reorg_init();
+	repack_init();
 
 	/* peek tuple in log */
-	plan_peek = reorg_prepare(sql_peek, 1, argtypes_peek);
+	plan_peek = repack_prepare(sql_peek, 1, argtypes_peek);
 
 	for (n = 0;;)
 	{
@@ -252,28 +252,28 @@ reorg_apply(PG_FUNCTION_ARGS)
 			{
 				/* INSERT */
 				if (plan_insert == NULL)
-					plan_insert = reorg_prepare(sql_insert, 1, &argtypes[2]);
+					plan_insert = repack_prepare(sql_insert, 1, &argtypes[2]);
 				execute_plan(SPI_OK_INSERT, plan_insert, &values[2], &nulls[2]);
 			}
 			else if (nulls[2])
 			{
 				/* DELETE */
 				if (plan_delete == NULL)
-					plan_delete = reorg_prepare(sql_delete, 1, &argtypes[1]);
+					plan_delete = repack_prepare(sql_delete, 1, &argtypes[1]);
 				execute_plan(SPI_OK_DELETE, plan_delete, &values[1], &nulls[1]);
 			}
 			else
 			{
 				/* UPDATE */
 				if (plan_update == NULL)
-					plan_update = reorg_prepare(sql_update, 2, &argtypes[1]);
+					plan_update = repack_prepare(sql_update, 2, &argtypes[1]);
 				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], &nulls[1]);
 			}
 		}
 
 		/* delete tuple in log */
 		if (plan_pop == NULL)
-			plan_pop = reorg_prepare(sql_pop, 1, argtypes);
+			plan_pop = repack_prepare(sql_pop, 1, argtypes);
 		execute_plan(SPI_OK_DELETE, plan_pop, values, nulls);
 
 		SPI_freetuptable(tuptable);
@@ -464,10 +464,10 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 }
 
 /**
- * @fn      Datum reorg_get_index_keys(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_get_index_keys(PG_FUNCTION_ARGS)
  * @brief   Get key definition of the index.
  *
- * reorg_get_index_keys(index, table)
+ * repack_get_index_keys(index, table)
  *
  * @param	index	Oid of target index.
  * @param	table	Oid of table of the index.
@@ -477,7 +477,7 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
  * an expression for ORDER BY clause. get_order_by() might be a better name.
  */
 Datum
-reorg_get_index_keys(PG_FUNCTION_ARGS)
+repack_get_index_keys(PG_FUNCTION_ARGS)
 {
 	Oid				index = PG_GETARG_OID(0);
 	Oid				table = PG_GETARG_OID(1);
@@ -564,17 +564,17 @@ reorg_get_index_keys(PG_FUNCTION_ARGS)
 }
 
 /**
- * @fn      Datum reorg_indexdef(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_indexdef(PG_FUNCTION_ARGS)
  * @brief   Reproduce DDL that create index at the temp table.
  *
- * reorg_indexdef(index, table)
+ * repack_indexdef(index, table)
  *
  * @param	index	Oid of target index.
  * @param	table	Oid of table of the index.
  * @retval			Create index DDL for temp table.
  */
 Datum
-reorg_indexdef(PG_FUNCTION_ARGS)
+repack_indexdef(PG_FUNCTION_ARGS)
 {
 	Oid				index = PG_GETARG_OID(0);
 	Oid				table = PG_GETARG_OID(1);
@@ -583,7 +583,7 @@ reorg_indexdef(PG_FUNCTION_ARGS)
 
 	parse_indexdef(&stmt, index, table);
 	initStringInfo(&str);
-	appendStringInfo(&str, "%s index_%u ON reorg.table_%u USING %s (%s)%s",
+	appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)%s",
 		stmt.create, index, table, stmt.type, stmt.columns, stmt.options);
 
 	PG_RETURN_TEXT_P(cstring_to_text(str.data));
@@ -598,11 +598,11 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
 }
 
 /**
- * @fn      Datum reorg_swap(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_swap(PG_FUNCTION_ARGS)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
  *          and toast indexes.
  *
- * reorg_swap(oid, relname)
+ * repack_swap(oid, relname)
  *
  * TODO: remove useless CommandCounterIncrement().
  *
@@ -610,7 +610,7 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
  * @retval			None.
  */
 Datum
-reorg_swap(PG_FUNCTION_ARGS)
+repack_swap(PG_FUNCTION_ARGS)
 {
 	Oid				oid = PG_GETARG_OID(0);
 	const char	   *relname = get_quoted_relname(oid);
@@ -633,10 +633,10 @@ reorg_swap(PG_FUNCTION_ARGS)
 	Oid				owner2;
 
 	/* authority check */
-	must_be_superuser("reorg_swap");
+	must_be_superuser("repack_swap");
 
 	/* connect to SPI manager */
-	reorg_init();
+	repack_init();
 
 	/* swap relfilenode and dependencies for tables. */
 	values[0] = ObjectIdGetDatum(oid);
@@ -648,7 +648,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 		"       pg_catalog.pg_class Y LEFT JOIN pg_catalog.pg_class TY"
 		"         ON Y.reltoastrelid = TY.oid"
 		" WHERE X.oid = $1"
-		"   AND Y.oid = ('reorg.table_' || X.oid)::regclass",
+		"   AND Y.oid = ('repack.table_' || X.oid)::regclass",
 		1, argtypes, values, nulls);
 
 	tuptable = SPI_tuptable;
@@ -656,7 +656,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 	records = SPI_processed;
 
 	if (records == 0)
-		elog(ERROR, "reorg_swap : no swap target");
+		elog(ERROR, "repack_swap : no swap target");
 
 	tuple = tuptable->vals[0];
 
@@ -689,7 +689,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 		" WHERE I.indrelid = $1"
 		"   AND I.indexrelid = X.oid"
 		"   AND I.indisvalid"
-		"   AND Y.oid = ('reorg.index_' || X.oid)::regclass",
+		"   AND Y.oid = ('repack.index_' || X.oid)::regclass",
 		1, argtypes, values, nulls);
 
 	tuptable = SPI_tuptable;
@@ -714,7 +714,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 		if (reltoastidxid1 != InvalidOid ||
 			reltoastrelid2 != InvalidOid ||
 			reltoastidxid2 != InvalidOid)
-			elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
+			elog(ERROR, "repack_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
 				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
 		/* do nothing */
 	}
@@ -724,7 +724,7 @@ reorg_swap(PG_FUNCTION_ARGS)
 
 		if (reltoastidxid1 == InvalidOid ||
 			reltoastidxid2 != InvalidOid)
-			elog(ERROR, "reorg_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
+			elog(ERROR, "repack_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
 				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
 
 		/* rename X to Y */
@@ -761,10 +761,10 @@ reorg_swap(PG_FUNCTION_ARGS)
 		CommandCounterIncrement();
 	}
 
-	/* drop reorg trigger */
+	/* drop repack trigger */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS z_reorg_trigger ON %s.%s CASCADE",
+		"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
 		nspname, relname);
 
 	SPI_finish();
@@ -773,34 +773,34 @@ reorg_swap(PG_FUNCTION_ARGS)
 }
 
 /**
- * @fn      Datum reorg_drop(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_drop(PG_FUNCTION_ARGS)
  * @brief   Delete temporarily objects.
  *
- * reorg_drop(oid, relname)
+ * repack_drop(oid, relname)
  *
  * @param	oid		Oid of target table.
  * @retval			None.
  */
 Datum
-reorg_drop(PG_FUNCTION_ARGS)
+repack_drop(PG_FUNCTION_ARGS)
 {
 	Oid			oid = PG_GETARG_OID(0);
 	const char *relname = get_quoted_relname(oid);
 	const char *nspname = get_quoted_nspname(oid);
 
 	/* authority check */
-	must_be_superuser("reorg_drop");
+	must_be_superuser("repack_drop");
 
 	/* connect to SPI manager */
-	reorg_init();
+	repack_init();
 
 	/*
-	 * drop reorg trigger: We have already dropped the trigger in normal
+	 * drop repack trigger: We have already dropped the trigger in normal
 	 * cases, but it can be left on error.
 	 */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS z_reorg_trigger ON %s.%s CASCADE",
+		"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
 		nspname, relname);
 
 #if PG_VERSION_NUM < 80400
@@ -810,7 +810,7 @@ reorg_drop(PG_FUNCTION_ARGS)
 		"DELETE FROM pg_catalog.pg_autovacuum v"
 		" USING pg_class c, pg_namespace n"
 		" WHERE relname IN ('log_%u', 'table_%u')"
-		"   AND n.nspname = 'reorg'"
+		"   AND n.nspname = 'repack'"
 		"   AND c.relnamespace = n.oid"
 		"   AND v.vacrelid = c.oid",
 		oid, oid);
@@ -819,19 +819,19 @@ reorg_drop(PG_FUNCTION_ARGS)
 	/* drop log table */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TABLE IF EXISTS reorg.log_%u CASCADE",
+		"DROP TABLE IF EXISTS repack.log_%u CASCADE",
 		oid);
 
 	/* drop temp table */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TABLE IF EXISTS reorg.table_%u CASCADE",
+		"DROP TABLE IF EXISTS repack.table_%u CASCADE",
 		oid);
 
 	/* drop type for log table */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TYPE IF EXISTS reorg.pk_%u CASCADE",
+		"DROP TYPE IF EXISTS repack.pk_%u CASCADE",
 		oid);
 
 	SPI_finish();
@@ -840,12 +840,12 @@ reorg_drop(PG_FUNCTION_ARGS)
 }
 
 Datum
-reorg_disable_autovacuum(PG_FUNCTION_ARGS)
+repack_disable_autovacuum(PG_FUNCTION_ARGS)
 {
 	Oid			oid = PG_GETARG_OID(0);
 
 	/* connect to SPI manager */
-	reorg_init();
+	repack_init();
 
 #if PG_VERSION_NUM >= 80400
 	execute_with_format(
@@ -866,20 +866,20 @@ reorg_disable_autovacuum(PG_FUNCTION_ARGS)
 
 /* init SPI */
 static void
-reorg_init(void)
+repack_init(void)
 {
 	int		ret = SPI_connect();
 	if (ret != SPI_OK_CONNECT)
-		elog(ERROR, "pg_reorg: SPI_connect returned %d", ret);
+		elog(ERROR, "pg_repack: SPI_connect returned %d", ret);
 }
 
 /* prepare plan */
 static SPIPlanPtr
-reorg_prepare(const char *src, int nargs, Oid *argtypes)
+repack_prepare(const char *src, int nargs, Oid *argtypes)
 {
 	SPIPlanPtr	plan = SPI_prepare(src, nargs, argtypes);
 	if (plan == NULL)
-		elog(ERROR, "pg_reorg: reorg_prepare failed (code=%d, query=%s)", SPI_result, src);
+		elog(ERROR, "pg_repack: repack_prepare failed (code=%d, query=%s)", SPI_result, src);
 	return plan;
 }
 

@@ -1,5 +1,5 @@
 SET client_min_messages = warning;
 \set ECHO none
-CREATE EXTENSION pg_reorg;
+CREATE EXTENSION pg_repack;
 \set ECHO all
 RESET client_min_messages;

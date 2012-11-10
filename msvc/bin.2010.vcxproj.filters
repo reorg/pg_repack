@@ -32,10 +32,10 @@
     <None Include="..\doc\index-ja.html">
       <Filter>doc</Filter>
     </None>
-    <None Include="..\doc\pg_reorg.html">
+    <None Include="..\doc\pg_repack.html">
       <Filter>doc</Filter>
     </None>
-    <None Include="..\doc\pg_reorg-ja.html">
+    <None Include="..\doc\pg_repack-ja.html">
       <Filter>doc</Filter>
     </None>
     <None Include="..\doc\style.css">
@@ -45,13 +45,13 @@
     <None Include="..\bin\expected\init.out">
       <Filter>regress\expected</Filter>
     </None>
-    <None Include="..\bin\expected\reorg.out">
+    <None Include="..\bin\expected\repack.out">
       <Filter>regress\expected</Filter>
     </None>
     <None Include="..\bin\sql\init.sql">
       <Filter>regress\sql</Filter>
     </None>
-    <None Include="..\bin\sql\reorg.sql">
+    <None Include="..\bin\sql\repack.sql">
       <Filter>regress\sql</Filter>
     </None>
     <None Include="..\COPYRIGHT">
@@ -60,7 +60,7 @@
     <None Include="..\Makefile" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\bin\pg_reorg.c">
+    <ClCompile Include="..\bin\pg_repack.c">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="..\bin\pgut\pgut.c">

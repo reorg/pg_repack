@@ -28,13 +28,13 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\lib\Makefile" />
-    <None Include="..\lib\pg_reorg.sql.in" />
-    <None Include="..\lib\uninstall_pg_reorg.sql" />
+    <None Include="..\lib\pg_repack.sql.in" />
+    <None Include="..\lib\uninstall_pg_repack.sql" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\lib\pgut\pgut-be.c" />
     <ClCompile Include="..\lib\pgut\pgut-spi.c" />
-    <ClCompile Include="..\lib\reorg.c" />
+    <ClCompile Include="..\lib\repack.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\lib\pgut\pgut-be.h" />
@@ -136,12 +136,12 @@
     <LibraryPath Condition="'$(Configuration)|$(Platform)'=='8.4|x64'">C:\Program Files %28x86%29\PostgreSQL\8.4\lib;$(LibraryPath)</LibraryPath>
     <LibraryPath Condition="'$(Configuration)|$(Platform)'=='8.3|Win32'">C:\Program Files %28x86%29\PostgreSQL\8.3\lib;$(LibraryPath)</LibraryPath>
     <LibraryPath Condition="'$(Configuration)|$(Platform)'=='8.3|x64'">C:\Program Files %28x86%29\PostgreSQL\8.3\lib;$(LibraryPath)</LibraryPath>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">pg_reorg</TargetName>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='9.0|x64'">pg_reorg</TargetName>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.4|Win32'">pg_reorg</TargetName>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.4|x64'">pg_reorg</TargetName>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.3|Win32'">pg_reorg</TargetName>
-    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.3|x64'">pg_reorg</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">pg_repack</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='9.0|x64'">pg_repack</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.4|Win32'">pg_repack</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.4|x64'">pg_repack</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.3|Win32'">pg_repack</TargetName>
+    <TargetName Condition="'$(Configuration)|$(Platform)'=='8.3|x64'">pg_repack</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='9.0|Win32'">
     <ClCompile>
