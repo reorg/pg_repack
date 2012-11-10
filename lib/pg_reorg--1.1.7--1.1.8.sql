@@ -1,7 +1,7 @@
-/* pg_reorg/pg_reorg--unpackaged--1.1.8.sql */
+/* Create the pg_reorg extension from a loose set of objects */
 
 -- complain if script is sourced in psql, rather than via CREATE EXTENSION
-\echo Use "CREATE EXTENSION pg_reorg FROM unpackaged" to load this file. \quit
+\echo Use "CREATE EXTENSION pg_reorg FROM 1.1.7" to load this file. \quit
 
 ALTER EXTENSION pg_reorg ADD FUNCTION reorg.version();
 ALTER EXTENSION pg_reorg ADD AGGREGATE reorg.array_accum(anyelement);
