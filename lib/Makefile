@@ -17,7 +17,7 @@ EXTVER = $(shell grep -e '^default_version' $(EXTENSION).control \
 
 #supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
 DATA_built = pg_reorg.sql pg_reorg--$(EXTVER).sql
-DATA = pg_reorg--unpackaged--1.1.8.sql uninstall_pg_reorg.sql
+DATA = pg_reorg--1.1.7--1.1.8.sql uninstall_pg_reorg.sql
 
 ifndef USE_PGXS
 top_builddir = ../../..
