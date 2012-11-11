@@ -5,23 +5,11 @@
 #  Portions Copyright (c) 2011, Itagaki Takahiro
 #  Portions Copyright (c) 2012, The Reorg Development Team
 #
-ifndef USE_PGXS
-top_builddir = ../..
-makefile_global = $(top_builddir)/src/Makefile.global
-ifeq "$(wildcard $(makefile_global))" ""
-USE_PGXS = 1	# use pgxs if not in contrib directory
-endif
-endif
 
-ifdef USE_PGXS
+USE_PGXS = 1
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-else
-subdir = pg_repack
-include $(makefile_global)
-include $(top_srcdir)/contrib/contrib-global.mk
-endif
 
 SUBDIRS = bin lib
 
