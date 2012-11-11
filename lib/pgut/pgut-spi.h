@@ -12,12 +12,6 @@
 
 #include "executor/spi.h"
 
-#if PG_VERSION_NUM < 80300
-
-typedef void *SPIPlanPtr;
-
-#endif
-
 #if PG_VERSION_NUM < 80400
 
 extern int SPI_execute_with_args(const char *src, int nargs, Oid *argtypes,
