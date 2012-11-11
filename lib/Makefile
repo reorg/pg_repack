@@ -3,6 +3,7 @@
 #
 #  Portions Copyright (c) 2008-2012, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #  Portions Copyright (c) 2011, Itagaki Takahiro
+#  Portions Copyright (c) 2012, The Reorg Development Team
 #
 MODULE_big = pg_repack
 OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o

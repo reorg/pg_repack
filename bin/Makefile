@@ -3,6 +3,7 @@
 #
 #  Portions Copyright (c) 2008-2012, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 #  Portions Copyright (c) 2011, Itagaki Takahiro
+#  Portions Copyright (c) 2012, The Reorg Development Team
 #
 SRCS = pg_repack.c pgut/pgut.c pgut/pgut-fe.c
 OBJS = $(SRCS:.c=.o)
