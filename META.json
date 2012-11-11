@@ -25,7 +25,7 @@
       }
    },
    "resources": {
-      "homepage": "https://github.com/reorg/pg_repack",
+      "homepage": "http://reorg.github.com/pg_repack",
       "bugtracker": {
          "web": "https://github.com/reorg/pg_reorg/issues"
       }
