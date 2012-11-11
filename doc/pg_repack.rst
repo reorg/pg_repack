@@ -314,7 +314,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1, 9.2
+    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2
 
 OS
     RHEL 5.2, Windows XP SP3
