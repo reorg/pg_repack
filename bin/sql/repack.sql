@@ -94,7 +94,11 @@ ALTER TABLE tbl_with_dropped_toast DROP COLUMN t;
 
 INSERT INTO tbl_badindex VALUES(1, 10);
 INSERT INTO tbl_badindex VALUES(2, 10);
+
+-- This will fail. Silence the message as it's different across PG versions.
+SET client_min_messages = fatal;
 CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
+SET client_min_messages = warning;
 
 --
 -- before
