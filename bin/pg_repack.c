@@ -10,9 +10,17 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_VERSION	= "1.1.7";
 const char *PROGRAM_URL		= "https://github.com/reorg/pg_reorg";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
+
+#ifdef REPACK_VERSION
+/* macro trick to stringify a macro expansion */
+#define xstr(s) str(s)
+#define str(s) #s
+const char *PROGRAM_VERSION = xstr(REPACK_VERSION);
+#else
+const char *PROGRAM_VERSION = "unknown";
+#endif
 
 #include "pgut/pgut-fe.h"
 

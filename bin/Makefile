@@ -12,11 +12,16 @@ REGRESS = init repack
 
 EXTRA_CLEAN = sql/init-$(MAJORVERSION).sql sql/init.sql
 
-ifdef DEBUG_REORG
-PG_CPPFLAGS = -I$(libpq_srcdir) -DDEBUG_REORG
-else
-PG_CPPFLAGS = -I$(libpq_srcdir)
+# The version number of the program. It should be the same of the library.
+REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
+	| sed -e 's/\s*"version":\s*"\(.*\)",/\1/')
+
+PG_CPPFLAGS = -I$(libpq_srcdir) -DREPACK_VERSION=$(REPACK_VERSION)
+
+ifdef DEBUG_REPACK
+PG_CPPFLAGS += -DDEBUG_REPACK
 endif
+
 PG_LIBS = $(libpq)
 
 USE_PGXS = 1	# use pgxs if not in contrib directory

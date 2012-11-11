@@ -10,11 +10,17 @@ OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
 
 EXTENSION = pg_repack
 
+# The version number of the program. It should be the same of the library.
+REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
+	| sed -e 's/\s*"version":\s*"\(.*\)",/\1/')
+
 # The version of the extension, read from the .control file.
 # Note that it doesn't need to be the same of the library version: it should
 # be increased only when the sql changes.
 EXTVER = $(shell grep -e '^default_version' $(EXTENSION).control \
 	| sed -e "s/[^']*'\([^']*\)'.*/\1/")
+
+PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
 #supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
 DATA_built = pg_repack.sql pg_repack--$(EXTVER).sql

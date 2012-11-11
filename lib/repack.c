@@ -94,11 +94,19 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
 #endif
 
+#ifdef REPACK_VERSION
+/* macro trick to stringify a macro expansion */
+#define xstr(s) str(s)
+#define str(s) #s
+#define LIBRARY_VERSION xstr(REPACK_VERSION)
+#else
+#define LIBRARY_VERSION "unknown"
+#endif
 
 Datum
 repack_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_repack 1.1.6");
+	return CStringGetTextDatum("pg_repack " LIBRARY_VERSION);
 }
 
 /**
