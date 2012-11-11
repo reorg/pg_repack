@@ -11,11 +11,6 @@
 	color: #202020;
 }
 
-/* give the rule a bit of extra space (above and below), since its being used to divide
-   sections on some pages (project summary) */
-HR { margin: 5px 0px 5px 0px }
-
-
 h2, h3, h4, h5, h6 {
     color: Black;
     background: none;
@@ -43,28 +38,7 @@ li {
 	line-height: 1.4em;
 }
 
-table {
-	background: #f9f9f9;
-	border: 1px solid #aaa;
-	border-collapse: collapse;
-}
-
-th, td {
-	border: 1px solid #aaa;
-	padding: 0.2em;
-}
-
-thead th {
-	background: #f2f2f2;
-	text-align: center;
-}
-
-tbody th {
-	background: #f2f2f2;
-	text-align: left;
-}
-
-div.index {
+div.contents {
 	float:right;
 	border:thin solid black;
 	background-color: white;
@@ -73,13 +47,7 @@ div.index {
 	padding-left: 1em;
 	padding-right: 1em;
 	margin-left: 0.5em;
+	margin-top: 2.5em !important;
 }
 
-p.footer {
-	text-align: right;
-	font-size: small;
-}
 
-span.param {
-	color: #0000cd;
-}
