@@ -41,13 +41,14 @@ Generic options:
 Description
 -----------
 
-pg_repack is an utility program to reorganize tables in PostgreSQL databases.
+pg_repack_ is an utility program to reorganize tables in PostgreSQL databases.
 Unlike clusterdb_, it doesn't block any selections and updates during
 reorganization.
 
 pg_repack is a fork of the previous pg_reorg_ project. It was founded to
 gather the bug fixes and new development ideas that the slow pace of
-development of pg_reorg was struggling to satisfy.
+development of pg_reorg was struggling to satisfy. Please check the `project
+page`_ for bug report and development information.
 
 You can choose one of the following methods to reorganize:
 
@@ -60,6 +61,8 @@ NOTICE:
 * Only superusers can use the utility.
 * Target table must have PRIMARY KEY.
 
+.. _pg_repack: http://reorg.github.com/pg_repack
+.. _project page: https://github.com/reorg/pg_repack
 .. _clusterdb: http://www.postgresql.org/docs/current/static/app-clusterdb.html
 .. _pg_reorg: http://reorg.projects.pgfoundry.org/
 
@@ -350,6 +353,6 @@ Releases
 See Also
 --------
 
-    * `clusterdb <http://www.postgresql.org/docs/current/static/app-clusterdb.html>`__
-    * `vacuumdb <http://www.postgresql.org/docs/current/static/app-vacuumdb.html>`__
+* `clusterdb <http://www.postgresql.org/docs/current/static/app-clusterdb.html>`__
+* `vacuumdb <http://www.postgresql.org/docs/current/static/app-vacuumdb.html>`__
 
