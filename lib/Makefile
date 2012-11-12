@@ -24,7 +24,7 @@ PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
 #supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
 DATA_built = pg_repack.sql pg_repack--$(EXTVER).sql
-DATA = pg_repack--1.1.7--1.1.8.sql uninstall_pg_repack.sql
+DATA = uninstall_pg_repack.sql
 
 USE_PGXS = 1	# use pgxs if not in contrib directory
 PG_CONFIG = pg_config
