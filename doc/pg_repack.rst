@@ -306,11 +306,16 @@ packages for developer (postgresql-devel, etc.) and add ``pg_config`` to your
 You can also use Microsoft Visual C++ 2010 to build the program on Windows.
 There are project files in the ``msvc`` folder.
 
-Start PostgreSQL and execute the script to register functions to your
-database::
+Install the pg_repack extension in the database you want to process. On
+PostgreSQL 9.1 or following pg_repack is packaged as an extension::
 
-    $ pg_ctl start
     $ psql -c "CREATE EXTENSION pg_repack" -d your_database
+
+For previous PostgreSQL versions you should load the script ``pg_repack.sql``
+that can be found in the ``contrib`` subdirectory of the directory reported by
+``--pg_config sharedir``, e.g. ::
+
+    $ psql -f "$(pg_config --sharedir)/contrib/pg_repack.sql" -d your_database
 
 
 Requirements

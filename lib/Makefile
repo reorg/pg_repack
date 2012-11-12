@@ -5,10 +5,13 @@
 #  Portions Copyright (c) 2011, Itagaki Takahiro
 #  Portions Copyright (c) 2012, The Reorg Development Team
 #
-MODULE_big = pg_repack
-OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
+
+PG_CONFIG = pg_config
 
 EXTENSION = pg_repack
+MODULE_big = $(EXTENSION)
+
+OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
 
 # The version number of the program. It should be the same of the library.
 REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
@@ -22,12 +25,18 @@ EXTVER = $(shell grep -e '^default_version' $(EXTENSION).control \
 
 PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
-#supports both EXTENSION (for >=9.1) and without_EXTENSION (for <PG 9.1)
-DATA_built = pg_repack.sql pg_repack--$(EXTVER).sql
+# Support CREATE EXTENSION for PG >= 9.1 and a simple sql script for PG < 9.1
+HAVE_EXTENSION = $(shell $(PG_CONFIG) --version \
+	| grep -qE " 8\.| 9\.0" && echo no || echo yes)
+
+ifeq ($(HAVE_EXTENSION),yes)
+DATA_built = pg_repack--$(EXTVER).sql
+else
+DATA_built = pg_repack.sql
 DATA = uninstall_pg_repack.sql
+endif
 
 USE_PGXS = 1	# use pgxs if not in contrib directory
-PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
@@ -42,5 +51,4 @@ pg_repack.sql: pg_repack.sql.in
 	echo "\nCOMMIT;" >> $@;
 
 pg_repack--$(EXTVER).sql: pg_repack.sql.in
-	echo '\echo Use "CREATE EXTENSION pg_repack" to load this file. \quit' > $@; \
-	cat $< >> $@;
+	cat $< > $@;
