@@ -74,7 +74,7 @@ typedef struct repack_table
 	const char	   *create_pktype;	/* CREATE TYPE pk */
 	const char	   *create_log;		/* CREATE TABLE log */
 	const char	   *create_trigger;	/* CREATE TRIGGER z_repack_trigger */
-        const char         *alter_table;        /* ALTER TABLE ENABLE ALWAYS TRIGGER z_repack_trigger */
+	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER z_repack_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
@@ -371,7 +371,7 @@ repack_one_database(const char *orderby, const char *table, char *errbuf, size_t
 		table.create_pktype = getstr(res, i, c++);
 		table.create_log = getstr(res, i, c++);
 		table.create_trigger = getstr(res, i, c++);
-		table.alter_table = getstr(res, i, c++);
+		table.enable_trigger = getstr(res, i, c++);
 
 		create_table = getstr(res, i, c++);
 		table.drop_columns = getstr(res, i, c++);
@@ -469,7 +469,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	elog(DEBUG2, "create_pktype  : %s", table->create_pktype);
 	elog(DEBUG2, "create_log     : %s", table->create_log);
 	elog(DEBUG2, "create_trigger : %s", table->create_trigger);
-	elog(DEBUG2, "alter_table    : %s", table->alter_table);
+	elog(DEBUG2, "enable_trigger : %s", table->enable_trigger);
 	elog(DEBUG2, "create_table   : %s", table->create_table);
 	elog(DEBUG2, "drop_columns   : %s", table->drop_columns ? table->drop_columns : "(skipped)");
 	elog(DEBUG2, "delete_log     : %s", table->delete_log);
@@ -503,7 +503,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
 	command(table->create_trigger, 0, NULL);
-	command(table->alter_table, 0, NULL);
+	command(table->enable_trigger, 0, NULL);
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.log_%u')", table->target_oid);
 	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
