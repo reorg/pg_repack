@@ -72,11 +72,11 @@ $$
 $$
 LANGUAGE sql STABLE STRICT;
 
-CREATE FUNCTION repack.get_alter_table(relid oid)
+CREATE FUNCTION repack.get_enable_trigger(relid oid)
   RETURNS text AS
 $$
   SELECT 'ALTER TABLE ' || repack.oid2text($1) ||
-    ' ENABLE ALWAYS TRIGGER z_repack_trigger';     
+    ' ENABLE ALWAYS TRIGGER z_repack_trigger';
 $$
 LANGUAGE sql STABLE STRICT;
 
@@ -171,9 +171,9 @@ CREATE VIEW repack.tables AS
          repack.get_create_index_type(PK.indexrelid, 'repack.pk_' || R.oid) AS create_pktype,
          'CREATE TABLE repack.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk repack.pk_' || R.oid || ', row ' || repack.oid2text(R.oid) || ')' AS create_log,
          repack.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
-	 repack.get_alter_table(R.oid) as alter_table,
+         repack.get_enable_trigger(R.oid) as enable_trigger,
          'CREATE TABLE repack.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS create_table,
-		 repack.get_drop_columns(R.oid, 'repack.table_' || R.oid) AS drop_columns,
+         repack.get_drop_columns(R.oid, 'repack.table_' || R.oid) AS drop_columns,
          'DELETE FROM repack.log_' || R.oid AS delete_log,
          'LOCK TABLE ' || repack.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
          repack.get_index_keys(CK.indexrelid, R.oid) AS ckey,
