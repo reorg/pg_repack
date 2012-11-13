@@ -5,15 +5,92 @@ pg_repack -- Reorganize tables in PostgreSQL databases without any locks
     :depth: 1
     :backlinks: none
 
-Synopsis
---------
+
+pg_repack_ is an utility program to reorganize tables in PostgreSQL databases.
+Unlike clusterdb_, it doesn't block any selections and updates during
+reorganization.
+
+pg_repack is a fork of the previous pg_reorg_ project. Please check the
+`project page`_ for bug report and development information.
+
+You can choose one of the following methods to reorganize:
+
+* Online CLUSTER (ordered by cluster index)
+* Ordered by specified columns
+* Online VACUUM FULL (packing rows only)
+
+NOTICE:
+
+* Only superusers can use the utility.
+* Target table must have a PRIMARY KEY, or at least a UNIQUE total index on a
+  NOT NULL column.
+
+.. _pg_repack: http://reorg.github.com/pg_repack
+.. _project page: https://github.com/reorg/pg_repack
+.. _clusterdb: http://www.postgresql.org/docs/current/static/app-clusterdb.html
+.. _pg_reorg: http://reorg.projects.pgfoundry.org/
+
+
+Requirements
+------------
+
+PostgreSQL versions
+    PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1, 9.2
+
+OS
+    RHEL 5.2, Windows XP SP3
+
+Disks
+    Requires free disk space twice as large as the target table(s) and
+    indexes. For example, if the total size of the tables and indexes to be
+    reorganized is 1GB, an additional 2GB of disk space is required.
+
+
+Installation
+------------
+
+pg_repack can be built with ``make`` on UNIX or Linux. The PGXS build
+framework is used automatically. Before building, you might need to install
+the PostgreSQL development packages (``postgresql-devel``, etc.) and add the
+directory containing ``pg_config`` to your ``$PATH``. Then you can run::
+
+    $ cd pg_repack
+    $ make
+    $ sudo make install
+
+You can also use Microsoft Visual C++ 2010 to build the program on Windows.
+There are project files in the ``msvc`` folder.
+
+After installation, load the pg_repack extension in the database you want to
+process. On PostgreSQL 9.1 and following pg_repack is packaged as an
+extension, so you can execute::
+
+    $ psql -c "CREATE EXTENSION pg_repack" -d your_database
+
+For previous PostgreSQL versions you should load the script
+``$SHAREDIR/contrib/pg_repack.sql`` in the database to process; you can
+get ``$SHAREDIR`` using ``pg_config --sharedir``, e.g. ::
+
+    $ psql -f "$(pg_config --sharedir)/contrib/pg_repack.sql" -d your_database
+
+You can remove pg_repack from a PostgreSQL 9.1 and following database using
+``DROP EXTENSION pg_repack``. For previous Postgresql versions load the
+``$SHAREDIR/contrib/uninstall_pg_repack.sql`` script or just drop the
+``repack`` schema.
+
+If you are upgrading from a previous version of pg_repack or pg_reorg, just
+drop the old version from the database as explained above and install the new
+version.
+
+
+Usage
+-----
 
 ::
 
     pg_repack [OPTION]... [DBNAME]
 
-The following options can be specified in ``OPTIONS``. See also Options_ for
-details.
+The following options can be specified in ``OPTIONS``.
 
 Options:
   -a, --all                 repack all databases
@@ -37,55 +114,6 @@ Generic options:
   --help                    show this help, then exit
   --version                 output version information, then exit
 
-
-Description
------------
-
-pg_repack_ is an utility program to reorganize tables in PostgreSQL databases.
-Unlike clusterdb_, it doesn't block any selections and updates during
-reorganization.
-
-pg_repack is a fork of the previous pg_reorg_ project. It was founded to
-gather the bug fixes and new development ideas that the slow pace of
-development of pg_reorg was struggling to satisfy. Please check the `project
-page`_ for bug report and development information.
-
-You can choose one of the following methods to reorganize:
-
-* Online CLUSTER (ordered by cluster index)
-* Ordered by specified columns
-* Online VACUUM FULL (packing rows only)
-
-NOTICE:
-
-* Only superusers can use the utility.
-* Target table must have a PRIMARY KEY, or at least a UNIQUE total index on a
-  NOT NULL column.
-
-.. _pg_repack: http://reorg.github.com/pg_repack
-.. _project page: https://github.com/reorg/pg_repack
-.. _clusterdb: http://www.postgresql.org/docs/current/static/app-clusterdb.html
-.. _pg_reorg: http://reorg.projects.pgfoundry.org/
-
-
-Examples
---------
-
-Execute the following command to perform an online CLUSTER of all tables in
-test database::
-
-    $ pg_repack test
-
-Execute the following command to perform an online VACUUM FULL to foo table in
-test database::
-
-    $ pg_repack --no-order --table foo -d test
-
-
-Options
--------
-
-pg_repack has the following command line options:
 
 Reorg Options
 ^^^^^^^^^^^^^
@@ -190,6 +218,20 @@ Environment
     .. __: http://www.postgresql.org/docs/current/static/libpq-envars.html
 
 
+Examples
+--------
+
+Execute the following command to perform an online CLUSTER of all tables in
+test database::
+
+    $ pg_repack test
+
+Execute the following command to perform an online VACUUM FULL to foo table in
+test database::
+
+    $ pg_repack --no-order --table foo -d test
+
+
 Diagnostics
 -----------
 
@@ -292,59 +334,6 @@ Details
 pg_repack creates a work table in the repack schema and sorts the rows in this
 table. Then, it updates the system catalogs directly to swap the work table
 and the original one.
-
-
-Installation
-------------
-
-pg_repack can be built with ``make`` on UNIX or Linux. The PGXS build
-framework is used automatically. Before building, you might need to install
-the PostgreSQL development packages (``postgresql-devel``, etc.) and add the
-directory containing ``pg_config`` to your ``$PATH``. Then you can run::
-
-    $ cd pg_repack
-    $ make
-    $ sudo make install
-
-You can also use Microsoft Visual C++ 2010 to build the program on Windows.
-There are project files in the ``msvc`` folder.
-
-After installation, load the pg_repack extension in the database you want to
-process. On PostgreSQL 9.1 and following pg_repack is packaged as an
-extension, so you can execute::
-
-    $ pg_ctl start
-    $ psql -c "CREATE EXTENSION pg_repack" -d your_database
-
-For previous PostgreSQL versions you should load the script
-``$SHAREDIR/contrib/pg_repack.sql`` in the database to process; you can
-get ``$SHAREDIR`` using ``pg_config --sharedir``, e.g. ::
-
-    $ psql -f "$(pg_config --sharedir)/contrib/pg_repack.sql" -d your_database
-
-You can remove pg_repack from a PostgreSQL 9.1 and following database using
-``DROP EXTENSION pg_repack``. For previous Postgresql versions load the
-``$SHAREDIR/contrib/uninstall_pg_repack.sql`` script or just drop the
-``repack`` schema.
-
-If you are upgrading from a previous version of pg_repack or pg_reorg, just
-drop the old version from the database as explained above and install the new
-version.
-
-
-Requirements
-------------
-
-PostgreSQL versions
-    PostgreSQL 8.2, 8.3, 8.4, 9.0, 9.1, 9.2
-
-OS
-    RHEL 5.2, Windows XP SP3
-
-Disks
-    Requires free disk space twice as large as the target table(s) and
-    indexes. For example, if the total size of the tables and indexes to be
-    reorganized is 1GB, an additional 2GB of disk space is required.
 
 
 Releases
