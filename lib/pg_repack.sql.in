@@ -6,6 +6,8 @@
  * Portions Copyright (c) 2012, The Reorg Development Team
  */
 
+CREATE SCHEMA repack;
+
 CREATE FUNCTION repack.version() RETURNS text AS
 'MODULE_PATHNAME', 'repack_version'
 LANGUAGE C IMMUTABLE STRICT;
