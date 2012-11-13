@@ -46,7 +46,6 @@ LIBS := $(filter-out -lxslt, $(LIBS))
 
 pg_repack.sql: pg_repack.sql.in
 	echo "BEGIN;\n" > $@; \
-	echo "CREATE SCHEMA repack;\n" >> $@; \
 	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< >> $@; \
 	echo "\nCOMMIT;" >> $@;
 
