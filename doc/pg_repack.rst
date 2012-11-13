@@ -59,7 +59,8 @@ You can choose one of the following methods to reorganize:
 NOTICE:
 
 * Only superusers can use the utility.
-* Target table must have PRIMARY KEY.
+* Target table must have a PRIMARY KEY, or at least a UNIQUE total index on a
+  NOT NULL column.
 
 .. _pg_repack: http://reorg.github.com/pg_repack
 .. _project page: https://github.com/reorg/pg_repack
@@ -195,10 +196,13 @@ Diagnostics
 Error messages are reported when pg_repack fails. The following list shows the
 cause of errors.
 
-You need to cleanup by hand after fatal errors. To cleanup, execute
-``$PGHOME/share/contrib/uninstall_pg_repack.sql`` to the database where the
-error occured and then execute ``$PGHOME/share/contrib/pg_repack.sql``. (Do
-uninstall and reinstall.)
+You need to cleanup by hand after fatal errors. To cleanup, just remove
+pg_repack from the database and install it again: for PostgreSQL 9.1 and
+following execute ``DROP EXTENSION pg_repack CASCADE`` in the database where
+the error occurred, followed by ``CREATE EXTENSION pg_repack``; for previous
+version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
+database where the error occured and then load
+``$SHAREDIR/contrib/pg_repack.sql`` again.
 
 pg_repack: repack database "template1" ... skipped
     pg_repack is not installed in the database when ``--all`` option is
@@ -290,27 +294,42 @@ table. Then, it updates the system catalogs directly to swap the work table
 and the original one.
 
 
-Installations
--------------
+Installation
+------------
 
-pg_repack can be built with "make" on UNIX or Linux. pgxs build framework is
-used automatically. Before building, you might need to install postgres
-packages for developer (postgresql-devel, etc.) and add ``pg_config`` to your
-``$PATH``. ::
+pg_repack can be built with ``make`` on UNIX or Linux. The PGXS build
+framework is used automatically. Before building, you might need to install
+the PostgreSQL development packages (``postgresql-devel``, etc.) and add the
+directory containing ``pg_config`` to your ``$PATH``. Then you can run::
 
     $ cd pg_repack
     $ make
-    $ su
-    $ make install
+    $ sudo make install
 
 You can also use Microsoft Visual C++ 2010 to build the program on Windows.
 There are project files in the ``msvc`` folder.
 
-Start PostgreSQL and execute the script to register functions to your
-database::
+After installation, load the pg_repack extension in the database you want to
+process. On PostgreSQL 9.1 and following pg_repack is packaged as an
+extension, so you can execute::
 
     $ pg_ctl start
     $ psql -c "CREATE EXTENSION pg_repack" -d your_database
+
+For previous PostgreSQL versions you should load the script
+``$SHAREDIR/contrib/pg_repack.sql`` in the database to process; you can
+get ``$SHAREDIR`` using ``pg_config --sharedir``, e.g. ::
+
+    $ psql -f "$(pg_config --sharedir)/contrib/pg_repack.sql" -d your_database
+
+You can remove pg_repack from a PostgreSQL 9.1 and following database using
+``DROP EXTENSION pg_repack``. For previous Postgresql versions load the
+``$SHAREDIR/contrib/uninstall_pg_repack.sql`` script or just drop the
+``repack`` schema.
+
+If you are upgrading from a previous version of pg_repack or pg_reorg, just
+drop the old version from the database as explained above and install the new
+version.
 
 
 Requirements
