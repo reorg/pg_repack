@@ -116,6 +116,7 @@ static Oid getoid(PGresult *res, int row, int col);
 static bool lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact);
 static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
+static size_t simple_string_list_size(SimpleStringList string_list);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_QUERY_CANCELED			"57014"
@@ -247,6 +248,22 @@ getoid(PGresult *res, int row, int col)
 		return (Oid)strtoul(PQgetvalue(res, row, col), NULL, 10);
 }
 
+/* Returns the number of elements in the given SimpleStringList */
+static size_t
+simple_string_list_size(SimpleStringList string_list)
+{
+	size_t 					i = 0;
+	SimpleStringListCell   *cell = table_list.head;
+
+	while (cell)
+	{
+		cell = cell->next;
+		i++;
+	}
+
+	return i;
+}
+
 /*
  * Call repack_one_table for the target table or each table in a database.
  */
@@ -259,6 +276,11 @@ repack_one_database(const char *orderby)
 	int						num;
 	StringInfoData			sql;
 	SimpleStringListCell   *cell;
+	const char			  **params = NULL;
+	size_t					num_params = simple_string_list_size(table_list);
+
+	if (num_params)
+		params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
 
@@ -275,18 +297,19 @@ repack_one_database(const char *orderby)
 
 	/* acquire target tables */
 	appendStringInfoString(&sql, "SELECT * FROM repack.tables WHERE ");
-	if (table_list.head)
+	if (num_params)
 	{
-		appendStringInfoString(&sql, "( ");
-		for (cell = table_list.head; cell; cell = cell->next)
+		appendStringInfoString(&sql, "(");
+		for (i = 0, cell = table_list.head; cell; cell = cell->next, i++)
 		{
-			/* FIXME: bogus table quoting */
-			appendStringInfo(&sql, "relid = '%s'::regclass", cell->val);
+			/* Construct table name placeholders to be used by PQexecParams */
+			appendStringInfo(&sql, "relid = $%d::regclass", i + 1);
+			params[i] = cell->val;
 			if (cell->next)
 				appendStringInfoString(&sql, " OR ");
 		}
-		appendStringInfoString(&sql, " )");
-		res = execute_elevel(sql.data, 0, NULL, DEBUG2);
+		appendStringInfoString(&sql, ")");
+		res = execute_elevel(sql.data, (int) num_params, params, DEBUG2);
 	}
 	else
 	{
