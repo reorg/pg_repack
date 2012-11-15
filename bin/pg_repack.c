@@ -247,20 +247,34 @@ repack_one_database(const char *orderby, const char *table, char *errbuf, size_t
 	reconnect(ERROR);
 
 	/* Query the extension version. Exit if no match */
-	res = execute_elevel("select repack.version()", 0, NULL, DEBUG2);
+	res = execute_elevel("select repack.version(), repack.version_sql()",
+		0, NULL, DEBUG2);
 	if (PQresultStatus(res) == PGRES_TUPLES_OK)
 	{
 		const char	   *libver;
 		char			buf[64];
 
 		/* the string is something like "pg_repack 1.1.7" */
-		libver = getstr(res, 0, 0);
 		snprintf(buf, sizeof(buf), "%s %s", PROGRAM_NAME, PROGRAM_VERSION);
+
+		/* check the version of the C library */
+		libver = getstr(res, 0, 0);
 		if (0 != strcmp(buf, libver))
 		{
 			if (errbuf)
 				snprintf(errbuf, errsize,
 					"program '%s' does not match database library '%s'",
+					buf, libver);
+			goto cleanup;
+		}
+
+		/* check the version of the SQL extension */
+		libver = getstr(res, 0, 1);
+		if (0 != strcmp(buf, libver))
+		{
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"extension '%s' required, found extension '%s'",
 					buf, libver);
 			goto cleanup;
 		}

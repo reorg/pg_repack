@@ -54,8 +54,9 @@ LIBS := $(filter-out -lxslt, $(LIBS))
 
 pg_repack.sql: pg_repack.sql.in
 	echo "BEGIN;\n" > $@; \
-	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< >> $@; \
+	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< \
+	| sed 's,EXTVER,$(EXTVER),g' >> $@; \
 	echo "\nCOMMIT;" >> $@;
 
 pg_repack--$(EXTVER).sql: pg_repack.sql.in
-	cat $< > $@;
+	sed 's,EXTVER,$(EXTVER),g' $< > $@;
