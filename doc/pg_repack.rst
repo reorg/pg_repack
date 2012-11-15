@@ -350,6 +350,7 @@ Releases
   * Bugfix: Properly escape column names (pg_reorg issue #6).
   * Bugfix: Avoid recreating invalid indexes, or choosing them as key
     (pg_reorg issue #9).
+  * Bugfix: Never choose a partial index as primary key (pg_reorg issue #22).
 
 * pg_reorg 1.1.7 (2011-08-07)
 
