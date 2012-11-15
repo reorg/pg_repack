@@ -1,7 +1,7 @@
 {
    "name": "pg_repack",
    "abstract": "PostgreSQL module for data reorganization",
-   "description": "pg_repack is a PostgreSQL module allowing to reorganize a table without any locks.",
+   "description": "Reorganize tables in PostgreSQL databases with minimal locks",
    "version": "1.1.8",
    "maintainer": [
        "Josh Kupershmidt <schmiddy@gmail.com>",
@@ -14,7 +14,7 @@
       "pg_repack": {
          "file": "lib/pg_repack.sql",
          "version": "1.1.8",
-         "abstract": "PostgreSQL module for data reorganization"
+         "abstract": "Reorganize tables in PostgreSQL databases with minimal locks"
       }
    },
    "prereqs": {
