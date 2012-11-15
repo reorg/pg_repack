@@ -1,3 +1,4 @@
 /.deps/
 /pg_repack.sql
 /pg_repack--[0-9.]*.sql
+/pg_repack.control

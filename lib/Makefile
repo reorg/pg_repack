@@ -17,12 +17,6 @@ OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
 REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
 	| sed -e 's/\s*"version":\s*"\(.*\)",/\1/')
 
-# The version of the extension, read from the .control file.
-# Note that it doesn't need to be the same of the library version: it should
-# be increased only when the sql changes.
-EXTVER = $(shell grep -e '^default_version' $(EXTENSION).control \
-	| sed -e "s/[^']*'\([^']*\)'.*/\1/")
-
 PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
 # Support CREATE EXTENSION for PG >= 9.1 and a simple sql script for PG < 9.1
@@ -30,7 +24,7 @@ HAVE_EXTENSION = $(shell $(PG_CONFIG) --version \
 	| grep -qE " 8\.| 9\.0" && echo no || echo yes)
 
 ifeq ($(HAVE_EXTENSION),yes)
-DATA_built = pg_repack--$(EXTVER).sql
+DATA_built = pg_repack--$(REPACK_VERSION).sql pg_repack.control
 else
 DATA_built = pg_repack.sql
 DATA = uninstall_pg_repack.sql
@@ -49,5 +43,8 @@ pg_repack.sql: pg_repack.sql.in
 	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< >> $@; \
 	echo "\nCOMMIT;" >> $@;
 
-pg_repack--$(EXTVER).sql: pg_repack.sql.in
+pg_repack--$(REPACK_VERSION).sql: pg_repack.sql.in
 	cat $< > $@;
+
+pg_repack.control: pg_repack.control.in
+	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@
