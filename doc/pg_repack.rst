@@ -50,6 +50,25 @@ Disks
     reorganized is 1GB, an additional 2GB of disk space is required.
 
 
+Download
+--------
+
+You can `download pg_repack`__ from the PGXN website. Unpack the archive and
+follow the installation_ instructions.
+
+.. __: http://pgxn.org/dist/pg_repack/
+
+Alternatively you can use the `PGXN Client`_ to download, compile and install
+the package; use::
+
+    $ pgxn install pg_repack
+
+Check the `pgxn install documentation`__ for the options available.
+
+.. _PGXN Client: http://pgxnclient.projects.pgfoundry.org/
+.. __: http://pgxnclient.projects.pgfoundry.org/usage.html#pgxn-install
+
+
 Installation
 ------------
 
