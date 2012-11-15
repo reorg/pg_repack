@@ -174,8 +174,9 @@ Options to connect to servers. You cannot use ``--all`` and ``--dbname`` or
 ``-w``, ``--no-password``
     Never issue a password prompt. If the server requires password
     authentication and a password is not available by other means such as a
-    .pgpass file, the connection attempt will fail. This option can be useful
-    in batch jobs and scripts where no user is present to enter a password.
+    ``.pgpass`` file, the connection attempt will fail. This option can be
+    useful in batch jobs and scripts where no user is present to enter a
+    password.
 
 ``-W``, ``--password``
     Force the program to prompt for a password before connecting to a
@@ -309,23 +310,23 @@ DDL commands
 ^^^^^^^^^^^^
 
 You cannot do DDL commands **except** VACUUM and ANALYZE during pg_repack. In many
-cases pg_repack will fail and rollback collectly, but there are some cases
-which may result in data-corruption .
+cases pg_repack will fail and rollback correctly, but there are some cases
+which may result in data corruption.
 
 TRUNCATE
     TRUNCATE is lost. Deleted rows still exist after pg_repack.
 
 CREATE INDEX
-    It causes index corruptions.
+    It causes index corruption.
 
 ALTER TABLE ... ADD COLUMN
-    It causes lost of data. Newly added columns are initialized with NULLs.
+    It causes loss of data. Newly added columns are initialized with NULLs.
 
 ALTER TABLE ... ALTER COLUMN TYPE
-    It causes data corruptions.
+    It causes data corruption.
 
 ALTER TABLE ... SET TABLESPACE
-    It causes data corruptions by wrong relfilenode.
+    It causes data corruption by wrong relfilenode.
 
 
 Details
