@@ -28,6 +28,11 @@
       "homepage": "http://reorg.github.com/pg_repack",
       "bugtracker": {
          "web": "https://github.com/reorg/pg_reorg/issues"
+      },
+      "repository": {
+          "url": "git://github.com/reorg/pg_repack.git",
+          "web": "https://github.com/reorg/pg_repack/",
+          "type": "git"
       }
    },
    "meta-spec": {
