@@ -419,10 +419,10 @@ simple_string_list_member(SimpleStringList *list, const char *val)
 
 /* Returns the number of elements in the given SimpleStringList */
 size_t
-simple_string_list_size(SimpleStringList string_list)
+simple_string_list_size(SimpleStringList list)
 {
 	size_t 					i = 0;
-	SimpleStringListCell   *cell = string_list.head;
+	SimpleStringListCell   *cell = list.head;
 
 	while (cell)
 	{
