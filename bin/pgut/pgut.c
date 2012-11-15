@@ -417,6 +417,21 @@ simple_string_list_member(SimpleStringList *list, const char *val)
 	return false;
 }
 
+/* Returns the number of elements in the given SimpleStringList */
+size_t
+simple_string_list_size(SimpleStringList string_list)
+{
+	size_t 					i = 0;
+	SimpleStringListCell   *cell = string_list.head;
+
+	while (cell)
+	{
+		cell = cell->next;
+		i++;
+	}
+
+	return i;
+}
 
 static char *
 prompt_for_password(void)

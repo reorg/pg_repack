@@ -186,6 +186,7 @@ typedef struct SimpleStringList
 
 extern void simple_string_list_append(SimpleStringList *list, const char *val);
 extern bool simple_string_list_member(SimpleStringList *list, const char *val);
+extern size_t simple_string_list_size(SimpleStringList string_list);
 
 
 /*

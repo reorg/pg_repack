@@ -116,7 +116,6 @@ static Oid getoid(PGresult *res, int row, int col);
 static bool lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact);
 static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
-static size_t simple_string_list_size(SimpleStringList string_list);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_QUERY_CANCELED			"57014"
@@ -248,21 +247,6 @@ getoid(PGresult *res, int row, int col)
 		return (Oid)strtoul(PQgetvalue(res, row, col), NULL, 10);
 }
 
-/* Returns the number of elements in the given SimpleStringList */
-static size_t
-simple_string_list_size(SimpleStringList string_list)
-{
-	size_t 					i = 0;
-	SimpleStringListCell   *cell = table_list.head;
-
-	while (cell)
-	{
-		cell = cell->next;
-		i++;
-	}
-
-	return i;
-}
 
 /*
  * Call repack_one_table for the target table or each table in a database.
