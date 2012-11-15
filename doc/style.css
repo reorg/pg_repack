@@ -50,4 +50,6 @@ div.contents {
 	margin-top: 2.5em !important;
 }
 
-
+div.contents ul {
+	padding-left: 1em;
+}
