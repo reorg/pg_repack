@@ -1,14 +1,16 @@
-pg_repack -- Reorganize tables in PostgreSQL databases without any locks
-========================================================================
+pg_repack -- Reorganize tables in PostgreSQL databases with minimal locks
+=========================================================================
 
 .. contents::
     :depth: 1
     :backlinks: none
 
-
-pg_repack_ is an utility program to reorganize tables in PostgreSQL databases.
-Unlike clusterdb_, it doesn't block any selections and updates during
-reorganization.
+pg_repack_ is a PostgreSQL extension which lets you remove bloat from
+tables and indexes, and optionally restore the physical order of clustered
+indexes. Unlike CLUSTER_ and `VACUUM FULL`_ it works online, without
+holding an exclusive lock on the processed tables during processing.
+pg_repack is efficient to boot, with performance comparable to using
+CLUSTER directly.
 
 pg_repack is a fork of the previous pg_reorg_ project. Please check the
 `project page`_ for bug report and development information.
@@ -26,8 +28,10 @@ NOTICE:
   NOT NULL column.
 
 .. _pg_repack: http://reorg.github.com/pg_repack
+.. _CLUSTER: http://www.postgresql.org/docs/current/static/sql-cluster.html
+.. _VACUUM FULL: VACUUM_
+.. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
 .. _project page: https://github.com/reorg/pg_repack
-.. _clusterdb: http://www.postgresql.org/docs/current/static/app-clusterdb.html
 .. _pg_reorg: http://reorg.projects.pgfoundry.org/
 
 
