@@ -12,6 +12,10 @@ CREATE FUNCTION repack.version() RETURNS text AS
 'MODULE_PATHNAME', 'repack_version'
 LANGUAGE C IMMUTABLE STRICT;
 
+CREATE FUNCTION repack.version_sql() RETURNS text AS
+$$SELECT 'pg_repack REPACK_VERSION'::text$$
+LANGUAGE SQL IMMUTABLE STRICT;
+
 CREATE AGGREGATE repack.array_accum (
     sfunc = array_append,
     basetype = anyelement,
