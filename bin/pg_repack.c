@@ -10,7 +10,7 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_URL		= "https://github.com/reorg/pg_reorg";
+const char *PROGRAM_URL		= "http://reorg.github.com/pg_repack";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
 #ifdef REPACK_VERSION
