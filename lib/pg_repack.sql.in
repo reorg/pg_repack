@@ -146,6 +146,7 @@ CREATE VIEW repack.primary_keys AS
     FROM (SELECT indrelid, indexrelid FROM pg_index
    WHERE indisunique
      AND indisvalid
+     AND indpred IS NULL
      AND 0 <> ALL(indkey)
      AND NOT EXISTS(
            SELECT 1 FROM pg_attribute
