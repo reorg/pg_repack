@@ -83,7 +83,7 @@ typedef struct repack_index
 } repack_index;
 
 static void repack_all_databases(const char *order_by);
-static bool repack_one_database(const char *order_by, const char *table);
+static bool repack_one_database(const char *order_by, const char *table, char *errbuf, size_t errsize);
 static void repack_one_table(const repack_table *table, const char *order_by);
 static void repack_cleanup(bool fatal, void *userdata);
 
@@ -152,10 +152,11 @@ main(int argc, char *argv[])
 	}
 	else
 	{
-		if (!repack_one_database(orderby, table))
+		char	errbuf[256];
+		if (!repack_one_database(orderby, table, errbuf, sizeof(errbuf)))
 			ereport(ERROR,
-				(errcode(ENOENT),
-				 errmsg("%s is not installed", PROGRAM_NAME)));
+				(errcode(ERROR),
+				 errmsg("%s", errbuf)));
 	}
 
 	return 0;
@@ -178,6 +179,7 @@ repack_all_databases(const char *orderby)
 	for (i = 0; i < PQntuples(result); i++)
 	{
 		bool	ret;
+		char	errbuf[256];
 
 		dbname = PQgetvalue(result, i, 0);
 
@@ -187,14 +189,14 @@ repack_all_databases(const char *orderby)
 			fflush(stdout);
 		}
 
-		ret = repack_one_database(orderby, NULL);
+		ret = repack_one_database(orderby, NULL, errbuf, sizeof(errbuf));
 
 		if (pgut_log_level >= INFO)
 		{
 			if (ret)
 				printf("\n");
 			else
-				printf(" ... skipped\n");
+				printf(" ... skipped: %s\n", errbuf);
 			fflush(stdout);
 		}
 	}
@@ -225,9 +227,9 @@ getoid(PGresult *res, int row, int col)
  * Call repack_one_table for the target table or each table in a database.
  */
 static bool
-repack_one_database(const char *orderby, const char *table)
+repack_one_database(const char *orderby, const char *table, char *errbuf, size_t errsize)
 {
-	bool			ret = true;
+	bool			ret = false;
 	PGresult	   *res;
 	int				i;
 	int				num;
@@ -236,6 +238,57 @@ repack_one_database(const char *orderby, const char *table)
 	initStringInfo(&sql);
 
 	reconnect(ERROR);
+
+	/* Query the extension version. Exit if no match */
+	res = execute_elevel("select repack.version(), repack.version_sql()",
+		0, NULL, DEBUG2);
+	if (PQresultStatus(res) == PGRES_TUPLES_OK)
+	{
+		const char	   *libver;
+		char			buf[64];
+
+		/* the string is something like "pg_repack 1.1.7" */
+		snprintf(buf, sizeof(buf), "%s %s", PROGRAM_NAME, PROGRAM_VERSION);
+
+		/* check the version of the C library */
+		libver = getstr(res, 0, 0);
+		if (0 != strcmp(buf, libver))
+		{
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"program '%s' does not match database library '%s'",
+					buf, libver);
+			goto cleanup;
+		}
+
+		/* check the version of the SQL extension */
+		libver = getstr(res, 0, 1);
+		if (0 != strcmp(buf, libver))
+		{
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"extension '%s' required, found extension '%s'",
+					buf, libver);
+			goto cleanup;
+		}
+	}
+	else
+	{
+		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
+		{
+			/* Schema repack does not exist. Skip the database. */
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"%s is not installed in the database", PROGRAM_NAME);
+		}
+		else
+		{
+			/* Return the error message otherwise */
+			if (errbuf)
+				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+		}
+		goto cleanup;
+	}
 
 	/* Disable statement timeout. */
 	command("SET statement_timeout = 0", 0, NULL);
@@ -261,21 +314,24 @@ repack_one_database(const char *orderby, const char *table)
 		res = execute_elevel(sql.data, 0, NULL, DEBUG2);
 	}
 
+	/* on error skip the database */
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
 		{
 			/* Schema repack does not exist. Skip the database. */
-			ret = false;
-			goto cleanup;
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"%s is not installed in the database", PROGRAM_NAME);
 		}
 		else
 		{
-			/* exit otherwise */
-			printf("%s", PQerrorMessage(connection));
-			PQclear(res);
-			exit(1);
+			/* Return the error message otherwise */
+			if (errbuf)
+				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
 		}
+		ret = false;
+		goto cleanup;
 	}
 
 	num = PQntuples(res);
@@ -341,6 +397,7 @@ repack_one_database(const char *orderby, const char *table)
 
 		repack_one_table(&table, orderby);
 	}
+	ret = true;
 
 cleanup:
 	PQclear(res);

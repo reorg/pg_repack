@@ -30,7 +30,7 @@ DATA_built = pg_repack.sql
 DATA = uninstall_pg_repack.sql
 endif
 
-USE_PGXS = 1	# use pgxs if not in contrib directory
+USE_PGXS = 1
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
@@ -40,11 +40,12 @@ LIBS := $(filter-out -lxslt, $(LIBS))
 
 pg_repack.sql: pg_repack.sql.in
 	echo "BEGIN;\n" > $@; \
-	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< >> $@; \
+	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< \
+	| sed 's,REPACK_VERSION,$(REPACK_VERSION),g' >> $@; \
 	echo "\nCOMMIT;" >> $@;
 
 pg_repack--$(REPACK_VERSION).sql: pg_repack.sql.in
-	cat $< > $@;
+	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@;
 
 pg_repack.control: pg_repack.control.in
 	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@
