@@ -270,7 +270,7 @@ version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
 database where the error occured and then load
 ``$SHAREDIR/contrib/pg_repack.sql`` again.
 
-pg_repack: repack database "template1" ... skipped
+pg_repack: reorg database "template1" ... skipped: pg_repack is not installed in the database
     pg_repack is not installed in the database when ``--all`` option is
     specified.
 
@@ -280,6 +280,22 @@ ERROR: pg_repack is not installed
     pg_repack is not installed in the database specified by ``--dbname``.
 
     Do register pg_repack to the database.
+
+ERROR: program 'pg_repack V1' does not match database library 'pg_repack V2'
+    There is a mismatch between the ``pg_repack`` binary and the database
+    library (``.so`` or ``.dll``).
+
+    The mismatch could be due to the wrong binary in the ``$PATH`` or the
+    wrong database being addressed. Check the program directory and the
+    database; if they are what expected you may need to repeat pg_repack
+    installation.
+
+ERROR: extension 'pg_repack V1' required, found extension 'pg_repack V2'
+    The SQL extension found in the database does not match the version
+    required by the pg_repack program.
+
+    You should drop the extension from the database and reload it as described
+    in the installation_ section.
 
 ERROR: relation "table" has no primary key
     The target table doesn't have PRIMARY KEY.
