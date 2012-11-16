@@ -387,6 +387,8 @@ Releases
     issue #5).
   * Bugfix: Allow running on newly promoted streaming replication slaves
     (pg_reorg issue #1).
+  * Bugfix: Fix interaction between pg_repack and Slony 2.0/2.1 (pg_reorg
+    issue #4)
   * Bugfix: Properly escape column names (pg_reorg issue #6).
   * Bugfix: Avoid recreating invalid indexes, or choosing them as key
     (pg_reorg issue #9).
