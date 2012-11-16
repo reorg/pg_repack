@@ -14,8 +14,6 @@ MODULE_big = $(EXTENSION)
 OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
 
 # The version of the extension, read from the .control file.
-# Note that it doesn't need to be the same of the library version: it should
-# be increased only when the sql changes.
 EXTVER = $(shell grep -e '^default_version' $(EXTENSION).control \
 	| sed -e "s/[^']*'\([^']*\)'.*/\1/")
 

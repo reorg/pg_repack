@@ -98,7 +98,7 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 Datum
 repack_version(PG_FUNCTION_ARGS)
 {
-	return CStringGetTextDatum("pg_repack 1.1.7");
+	return CStringGetTextDatum("pg_repack 1.1.8beta2");
 }
 
 /**
