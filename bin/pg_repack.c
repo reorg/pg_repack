@@ -469,7 +469,9 @@ repack_one_table(const repack_table *table, const char *orderby)
 	elog(DEBUG2, "create_pktype  : %s", table->create_pktype);
 	elog(DEBUG2, "create_log     : %s", table->create_log);
 	elog(DEBUG2, "create_trigger : %s", table->create_trigger);
+#if PG_VERSION_NUM >= 80300
 	elog(DEBUG2, "enable_trigger : %s", table->enable_trigger);
+#endif
 	elog(DEBUG2, "create_table   : %s", table->create_table);
 	elog(DEBUG2, "drop_columns   : %s", table->drop_columns ? table->drop_columns : "(skipped)");
 	elog(DEBUG2, "delete_log     : %s", table->delete_log);
@@ -503,7 +505,9 @@ repack_one_table(const repack_table *table, const char *orderby)
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
 	command(table->create_trigger, 0, NULL);
+#if PG_VERSION_NUM >= 80300
 	command(table->enable_trigger, 0, NULL);
+#endif
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.log_%u')", table->target_oid);
 	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
