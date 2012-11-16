@@ -15,7 +15,7 @@ OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
 
 # The version number of the program. It should be the same of the library.
 REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
-	| sed -e 's/\s*"version":\s*"\(.*\)",/\1/')
+	| sed -e 's/[ 	]*"version":[ 	]*"\(.*\)",/\1/')
 
 PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
