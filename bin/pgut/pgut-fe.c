@@ -77,6 +77,11 @@ disconnect(void)
 		pgut_disconnect(connection);
 		connection = NULL;
 	}
+	if (conn2)
+	{
+		pgut_disconnect(conn2);
+		conn2 = NULL;
+	}
 }
 
 static void
