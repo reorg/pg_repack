@@ -158,7 +158,7 @@ target tables or databases.
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
-    wait to acquite this lock. If the lock cannot be taken after this duration,
+    wait to acquire this lock. If the lock cannot be taken after this duration,
     pg_repack will forcibly cancel the conflicting queries. If you are using
     PostgreSQL version 8.4 or newer, pg_repack will fall back to using
     pg_terminate_backend() to disconnect any remaining backends after
