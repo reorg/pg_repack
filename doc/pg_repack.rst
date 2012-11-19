@@ -146,22 +146,23 @@ using cluster indexes. Only one option can be specified. You may also specify
 target tables or databases.
 
 ``-n``, ``--no-order``
-    Do online VACUUM FULL.
+    Perform an online VACUUM FULL.
 
 ``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
-    Do online CLUSTER ordered by specified columns.
+    Perform an online CLUSTER ordered by the specified columns.
 
 ``-t TABLE``, ``--table=TABLE``
-    Reorganize table only. If you don't specify this option, all tables in
-    specified databases are reorganized.
+    Reorganize the specified table only. By default, all eligible tables in
+    the target databases are reorganized.
 
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
-    reorganization.  This setting controls how long it wait for acquiring the
-    lock in seconds. If the lock cannot be taken even after the duration,
-    pg_repack forces to cancel conflicted queries. Also, if the server version
-    is 8.4 or newer, pg_repack forces to disconnect conflicted backends after
-    twice time passed. The default is 60 seconds.
+    reorganization.  This setting controls how many seconds pg_repack will
+    wait to acquite this lock. If the lock cannot be taken after this duration,
+    pg_repack will forcibly cancel the conflicting queries. If you are using
+    PostgreSQL version 8.4 or newer, pg_repack will fall back to using
+    pg_terminate_backend() to disconnect any remaining backends after
+    twice this timeout has passed. The default is 60 seconds.
 
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after the reorganization. If not specified, run ANALYZE
@@ -246,12 +247,12 @@ Examples
 --------
 
 Execute the following command to perform an online CLUSTER of all tables in
-test database::
+database ``test``::
 
     $ pg_repack test
 
-Execute the following command to perform an online VACUUM FULL to foo table in
-test database::
+Execute the following command to perform an online VACUUM FULL of table
+``foo`` in database ``test``::
 
     $ pg_repack --no-order --table foo -d test
 
@@ -270,16 +271,16 @@ version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
 database where the error occured and then load
 ``$SHAREDIR/contrib/pg_repack.sql`` again.
 
-pg_repack: reorg database "template1" ... skipped: pg_repack is not installed in the database
+pg_repack: repack database "template1" ... skipped: pg_repack is not installed in the database
     pg_repack is not installed in the database when ``--all`` option is
     specified.
 
-    Do register pg_repack to the database.
+    Create the pg_repack extension in the database.
 
 ERROR: pg_repack is not installed
     pg_repack is not installed in the database specified by ``--dbname``.
 
-    Do register pg_repack to the database.
+    Create the pg_repack extension in the database.
 
 ERROR: program 'pg_repack V1' does not match database library 'pg_repack V2'
     There is a mismatch between the ``pg_repack`` binary and the database
@@ -297,15 +298,17 @@ ERROR: extension 'pg_repack V1' required, found extension 'pg_repack V2'
     You should drop the extension from the database and reload it as described
     in the installation_ section.
 
-ERROR: relation "table" has no primary key
-    The target table doesn't have PRIMARY KEY.
+ERROR: relation "table" must have a primary key or not-null unique keys
+    The target table doesn't have a PRIMARY KEY or any UNIQUE constraints
+    defined.
 
-    Define PRIMARY KEY to the table. (ALTER TABLE ADD PRIMARY KEY)
+    Define a PRIMARY KEY or a UNIQUE constraint on the table.
 
 ERROR: relation "table" has no cluster key
     The target table doesn't have CLUSTER KEY.
 
-    Define CLUSTER KEY to the table. (ALTER TABLE CLUSTER)
+    Define a CLUSTER KEY on the table, via ALTER TABLE CLUSTER ON, or use
+    one of the --no-order or --order-by modes.
 
 pg_repack: query failed: ERROR: column "col" does not exist
     The target table doesn't have columns specified by ``--order-by`` option.
@@ -315,7 +318,7 @@ pg_repack: query failed: ERROR: column "col" does not exist
 ERROR: permission denied for schema repack
     Permission error.
 
-    pg_repack must be executed by superusers.
+    pg_repack must be executed by a superuser.
 
 pg_repack: query failed: ERROR: trigger "z_repack_trigger" for relation "tbl" already exists
     The target table already has a trigger named ``z_repack_trigger``.
@@ -323,7 +326,7 @@ pg_repack: query failed: ERROR: trigger "z_repack_trigger" for relation "tbl" al
     Delete or rename the trigger.
 
 pg_repack: trigger conflicted for tbl
-    The target table already has a trigger which follows by
+    The target table already has a trigger which follows
     ``z_repack_trigger`` in alphabetical order.
 
     Delete or rename the trigger.
@@ -348,7 +351,8 @@ pg_repack cannot reorganize tables using GiST indexes.
 DDL commands
 ^^^^^^^^^^^^
 
-You cannot do DDL commands **except** VACUUM and ANALYZE during pg_repack. In many
+You cannot perform DDL commands of the target table(s) **except** VACUUM and
+ANALYZE during pg_repack. In many
 cases pg_repack will fail and rollback correctly, but there are some cases
 which may result in data corruption.
 
