@@ -1,3 +1,4 @@
+RST2HTML = $(shell which rst2html || which rst2html.py)
 RSTCSS = $(shell python -c 'import docutils.writers.html4css1 as m; print m.Writer.default_stylesheet_path')
 RSTOPTS = --stylesheet-path=style.css,$(RSTCSS) --initial-header-level=2
 
@@ -10,7 +11,7 @@ all : html
 html : $(HTML)
 
 %.html: %.rst style.css
-	rst2html $(RSTOPTS) $< $@
+	$(RST2HTML) $(RSTOPTS) $< $@
 
 clean:
 	rm -f $(HTML)
