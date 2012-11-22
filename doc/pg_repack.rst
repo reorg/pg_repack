@@ -271,6 +271,8 @@ version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
 database where the error occured and then load
 ``$SHAREDIR/contrib/pg_repack.sql`` again.
 
+.. class:: diag
+
 pg_repack: repack database "template1" ... skipped: pg_repack is not installed in the database
     pg_repack is not installed in the database when ``--all`` option is
     specified.
@@ -355,6 +357,8 @@ You cannot perform DDL commands of the target table(s) **except** VACUUM and
 ANALYZE during pg_repack. In many
 cases pg_repack will fail and rollback correctly, but there are some cases
 which may result in data corruption.
+
+.. class:: ddl
 
 TRUNCATE
     TRUNCATE is lost. Deleted rows still exist after pg_repack.

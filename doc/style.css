@@ -53,3 +53,10 @@ div.contents {
 div.contents ul {
 	padding-left: 1em;
 }
+
+dl.diag dt,
+dl.ddl dt {
+	font-weight: bold;
+	margin-top: 1em;
+	margin-bottom: 0.5em;
+}
