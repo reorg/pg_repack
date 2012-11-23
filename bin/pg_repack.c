@@ -186,6 +186,7 @@ static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
+#define SQLSTATE_UNDEFINED_FUNCTION		"42883"
 #define SQLSTATE_QUERY_CANCELED			"57014"
 
 static bool sqlstate_equals(PGresult *res, const char *state)
@@ -477,12 +478,16 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	}
 	else
 	{
-		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
+		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME)
+			|| sqlstate_equals(res, SQLSTATE_UNDEFINED_FUNCTION))
 		{
-			/* Schema repack does not exist. Skip the database. */
+			/* Schema repack does not exist, or version too old (version
+			 * functions not found). Skip the database.
+			 */
 			if (errbuf)
 				snprintf(errbuf, errsize,
-						 "%s is not installed in the database", PROGRAM_NAME);
+					"%s %s is not installed in the database",
+					PROGRAM_NAME, PROGRAM_VERSION);
 		}
 		else
 		{
