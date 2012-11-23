@@ -552,19 +552,9 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	/* on error skip the database */
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
-		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
-		{
-			/* Schema repack does not exist. Skip the database. */
-			if (errbuf)
-				snprintf(errbuf, errsize,
-						 "%s is not installed in the database", PROGRAM_NAME);
-		}
-		else
-		{
-			/* Return the error message otherwise */
-			if (errbuf)
-				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
-		}
+		/* Return the error message otherwise */
+		if (errbuf)
+			snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
 		goto cleanup;
 	}
 
