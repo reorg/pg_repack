@@ -67,7 +67,7 @@ execute_with_format(int expected, const char *format, ...)
 	appendStringInfoVA_s(&sql, format, ap);
 	va_end(ap);
 
-	if (strlen(sql.data) == 0)
+	if (sql.len == 0)
 		elog(WARNING, "execute_with_format(%s)", format);
 	ret = SPI_exec(sql.data, 0);
 	if EXEC_FAILED(ret, expected)
