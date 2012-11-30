@@ -507,6 +507,10 @@ repack_one_table(const repack_table *table, const char *orderby)
 	 */
 	elog(DEBUG2, "---- copy tuples ----");
 
+	/* Must use SERIALIZABLE (or at least not READ COMMITTED) to avoid race
+	 * condition between the create_table statement and rows subsequently
+	 * being added to the log.
+	 */
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
 	/* SET work_mem = maintenance_work_mem */
 	command("SELECT set_config('work_mem', current_setting('maintenance_work_mem'), true)", 0, NULL);
@@ -515,6 +519,12 @@ repack_one_table(const repack_table *table, const char *orderby)
 	res = execute(SQL_XID_SNAPSHOT, 0, NULL);
 	vxid = strdup(PQgetvalue(res, 0, 0));
 	PQclear(res);
+
+	/* Delete any existing entries in the log table now, since we have not
+	 * yet run the CREATE TABLE ... AS SELECT, which will take in all existing
+	 * rows from the target table; if we also included prior rows from the
+	 * log we could wind up with duplicates.
+	 */
 	command(table->delete_log, 0, NULL);
 	command(table->create_table, 0, NULL);
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
