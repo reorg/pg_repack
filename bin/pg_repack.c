@@ -95,6 +95,7 @@ typedef struct repack_index
 	const char	   *create_index;	/* CREATE INDEX */
 } repack_index;
 
+static bool is_superuser(void);
 static void repack_all_databases(const char *order_by);
 static bool repack_one_database(const char *order_by, const char *table, char *errbuf, size_t errsize);
 static void repack_one_table(const repack_table *table, const char *order_by);
@@ -175,6 +176,31 @@ main(int argc, char *argv[])
 	return 0;
 }
 
+
+/*
+ * Test if the current user is a database superuser.
+ * Borrowed from psql/common.c
+ *
+ * Note: this will correctly detect superuserness only with a protocol-3.0
+ * or newer backend; otherwise it will always say "false".
+ */
+bool
+is_superuser(void)
+{
+	const char *val;
+
+	if (!connection)
+		return false;
+
+	val = PQparameterStatus(connection, "is_superuser");
+	
+	if (val && strcmp(val, "on") == 0)
+		return true;
+
+	return false;
+}
+
+
 /*
  * Call repack_one_database for each database.
  */
@@ -186,6 +212,10 @@ repack_all_databases(const char *orderby)
 
 	dbname = "postgres";
 	reconnect(ERROR);
+
+	if (!is_superuser())
+		elog(ERROR, "You must be a superuser to use %s", PROGRAM_NAME);
+
 	result = execute("SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1;", 0, NULL);
 	disconnect();
 
@@ -243,7 +273,7 @@ static bool
 repack_one_database(const char *orderby, const char *table, char *errbuf, size_t errsize)
 {
 	bool			ret = false;
-	PGresult	   *res;
+	PGresult	   *res = NULL;
 	int				i;
 	int				num;
 	StringInfoData	sql;
@@ -251,6 +281,13 @@ repack_one_database(const char *orderby, const char *table, char *errbuf, size_t
 	initStringInfo(&sql);
 
 	reconnect(ERROR);
+
+	if (!is_superuser()) {
+		if (errbuf)
+			snprintf(errbuf, errsize, "You must be a superuser to use %s",
+					 PROGRAM_NAME);
+		goto cleanup;
+	}
 
 	/* Query the extension version. Exit if no match */
 	res = execute_elevel("select repack.version(), repack.version_sql()",
@@ -413,7 +450,8 @@ repack_one_database(const char *orderby, const char *table, char *errbuf, size_t
 	ret = true;
 
 cleanup:
-	PQclear(res);
+	if (res)
+		PQclear(res);
 	disconnect();
 	termStringInfo(&sql);
 	return ret;
