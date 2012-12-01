@@ -4,7 +4,7 @@ pg_repack -- Reorganize tables in PostgreSQL databases with minimal locks
 - Homepage: http://reorg.github.com/pg_repack
 - Download: http://pgxn.org/dist/pg_repack/
 - Development: https://github.com/reorg/pg_repack
-- Bug Report: https://github.com/reorg/pg_reorg/issues
+- Bug Report: https://github.com/reorg/pg_repack/issues
 - Mailing List: http://pgfoundry.org/mailman/listinfo/reorg-general
 
 pg_repack_ is a PostgreSQL extension which lets you remove bloat from
