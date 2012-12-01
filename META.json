@@ -8,7 +8,7 @@
        "Daniele Varrazzo <daniele.varrazzo@gmail.com>"
     ],
    "tags": [ "bloat", "maintenance", "vacuum", "cluster" ],
-   "release_status": "testing",
+   "release_status": "stable",
    "license": "bsd",
    "provides": {
       "pg_repack": {
