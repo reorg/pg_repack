@@ -15,7 +15,7 @@
  * in sync automatically in versions from 1.2 but for now in 1.1 has to be
  * done manually.
  */
-const char *PROGRAM_VERSION	= "1.1.8beta2";
+const char *PROGRAM_VERSION	= "1.1.8";
 const char *PROGRAM_URL		= "http://reorg.github.com/pg_repack";
 const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
 
