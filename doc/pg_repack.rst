@@ -323,15 +323,20 @@ ERROR: permission denied for schema repack
     pg_repack must be executed by a superuser.
 
 pg_repack: query failed: ERROR: trigger "z_repack_trigger" for relation "tbl" already exists
-    The target table already has a trigger named ``z_repack_trigger``.
+    The target table has already a trigger named ``z_repack_trigger``.  This
+    is probably caused by a previous failed attempt to run pg_repack on the
+    table, which for some reason failed to clean up the temporary object.
 
-    Delete or rename the trigger.
+    You can remove all the temporary objects by dropping and re-creating the
+    extension: see the installation_ section for the details.
 
 pg_repack: trigger conflicted for tbl
-    The target table already has a trigger which follows
-    ``z_repack_trigger`` in alphabetical order.
+    The target table has a trigger whose name follows ``z_repack_trigger``
+    in alphabetical order.
 
-    Delete or rename the trigger.
+    The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
+    Please rename your trigger to that it sorts alphabetically before
+    pg_repack's one.
 
 
 Restrictions
