@@ -24,6 +24,7 @@ char	   *password = NULL;
 YesNo		prompt_password = DEFAULT;
 
 PGconn	   *connection = NULL;
+PGconn     *conn2      = NULL;
 
 static bool parse_pair(const char buffer[], char key[], char value[]);
 static char *get_username(void);
@@ -51,6 +52,7 @@ reconnect(int elevel)
 		appendStringInfo(&buf, "password=%s ", password);
 
 	connection = pgut_connect(buf.data, prompt_password, elevel);
+	conn2      = pgut_connect(buf.data, prompt_password, elevel);
 
 	/* update password */
 	if (connection)
@@ -74,6 +76,11 @@ disconnect(void)
 	{
 		pgut_disconnect(connection);
 		connection = NULL;
+	}
+	if (conn2)
+	{
+		pgut_disconnect(conn2);
+		conn2 = NULL;
 	}
 }
 
@@ -142,9 +149,12 @@ pgut_setopt(pgut_option *opt, const char *optarg, pgut_optsrc src)
 		/* high prior value has been set already. */
 		return;
 	}
-	else if (src >= SOURCE_CMDLINE && opt->source >= src)
+	else if (src >= SOURCE_CMDLINE && opt->source >= src && opt->type != 'l')
 	{
-		/* duplicated option in command line */
+		/* duplicated option in command line -- don't worry if the option
+		 * type is 'l' i.e. SimpleStringList, since we are allowed to have
+		 * multiples of these.
+		 */
 		message = "specified only once";
 	}
 	else
@@ -175,6 +185,10 @@ pgut_setopt(pgut_option *opt, const char *optarg, pgut_optsrc src)
 					return;
 				message = "a 32bit signed integer";
 				break;
+			case 'l':
+				message = "a List";
+				simple_string_list_append(opt->var, optarg);
+				return;
 			case 'u':
 				if (parse_uint32(optarg, opt->var))
 					return;

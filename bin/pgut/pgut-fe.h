@@ -25,13 +25,14 @@ typedef enum pgut_optsrc
  * type:
  *	b: bool (true)
  *	B: bool (false)
- *  f: pgut_optfn
+ *	f: pgut_optfn
  *	i: 32bit signed integer
+ *	l: StringList
  *	u: 32bit unsigned integer
  *	I: 64bit signed integer
  *	U: 64bit unsigned integer
  *	s: string
- *  t: time_t
+ *	t: time_t
  *	y: YesNo (YES)
  *	Y: YesNo (NO)
  */
@@ -56,6 +57,7 @@ extern char	   *password;
 extern YesNo	prompt_password;
 
 extern PGconn	   *connection;
+extern PGconn      *conn2;
 
 extern void	pgut_help(bool details);
 extern void help(bool details);

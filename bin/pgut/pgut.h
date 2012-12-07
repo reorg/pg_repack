@@ -171,6 +171,24 @@ extern bool parse_time(const char *value, time_t *time);
 #define ToLower(c)		(tolower((unsigned char)(c)))
 #define ToUpper(c)		(toupper((unsigned char)(c)))
 
+/* linked list of string values and helper functions, stolen from pg_dump. */
+typedef struct SimpleStringListCell
+{
+	struct SimpleStringListCell *next;
+	char val[1];    /* VARIABLE LENGTH FIELD */
+} SimpleStringListCell;
+
+typedef struct SimpleStringList
+{
+	SimpleStringListCell *head;
+	SimpleStringListCell *tail;
+} SimpleStringList;
+
+extern void simple_string_list_append(SimpleStringList *list, const char *val);
+extern bool simple_string_list_member(SimpleStringList *list, const char *val);
+extern size_t simple_string_list_size(SimpleStringList list);
+
+
 /*
  * socket operations
  */
