@@ -178,12 +178,12 @@ CREATE TABLE tbl_pk_uk (col1 int NOT NULL, col2 int NOT NULL, PRIMARY KEY(col1, 
 CREATE TABLE tbl_nn_puk (col1 int NOT NULL, col2 int NOT NULL);
 CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
 \! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn
--- => ERROR
+-- => WARNING
 \! pg_repack --dbname=contrib_regression --no-order --table=tbl_uk
--- => ERROR
+-- => WARNING
 \! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn_uk
 -- => OK
 \! pg_repack --dbname=contrib_regression --no-order --table=tbl_pk_uk
 -- => OK
 \! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn_puk
--- => ERROR
+-- => WARNING
