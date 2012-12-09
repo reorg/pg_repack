@@ -473,14 +473,13 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 }
 
 /*
- * Parse the trailing ... [ DESC ] [ NULLS { FIRST | LAST } ] from an index
+ * Parse the trailing ... [ COLLATE X ] [ DESC ] [ NULLS { FIRST | LAST } ] from an index
  * definition column.
  * Returned values point to token. \0's are inserted to separate parsed parts.
  */
 static void
-parse_desc_nulls(char *token, char **desc, char **nulls)
+parse_indexdef_col(char *token, char **desc, char **nulls, char **collate)
 {
-#if PG_VERSION_NUM >= 80300
 	char *pos;
 
 	/* easier to walk backwards than to parse quotes and escapes... */
@@ -499,7 +498,11 @@ parse_desc_nulls(char *token, char **desc, char **nulls)
 		*desc = pos + 1;
 		*pos = '\0';
 	}
-#endif
+	if (NULL != (pos = strstr(token, " COLLATE ")))
+	{
+		*collate = pos + 1;
+		*pos = '\0';
+	}
 }
 
 /**
@@ -543,14 +546,17 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 		char *opcname;
 		char *coldesc = NULL;
 		char *colnulls = NULL;
+		char *colcollate = NULL;
 
 		token = next;
 		while (isspace((unsigned char) *token))
 			token++;
 		next = skip_until(index, next, ',');
-		parse_desc_nulls(token, &coldesc, &colnulls);
+		parse_indexdef_col(token, &coldesc, &colnulls, &colcollate);
 		opcname = skip_until(index, token, ' ');
 		appendStringInfoString(&str, token);
+		if (colcollate)
+			appendStringInfo(&str, " %s", colcollate);
 		if (coldesc)
 			appendStringInfo(&str, " %s", coldesc);
 		if (opcname)
