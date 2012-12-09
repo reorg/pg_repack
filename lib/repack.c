@@ -472,6 +472,36 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 	stmt->options = sql;
 }
 
+/*
+ * Parse the trailing ... [ DESC ] [ NULLS { FIRST | LAST } ] from an index
+ * definition column.
+ * Returned values point to token. \0's are inserted to separate parsed parts.
+ */
+static void
+parse_desc_nulls(char *token, char **desc, char **nulls)
+{
+#if PG_VERSION_NUM >= 80300
+	char *pos;
+
+	/* easier to walk backwards than to parse quotes and escapes... */
+	if (NULL != (pos = strstr(token, " NULLS FIRST")))
+	{
+		*nulls = pos + 1;
+		*pos = '\0';
+	}
+	else if (NULL != (pos = strstr(token, " NULLS LAST")))
+	{
+		*nulls = pos + 1;
+		*pos = '\0';
+	}
+	if (NULL != (pos = strstr(token, " DESC")))
+	{
+		*desc = pos + 1;
+		*pos = '\0';
+	}
+#endif
+}
+
 /**
  * @fn      Datum repack_get_index_keys(PG_FUNCTION_ARGS)
  * @brief   Get key definition of the index.
@@ -514,12 +544,18 @@ repack_get_index_keys(PG_FUNCTION_ARGS)
 	for (nattr = 0, next = stmt.columns; next; nattr++)
 	{
 		char *opcname;
+		char *coldesc = NULL;
+		char *colnulls = NULL;
 
 		token = next;
 		while (isspace((unsigned char) *token))
 			token++;
 		next = skip_until(index, next, ',');
+		parse_desc_nulls(token, &coldesc, &colnulls);
 		opcname = skip_until(index, token, ' ');
+		appendStringInfoString(&str, token);
+		if (coldesc)
+			appendStringInfo(&str, " %s", coldesc);
 		if (opcname)
 		{
 			/* lookup default operator name from operator class */
@@ -556,12 +592,11 @@ repack_get_index_keys(PG_FUNCTION_ARGS)
 				elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
 					 strategy, opcintype, opcintype, opfamily);
 
-
 			opcname[-1] = '\0';
-			appendStringInfo(&str, "%s USING %s", token, get_opname(oprid));
+			appendStringInfo(&str, " USING %s", get_opname(oprid));
 		}
-		else
-			appendStringInfoString(&str, token);
+		if (colnulls)
+			appendStringInfo(&str, " %s", colnulls);
 		if (next)
 			appendStringInfoString(&str, ", ");
 	}

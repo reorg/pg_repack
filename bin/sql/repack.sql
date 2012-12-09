@@ -187,3 +187,17 @@ CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
 -- => OK
 \! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn_puk
 -- => ERROR
+
+--
+-- pg_repack issue #3
+--
+CREATE TABLE issue3 (col1 int NOT NULL, col2 text NOT NULL);
+CREATE UNIQUE INDEX issue3_idx1 ON issue3 (col1, col2 DESC);
+CREATE UNIQUE INDEX issue3_idx2 ON issue3 (col1 DESC, col2 text_pattern_ops);
+CREATE UNIQUE INDEX issue3_idx3 ON issue3 (col1 DESC, col2 DESC);
+CREATE UNIQUE INDEX issue3_idx4 ON issue3 (col1 NULLS FIRST, col2 text_pattern_ops DESC NULLS LAST);
+
+SELECT repack.get_index_keys('issue3_idx1'::regclass::oid, 'issue3'::regclass::oid);
+SELECT repack.get_index_keys('issue3_idx2'::regclass::oid, 'issue3'::regclass::oid);
+SELECT repack.get_index_keys('issue3_idx3'::regclass::oid, 'issue3'::regclass::oid);
+SELECT repack.get_index_keys('issue3_idx4'::regclass::oid, 'issue3'::regclass::oid);
