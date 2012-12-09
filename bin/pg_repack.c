@@ -565,7 +565,7 @@ static void
 repack_one_table(const repack_table *table, const char *orderby)
 {
 	PGresult	   *res;
-	const char	   *params[1];
+	const char	   *params[2];
 	int				num;
 	int				i;
 	int				num_waiting = 0;
