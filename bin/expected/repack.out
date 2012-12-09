@@ -322,26 +322,26 @@ CREATE UNIQUE INDEX issue3_idx1 ON issue3 (col1, col2 DESC);
 CREATE UNIQUE INDEX issue3_idx2 ON issue3 (col1 DESC, col2 text_pattern_ops);
 CREATE UNIQUE INDEX issue3_idx3 ON issue3 (col1 DESC, col2 DESC);
 CREATE UNIQUE INDEX issue3_idx4 ON issue3 (col1 NULLS FIRST, col2 text_pattern_ops DESC NULLS LAST);
-SELECT repack.get_index_keys('issue3_idx1'::regclass::oid, 'issue3'::regclass::oid);
- get_index_keys  
+SELECT repack.get_order_by('issue3_idx1'::regclass::oid, 'issue3'::regclass::oid);
+  get_order_by   
 -----------------
  col1, col2 DESC
 (1 row)
 
-SELECT repack.get_index_keys('issue3_idx2'::regclass::oid, 'issue3'::regclass::oid);
-      get_index_keys       
+SELECT repack.get_order_by('issue3_idx2'::regclass::oid, 'issue3'::regclass::oid);
+       get_order_by        
 ---------------------------
  col1 DESC, col2 USING ~<~
 (1 row)
 
-SELECT repack.get_index_keys('issue3_idx3'::regclass::oid, 'issue3'::regclass::oid);
-    get_index_keys    
+SELECT repack.get_order_by('issue3_idx3'::regclass::oid, 'issue3'::regclass::oid);
+     get_order_by     
 ----------------------
  col1 DESC, col2 DESC
 (1 row)
 
-SELECT repack.get_index_keys('issue3_idx4'::regclass::oid, 'issue3'::regclass::oid);
-                  get_index_keys                  
+SELECT repack.get_order_by('issue3_idx4'::regclass::oid, 'issue3'::regclass::oid);
+                   get_order_by                   
 --------------------------------------------------
  col1 NULLS FIRST, col2 DESC USING ~<~ NULLS LAST
 (1 row)

@@ -41,7 +41,7 @@ PG_MODULE_MAGIC;
 extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_trigger(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_apply(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT repack_get_index_keys(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_get_order_by(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_indexdef(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_swap(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_drop(PG_FUNCTION_ARGS);
@@ -50,7 +50,7 @@ extern Datum PGUT_EXPORT repack_disable_autovacuum(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(repack_version);
 PG_FUNCTION_INFO_V1(repack_trigger);
 PG_FUNCTION_INFO_V1(repack_apply);
-PG_FUNCTION_INFO_V1(repack_get_index_keys);
+PG_FUNCTION_INFO_V1(repack_get_order_by);
 PG_FUNCTION_INFO_V1(repack_indexdef);
 PG_FUNCTION_INFO_V1(repack_swap);
 PG_FUNCTION_INFO_V1(repack_drop);
@@ -503,20 +503,17 @@ parse_desc_nulls(char *token, char **desc, char **nulls)
 }
 
 /**
- * @fn      Datum repack_get_index_keys(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_get_order_by(PG_FUNCTION_ARGS)
  * @brief   Get key definition of the index.
  *
- * repack_get_index_keys(index, table)
+ * repack_get_order_by(index, table)
  *
  * @param	index	Oid of target index.
  * @param	table	Oid of table of the index.
  * @retval			Create index DDL for temp table.
- *
- * FIXME: this function is named get_index_keys, but actually returns
- * an expression for ORDER BY clause. get_order_by() might be a better name.
  */
 Datum
-repack_get_index_keys(PG_FUNCTION_ARGS)
+repack_get_order_by(PG_FUNCTION_ARGS)
 {
 	Oid				index = PG_GETARG_OID(0);
 	Oid				table = PG_GETARG_OID(1);
