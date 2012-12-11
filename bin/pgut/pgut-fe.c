@@ -26,8 +26,112 @@ YesNo		prompt_password = DEFAULT;
 PGconn	   *connection = NULL;
 PGconn     *conn2      = NULL;
 
+worker_conns workers   = {
+	.num_workers     = 0,
+	.conns           = NULL
+};
+
+
 static bool parse_pair(const char buffer[], char key[], char value[]);
 static char *get_username(void);
+
+
+/*
+ * Set up worker conns which will be used for concurrent index rebuilds.
+ * 'num_workers' is the desired number of worker connections, i.e. from
+ * --jobs flag. Due to max_connections we might not actually be able to
+ * set up that many workers, but don't treat that as a fatal error.
+ */
+void
+setup_workers(int num_workers)
+{
+ 	StringInfoData	buf;
+ 	int i;
+ 	PGconn *conn;
+
+ 	elog(DEBUG2, "In setup_workers(), target num_workers = %d", num_workers);
+
+ 	if (num_workers > 1 && num_workers > workers.num_workers)
+ 	{
+ 		initStringInfo(&buf);
+ 		if (dbname && dbname[0])
+ 			appendStringInfo(&buf, "dbname=%s ", dbname);
+ 		if (host && host[0])
+ 			appendStringInfo(&buf, "host=%s ", host);
+ 		if (port && port[0])
+ 			appendStringInfo(&buf, "port=%s ", port);
+ 		if (username && username[0])
+ 			appendStringInfo(&buf, "user=%s ", username);
+ 		if (password && password[0])
+ 			appendStringInfo(&buf, "password=%s ", password);
+
+ 		if (workers.conns == NULL)
+ 		{
+ 			elog(NOTICE, "Setting up workers.conns");
+ 			workers.conns = (PGconn **) pgut_malloc(sizeof(PGconn *) * num_workers);
+ 		}
+ 		else
+ 		{
+ 			elog(ERROR, "TODO: Implement pool resizing.");
+ 		}
+
+ 		for (i = 0; i < num_workers; i++)
+ 		{
+ 			/* Don't prompt for password again; we should have gotten
+ 			 * it already from reconnect().
+ 			 */
+ 			elog(DEBUG2, "Setting up worker conn %d", i);
+
+ 			/* Don't confuse pgut_connections by using pgut_connect() */
+ 			conn = PQconnectdb(buf.data);
+ 			if (PQstatus(conn) == CONNECTION_OK)
+ 			{
+ 				workers.conns[i] = conn;
+ 			}
+			else
+			{
+				elog(WARNING, "Unable to set up worker conn #%d: %s", i,
+					 PQerrorMessage(conn));
+				break;
+			}
+ 		}
+		/* In case we bailed out of setting up all workers, record
+		 * how many successful worker conns we actually have.
+		 */
+ 		workers.num_workers = i;
+
+ 		termStringInfo(&buf);
+ 	}
+}
+
+/* Disconnect all our worker conns. */
+void disconnect_workers(void)
+{
+ 	int i;
+
+ 	if (!(workers.num_workers))
+ 		elog(DEBUG2, "No workers to disconnect.");
+ 	else
+ 	{
+ 		for (i = 0; i < workers.num_workers; i++)
+ 		{
+ 			if (workers.conns[i])
+ 			{
+ 				elog(DEBUG2, "Disconnecting worker %d.", i);
+ 				PQfinish(workers.conns[i]);
+ 				workers.conns[i] = NULL;
+ 			}
+ 			else
+ 			{
+ 				elog(NOTICE, "Worker %d already disconnected?", i);
+ 			}
+ 		}
+ 		workers.num_workers = 0;
+ 		free(workers.conns);
+		workers.conns = NULL;
+ 	}
+}
+
 
 /*
  * the result is also available with the global variable 'connection'.
@@ -82,6 +186,7 @@ disconnect(void)
 		pgut_disconnect(conn2);
 		conn2 = NULL;
 	}
+	disconnect_workers();
 }
 
 static void

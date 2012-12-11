@@ -48,6 +48,14 @@ typedef struct pgut_option
 
 typedef void (*pgut_optfn) (pgut_option *opt, const char *arg);
 
+typedef struct worker_conns
+{
+    int      max_num_workers;
+    int      num_workers;
+    PGconn **conns;
+} worker_conns;
+
+
 
 extern char	   *dbname;
 extern char	   *host;
@@ -58,12 +66,15 @@ extern YesNo	prompt_password;
 
 extern PGconn	   *connection;
 extern PGconn      *conn2;
+extern worker_conns workers;
 
 extern void	pgut_help(bool details);
 extern void help(bool details);
 
 extern void disconnect(void);
 extern void reconnect(int elevel);
+extern void setup_workers(int num_workers);
+extern void disconnect_workers(void);
 extern PGresult *execute(const char *query, int nParams, const char **params);
 extern PGresult *execute_elevel(const char *query, int nParams, const char **params, int elevel);
 extern ExecStatusType command(const char *query, int nParams, const char **params);
