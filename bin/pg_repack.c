@@ -403,6 +403,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		}
 		goto cleanup;
 	}
+	PQclear(res);
 
 	/* Disable statement timeout. */
 	command("SET statement_timeout = 0", 0, NULL);
