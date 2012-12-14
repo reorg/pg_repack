@@ -82,7 +82,11 @@ setup_workers(int num_workers)
  			 */
  			elog(DEBUG2, "Setting up worker conn %d", i);
 
- 			/* Don't confuse pgut_connections by using pgut_connect() */
+ 			/* Don't confuse pgut_connections by using pgut_connect()
+			 *
+			 * XXX: could use PQconnectStart() and PQconnectPoll() to
+			 * open these connections in non-blocking manner.
+			 */
  			conn = PQconnectdb(buf.data);
  			if (PQstatus(conn) == CONNECTION_OK)
  			{
@@ -93,6 +97,15 @@ setup_workers(int num_workers)
 				elog(WARNING, "Unable to set up worker conn #%d: %s", i,
 					 PQerrorMessage(conn));
 				break;
+			}
+
+            /* Make sure each worker connection can work in non-blocking
+             * mode.
+             */
+            if (PQsetnonblocking(workers.conns[i], 1))
+			{
+				elog(ERROR, "Unable to set worker connection %d "
+					 "non-blocking.", i);
 			}
  		}
 		/* In case we bailed out of setting up all workers, record
