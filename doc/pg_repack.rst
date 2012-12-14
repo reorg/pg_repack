@@ -117,6 +117,7 @@ The following options can be specified in ``OPTIONS``.
 
 Options:
   -a, --all                 repack all databases
+  -j, --jobs                 Use this many parallel jobs for each table
   -n, --no-order            do vacuum full instead of cluster
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -t, --table=TABLE         repack specific table only
@@ -144,6 +145,12 @@ Reorg Options
 Options to order rows. If not specified, pg_repack performs an online CLUSTER
 using cluster indexes. Only one option can be specified. You may also specify
 target tables or databases.
+
+``-j``, ``--jobs``
+   Create the specified number of extra connections to PostgreSQL, and
+   use these extra connections to parallelize the rebuild of indexes
+   on each table. If your PostgreSQL server has extra cores and disk
+   I/O available, this can be a useful way to speed up pg_repack.
 
 ``-n``, ``--no-order``
     Perform an online VACUUM FULL.

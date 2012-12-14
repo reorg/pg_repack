@@ -1416,7 +1416,7 @@ pgut_help(bool details)
 
 	printf("Options:\n");
 	printf("  -a, --all                 repack all databases\n");
-	printf("  -j --jobs                 Use this many parallel jobs");
+	printf("  -j --jobs                 Use this many parallel jobs for each table\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
