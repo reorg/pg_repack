@@ -575,6 +575,14 @@ repack_one_table(const repack_table *table, const char *orderby)
 	StringInfoData	sql;
 	bool            have_error = false;
 
+	/* Keep track of whether we have gotten through setup to install
+	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
+	 * go through repack_cleanup() if we didnt' actually set up the
+	 * trigger ourselves, lest we be cleaning up another pg_repack's mess,
+	 * or worse, interfering with a still-running pg_repack.
+	 */
+	bool            table_init = false;
+
 	initStringInfo(&sql);
 
 	elog(DEBUG2, "---- repack_one_table ----");
@@ -694,6 +702,12 @@ repack_one_table(const repack_table *table, const char *orderby)
 	 * connection, so that conn2 may get its AccessShare lock.
 	 */
 	command("COMMIT", 0, NULL);
+
+	/* The main connection has now committed its z_repack_trigger,
+	 * log table, and temp. table. If any error occurs from this point
+	 * on and we bail out, we should try to clean those up.
+	 */
+	table_init = true;
 
 	/* Keep looping PQgetResult() calls until it returns NULL, indicating the
 	 * command is done and we have obtained our lock.
@@ -911,7 +925,7 @@ cleanup:
 	/* XXX: distinguish between fatal and non-fatal errors via the first
 	 * arg to repack_cleanup().
 	 */
-	if (have_error)
+	if (have_error && table_init)
 		repack_cleanup(false, table);
 }
 
