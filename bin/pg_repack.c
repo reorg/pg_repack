@@ -603,13 +603,27 @@ rebuild_indexes(const repack_table *table)
 	int			    num_indexes;
 	int				i;
 	int				num_active_workers = 0;
-	repack_index   *index_jobs; 
+	repack_index   *index_jobs;
 	char			buffer[12];
 	bool            have_error = false;
 
 	elog(DEBUG2, "---- create indexes ----");
 
 	params[0] = utoa(table->target_oid, buffer);
+
+	/* First, just display a warning message for any invalid indexes
+	 * which may be on the table (mostly to match the behavior of 1.1.8).
+	 */
+	res = execute("SELECT pg_get_indexdef(indexrelid)"
+				  " FROM pg_index WHERE indrelid = $1 AND NOT indisvalid",
+				  1, params);
+	for (i = 0; i < PQntuples(res); i++)
+	{
+		const char *indexdef;
+		indexdef = getstr(res, i, 0);
+		elog(WARNING, "skipping invalid index: %s", indexdef);
+	}
+
 	res = execute("SELECT indexrelid,"
 		" repack.repack_indexdef(indexrelid, indrelid), "
 		" pg_get_indexdef(indexrelid)"
