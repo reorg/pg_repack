@@ -297,7 +297,7 @@ repack_all_databases(const char *orderby)
 		}
 	}
 
-	PQclear(result);
+	CLEARPGRES(result);
 }
 
 /* result is not copied */
@@ -403,7 +403,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		}
 		goto cleanup;
 	}
-	PQclear(res);
+	CLEARPGRES(res);
 
 	/* Disable statement timeout. */
 	command("SET statement_timeout = 0", 0, NULL);
@@ -528,8 +528,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	ret = true;
 
 cleanup:
-	if (res)
-		PQclear(res);
+	CLEARPGRES(res);
 	disconnect();
 	termStringInfo(&sql);
 	return ret;
@@ -554,7 +553,7 @@ apply_log(PGconn *conn, const repack_table *table, int count)
 					   "SELECT repack.repack_apply($1, $2, $3, $4, $5, $6)",
 					   6, params);
 	result = atoi(PQgetvalue(res, 0, 0));
-	PQclear(res);
+	CLEARPGRES(res);
 
 	return result;
 }
@@ -630,11 +629,10 @@ repack_one_table(const repack_table *table, const char *orderby)
 			(errcode(E_PG_COMMAND),
 			 errmsg("trigger %s conflicted for %s",
 					PQgetvalue(res, 0, 0), table->target_name)));
-		PQclear(res);
 		have_error = true;
 		goto cleanup;
 	}
-	PQclear(res);
+	CLEARPGRES(res);
 
 	command(table->create_pktype, 0, NULL);
 	command(table->create_log, 0, NULL);
@@ -658,13 +656,12 @@ repack_one_table(const repack_table *table, const char *orderby)
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		printf("%s", PQerrorMessage(conn2));
-		PQclear(res);
 		have_error = true;
 		goto cleanup;
 	}
 	buffer[0] = '\0';
 	strncat(buffer, PQgetvalue(res, 0, 0), sizeof(buffer) - 1);
-	PQclear(res);
+	CLEARPGRES(res);
 
 	/*
 	 * Not using lock_access_share() here since we know that
@@ -718,11 +715,10 @@ repack_one_table(const repack_table *table, const char *orderby)
 		if (PQresultStatus(res) != PGRES_COMMAND_OK)
 		{
 			elog(WARNING, "Error with LOCK TABLE: %s", PQerrorMessage(conn2));
-			PQclear(res);
 			have_error = true;
 			goto cleanup;
 		}
-		PQclear(res);
+		CLEARPGRES(res);
 	}
 
 	/*
@@ -749,11 +745,10 @@ repack_one_table(const repack_table *table, const char *orderby)
 	{
 		elog(WARNING, "Unable to allocate vxid, length: %d\n",
 			 PQgetlength(res, 0, 0));
-		PQclear(res);
 		have_error = true;
 		goto cleanup;
 	}
-	PQclear(res);
+	CLEARPGRES(res);
 
 	/* Delete any existing entries in the log table now, since we have not
 	 * yet run the CREATE TABLE ... AS SELECT, which will take in all existing
@@ -827,7 +822,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 		 */
 		command(index.create_index, 0, NULL);
 	}
-	PQclear(res);
+	CLEARPGRES(res);
 
 	/*
 	 * 4. Apply log to temp table until no tuples are left in the log
@@ -858,7 +853,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 				num_waiting = num;
 			}
 
-			PQclear(res);
+			CLEARPGRES(res);
 			sleep(1);
 			continue;
 		}
@@ -866,7 +861,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 		{
 			/* All old transactions are finished;
 			 * go to next step. */
-			PQclear(res);
+			CLEARPGRES(res);
 			break;
 		}
 	}
@@ -918,6 +913,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	}
 
 cleanup:
+	CLEARPGRES(res);
 	termStringInfo(&sql);
 	if (vxid)
 		free(vxid);
@@ -959,7 +955,7 @@ kill_ddl(PGconn *conn, Oid relid, bool terminate)
 			 "Canceled %d unsafe queries. Terminating any remaining PIDs.",
 			 PQntuples(res));
 
-		PQclear(res);
+		CLEARPGRES(res);
 		printfStringInfo(&sql, KILL_COMPETING_LOCKS, relid);
 		res = pgut_execute(conn, sql.data, 0, NULL);
 		if (PQresultStatus(res) != PGRES_TUPLES_OK)
@@ -974,7 +970,7 @@ kill_ddl(PGconn *conn, Oid relid, bool terminate)
 	else
 		elog(DEBUG2, "No competing DDL to cancel.");
 
-	PQclear(res);
+	CLEARPGRES(res);
 	termStringInfo(&sql);
 
 	return ret;
@@ -1034,13 +1030,13 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 		res = pgut_execute_elevel(conn, sql.data, 0, NULL, DEBUG2);
 		if (PQresultStatus(res) == PGRES_COMMAND_OK)
 		{
-			PQclear(res);
+			CLEARPGRES(res);
 			break;
 		}
 		else if (sqlstate_equals(res, SQLSTATE_QUERY_CANCELED))
 		{
 			/* retry if lock conflicted */
-			PQclear(res);
+			CLEARPGRES(res);
 			pgut_rollback(conn);
 			continue;
 		}
@@ -1048,7 +1044,7 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 		{
 			/* exit otherwise */
 			elog(WARNING, "%s", PQerrorMessage(connection));
-			PQclear(res);
+			CLEARPGRES(res);
 			ret = false;
 			break;
 		}
@@ -1120,13 +1116,13 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		res = pgut_execute_elevel(conn, lock_query, 0, NULL, DEBUG2);
 		if (PQresultStatus(res) == PGRES_COMMAND_OK)
 		{
-			PQclear(res);
+			CLEARPGRES(res);
 			break;
 		}
 		else if (sqlstate_equals(res, SQLSTATE_QUERY_CANCELED))
 		{
 			/* retry if lock conflicted */
-			PQclear(res);
+			CLEARPGRES(res);
 			pgut_rollback(conn);
 			continue;
 		}
@@ -1134,7 +1130,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		{
 			/* exit otherwise */
 			printf("%s", PQerrorMessage(connection));
-			PQclear(res);
+			CLEARPGRES(res);
 			ret = false;
 			break;
 		}

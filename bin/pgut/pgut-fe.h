@@ -73,4 +73,9 @@ extern void pgut_readopt(const char *path, pgut_option options[], int elevel);
 extern void pgut_setopt(pgut_option *opt, const char *optarg, pgut_optsrc src);
 extern bool pgut_keyeq(const char *lhs, const char *rhs);
 
+/* So we don't need to fret over multiple calls to PQclear(), e.g.
+ * in cleanup labels.
+ */
+#define CLEARPGRES(pgres)  do { PQclear(pgres); pgres = NULL; } while (0)
+
 #endif   /* PGUT_FE_H */
