@@ -117,7 +117,7 @@ The following options can be specified in ``OPTIONS``.
 
 Options:
   -a, --all                 repack all databases
-  -j, --jobs                 Use this many parallel jobs for each table
+  -j, --jobs                Use this many parallel jobs for each table
   -n, --no-order            do vacuum full instead of cluster
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -t, --table=TABLE         repack specific table only
