@@ -631,7 +631,7 @@ rebuild_indexes(const repack_table *table)
 
 	num_indexes = PQntuples(res);
 
-	/* We might have more actual worker connectionss than we need,
+	/* We might have more actual worker connections than we need,
 	 * if the number of workers exceeds the number of indexes to be
 	 * built. In that case, ignore the extra workers.
 	 */
