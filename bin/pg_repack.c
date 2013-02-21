@@ -620,8 +620,7 @@ rebuild_indexes(const repack_table *table)
 	}
 
 	res = execute("SELECT indexrelid,"
-		" repack.repack_indexdef(indexrelid, indrelid), "
-		" pg_get_indexdef(indexrelid)"
+		" repack.repack_indexdef(indexrelid, indrelid) "
 		" FROM pg_index WHERE indrelid = $1 AND indisvalid", 1, params);
 
 	num_indexes = PQntuples(res);
@@ -641,14 +640,11 @@ rebuild_indexes(const repack_table *table)
 	for (i = 0; i < num_indexes; i++)
 	{
 		int			c = 0;
-		const char *indexdef;
 
 		index_jobs[i].target_oid = getoid(res, i, c++);
 		index_jobs[i].create_index = getstr(res, i, c++);
 		index_jobs[i].status = UNPROCESSED;
 		index_jobs[i].worker_idx = -1; /* Unassigned */
-
-		indexdef = getstr(res, i, c++);
 
 		elog(DEBUG2, "set up index_jobs [%d]", i);
 		elog(DEBUG2, "target_oid   : %u", index_jobs[i].target_oid);
