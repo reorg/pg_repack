@@ -197,6 +197,7 @@ static bool				alldb = false;
 static bool				noorder = false;
 static SimpleStringList	table_list = {NULL, NULL};
 static char				*orderby = NULL;
+static char				*tablespace = NULL;
 static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 
@@ -214,6 +215,7 @@ static pgut_option options[] =
 	{ 'l', 't', "table", &table_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 's', 'o', "order-by", &orderby },
+	{ 's', 's', "tablespace", &tablespace },
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
@@ -360,10 +362,15 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	StringInfoData			sql;
 	SimpleStringListCell   *cell;
 	const char			  **params = NULL;
-	size_t					num_params = simple_string_list_size(table_list);
+	int						iparam = 0;
+	size_t					num_tables;
+	size_t					num_params;
 
-	if (num_params)
-		params = pgut_malloc(num_params * sizeof(char *));
+	num_tables = simple_string_list_size(table_list);
+
+	/* 1st param is the user-specified tablespace */
+	num_params = num_tables + 1;
+	params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
 
@@ -442,28 +449,45 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	command("SET client_min_messages = warning", 0, NULL);
 
 	/* acquire target tables */
-	appendStringInfoString(&sql, "SELECT * FROM repack.tables WHERE ");
-	if (num_params)
+	appendStringInfoString(&sql,
+		"SELECT t.*,"
+		" coalesce(v.tablespace, t.tablespace_orig) as tablespace_dest"
+		" FROM repack.tables t, "
+		" (VALUES (quote_ident($1::text))) as v (tablespace)"
+		" WHERE ");
+
+	params[iparam++] = tablespace;
+	if (num_tables)
 	{
 		appendStringInfoString(&sql, "(");
-		for (i = 0, cell = table_list.head; cell; cell = cell->next, i++)
+		for (cell = table_list.head; cell; cell = cell->next)
 		{
 			/* Construct table name placeholders to be used by PQexecParams */
-			appendStringInfo(&sql, "relid = $%d::regclass", i + 1);
-			params[i] = cell->val;
+			appendStringInfo(&sql, "relid = $%d::regclass", iparam + 1);
+			params[iparam++] = cell->val;
 			if (cell->next)
 				appendStringInfoString(&sql, " OR ");
 		}
 		appendStringInfoString(&sql, ")");
-		res = execute_elevel(sql.data, (int) num_params, params, DEBUG2);
 	}
 	else
 	{
 		appendStringInfoString(&sql, "pkid IS NOT NULL");
 		if (!orderby)
 			appendStringInfoString(&sql, " AND ckid IS NOT NULL");
-		res = execute_elevel(sql.data, 0, NULL, DEBUG2);
 	}
+
+	/* double check the parameters array is sane */
+	if (iparam != num_params)
+	{
+		if (errbuf)
+			snprintf(errbuf, errsize,
+				"internal error: bad parameters count: %i instead of %zi",
+				 iparam, num_params);
+		goto cleanup;
+	}
+
+	res = execute_elevel(sql.data, (int) num_params, params, DEBUG2);
 
 	/* on error skip the database */
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
@@ -489,7 +513,9 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	for (i = 0; i < num; i++)
 	{
 		repack_table	table;
-		const char *create_table;
+		const char *create_table_1;
+		const char *create_table_2;
+		const char *tablespace;
 		const char *ckey;
 		int			c = 0;
 
@@ -512,13 +538,24 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.create_trigger = getstr(res, i, c++);
 		table.enable_trigger = getstr(res, i, c++);
 
-		create_table = getstr(res, i, c++);
+		create_table_1 = getstr(res, i, c++);
+		tablespace = getstr(res, i, c++);	/* to be clobbered */
+		create_table_2 = getstr(res, i, c++);
 		table.drop_columns = getstr(res, i, c++);
 		table.delete_log = getstr(res, i, c++);
 		table.lock_table = getstr(res, i, c++);
 		ckey = getstr(res, i, c++);
+		table.sql_peek = getstr(res, i, c++);
+		table.sql_insert = getstr(res, i, c++);
+		table.sql_delete = getstr(res, i, c++);
+		table.sql_update = getstr(res, i, c++);
+		table.sql_pop = getstr(res, i, c++);
+		tablespace = getstr(res, i, c++);
 
 		resetStringInfo(&sql);
+		appendStringInfoString(&sql, create_table_1);
+		appendStringInfoString(&sql, tablespace);
+		appendStringInfoString(&sql, create_table_2);
 		if (!orderby)
 		{
 			/* CLUSTER mode */
@@ -529,26 +566,22 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 					 errmsg("relation \"%s\" has no cluster key", table.target_name)));
 				continue;
 			}
-			appendStringInfo(&sql, "%s ORDER BY %s", create_table, ckey);
-            table.create_table = sql.data;
+			appendStringInfoString(&sql, " ORDER BY ");
+			appendStringInfoString(&sql, ckey);
+			table.create_table = sql.data;
 		}
 		else if (!orderby[0])
 		{
 			/* VACUUM FULL mode */
-            table.create_table = create_table;
+		table.create_table = sql.data;
 		}
 		else
 		{
 			/* User specified ORDER BY */
-			appendStringInfo(&sql, "%s ORDER BY %s", create_table, orderby);
-            table.create_table = sql.data;
+			appendStringInfoString(&sql, " ORDER BY ");
+			appendStringInfoString(&sql, orderby);
+			table.create_table = sql.data;
 		}
-
-		table.sql_peek = getstr(res, i, c++);
-		table.sql_insert = getstr(res, i, c++);
-		table.sql_delete = getstr(res, i, c++);
-		table.sql_update = getstr(res, i, c++);
-		table.sql_pop = getstr(res, i, c++);
 
 		repack_one_table(&table, orderby);
 	}
@@ -1430,6 +1463,7 @@ pgut_help(bool details)
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
+	printf("  -s, --tablespace=TABLESPC move repacked tables to a new tablespace\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }
