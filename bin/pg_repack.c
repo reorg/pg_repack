@@ -354,7 +354,7 @@ static bool
 repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 {
 	bool					ret = false;
-	PGresult	   		   *res = NULL;
+	PGresult			   *res = NULL;
 	int						i;
 	int						num;
 	StringInfoData			sql;
@@ -362,13 +362,8 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	const char			  **params = NULL;
 	size_t					num_params = simple_string_list_size(table_list);
 
-	/* We need to be able to support at least two params, or more
-	 * if we have multiple --tables specified.
-	 */
-	if (num_params && num_params > 2)
+	if (num_params)
 		params = pgut_malloc(num_params * sizeof(char *));
-	else
-		params = pgut_malloc(2 * sizeof(char *));
 
 	initStringInfo(&sql);
 
