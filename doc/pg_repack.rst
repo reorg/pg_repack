@@ -399,6 +399,12 @@ and the original one.
 Releases
 --------
 
+* pg_repack 1.2
+
+  * Added --jobs option for parallel operation.
+  * Bugfix: correctly handle key indexes with options such as DESC, NULL
+    FIRST/LAST, COLLATE (pg_repack issue #3).
+
 * pg_repack 1.1.8
 
   * Added support for PostgreSQL 9.2.
