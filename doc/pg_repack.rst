@@ -121,6 +121,8 @@ Options:
   -n, --no-order            do vacuum full instead of cluster
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -t, --table=TABLE         repack specific table only
+  -s, --tablespace=TABLESPC move repacked tables to a new tablespace
+  -S, --moveidx             move repacked indexes to TABLESPC too
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
   -Z, --no-analyze          don't analyze at end
 
@@ -162,6 +164,15 @@ target tables or databases.
     Reorganize the specified table only. By default, all eligible tables in
     the target databases are reorganized.
 
+``-s TABLESPC``, ``--tablespace=TABLESPC``
+    Move the repacked tables to the specified tablespace: essentially an
+    online version of ``ALTER TABLE ... SET TABLESPACE``. The tables indexes
+    are left on the original tablespace unless ``--moveidx`` is specified too.
+
+``-S``, ``--moveidx``
+    Move the indexes too of the repacked tables to the tablespace specified
+    by the option ``--tablespace``.
+
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
@@ -174,6 +185,7 @@ target tables or databases.
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after the reorganization. If not specified, run ANALYZE
     after the reorganization.
+
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
@@ -398,6 +410,10 @@ and the original one.
 
 Releases
 --------
+
+* pg_repack 1.2
+
+  * Added --tablespace and --moveidx options to perform online SET TABLESPACE.
 
 * pg_repack 1.1.8
 
