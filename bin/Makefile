@@ -8,7 +8,7 @@
 SRCS = pg_repack.c pgut/pgut.c pgut/pgut-fe.c
 OBJS = $(SRCS:.c=.o)
 PROGRAM = pg_repack
-REGRESS = init repack
+REGRESS = init repack tablespace
 
 EXTRA_CLEAN = sql/init-$(MAJORVERSION).sql sql/init.sql
 
