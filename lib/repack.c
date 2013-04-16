@@ -41,7 +41,7 @@ PG_MODULE_MAGIC;
 extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_trigger(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_apply(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT repack_get_index_keys(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_get_order_by(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_indexdef(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_swap(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_drop(PG_FUNCTION_ARGS);
@@ -50,7 +50,7 @@ extern Datum PGUT_EXPORT repack_disable_autovacuum(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(repack_version);
 PG_FUNCTION_INFO_V1(repack_trigger);
 PG_FUNCTION_INFO_V1(repack_apply);
-PG_FUNCTION_INFO_V1(repack_get_index_keys);
+PG_FUNCTION_INFO_V1(repack_get_order_by);
 PG_FUNCTION_INFO_V1(repack_indexdef);
 PG_FUNCTION_INFO_V1(repack_swap);
 PG_FUNCTION_INFO_V1(repack_drop);
@@ -472,21 +472,51 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 	stmt->options = sql;
 }
 
+/*
+ * Parse the trailing ... [ COLLATE X ] [ DESC ] [ NULLS { FIRST | LAST } ] from an index
+ * definition column.
+ * Returned values point to token. \0's are inserted to separate parsed parts.
+ */
+static void
+parse_indexdef_col(char *token, char **desc, char **nulls, char **collate)
+{
+	char *pos;
+
+	/* easier to walk backwards than to parse quotes and escapes... */
+	if (NULL != (pos = strstr(token, " NULLS FIRST")))
+	{
+		*nulls = pos + 1;
+		*pos = '\0';
+	}
+	else if (NULL != (pos = strstr(token, " NULLS LAST")))
+	{
+		*nulls = pos + 1;
+		*pos = '\0';
+	}
+	if (NULL != (pos = strstr(token, " DESC")))
+	{
+		*desc = pos + 1;
+		*pos = '\0';
+	}
+	if (NULL != (pos = strstr(token, " COLLATE ")))
+	{
+		*collate = pos + 1;
+		*pos = '\0';
+	}
+}
+
 /**
- * @fn      Datum repack_get_index_keys(PG_FUNCTION_ARGS)
+ * @fn      Datum repack_get_order_by(PG_FUNCTION_ARGS)
  * @brief   Get key definition of the index.
  *
- * repack_get_index_keys(index, table)
+ * repack_get_order_by(index, table)
  *
  * @param	index	Oid of target index.
  * @param	table	Oid of table of the index.
  * @retval			Create index DDL for temp table.
- *
- * FIXME: this function is named get_index_keys, but actually returns
- * an expression for ORDER BY clause. get_order_by() might be a better name.
  */
 Datum
-repack_get_index_keys(PG_FUNCTION_ARGS)
+repack_get_order_by(PG_FUNCTION_ARGS)
 {
 	Oid				index = PG_GETARG_OID(0);
 	Oid				table = PG_GETARG_OID(1);
@@ -514,12 +544,21 @@ repack_get_index_keys(PG_FUNCTION_ARGS)
 	for (nattr = 0, next = stmt.columns; next; nattr++)
 	{
 		char *opcname;
+		char *coldesc = NULL;
+		char *colnulls = NULL;
+		char *colcollate = NULL;
 
 		token = next;
 		while (isspace((unsigned char) *token))
 			token++;
 		next = skip_until(index, next, ',');
+		parse_indexdef_col(token, &coldesc, &colnulls, &colcollate);
 		opcname = skip_until(index, token, ' ');
+		appendStringInfoString(&str, token);
+		if (colcollate)
+			appendStringInfo(&str, " %s", colcollate);
+		if (coldesc)
+			appendStringInfo(&str, " %s", coldesc);
 		if (opcname)
 		{
 			/* lookup default operator name from operator class */
@@ -556,12 +595,11 @@ repack_get_index_keys(PG_FUNCTION_ARGS)
 				elog(ERROR, "missing operator %d(%u,%u) in opfamily %u",
 					 strategy, opcintype, opcintype, opfamily);
 
-
 			opcname[-1] = '\0';
-			appendStringInfo(&str, "%s USING %s", token, get_opname(oprid));
+			appendStringInfo(&str, " USING %s", get_opname(oprid));
 		}
-		else
-			appendStringInfoString(&str, token);
+		if (colnulls)
+			appendStringInfo(&str, " %s", colnulls);
 		if (next)
 			appendStringInfoString(&str, ", ");
 	}
