@@ -653,8 +653,7 @@ repack_indexdef(PG_FUNCTION_ARGS)
 	}
 	else
 	{
-		const char *pos;
-		if (NULL == (pos = strstr(stmt.options, " TABLESPACE ")))
+		if (NULL == strstr(stmt.options, "TABLESPACE"))
 		{
 			/* tablespace is to append */
 			appendStringInfoString(&str, " TABLESPACE ");
@@ -662,16 +661,14 @@ repack_indexdef(PG_FUNCTION_ARGS)
 		}
 		else
 		{
-			char *tmp;
-
 			/* tablespace is to replace */
-			tmp = skip_const(index, stmt.options, " TABLESPACE ", NULL);
+			char *tmp;
+			tmp = skip_const(index, stmt.options, " TABLESPACE", NULL);
 			appendStringInfoString(&str, stmt.options);
-			appendStringInfoString(&str, NameStr(*tablespace));
-			/* FIXME: not working if original ts has a space. But skip_ident
-			 * should deal with that. Stupid mistake somewhere? */
+			appendStringInfo(&str, " %s", NameStr(*tablespace));
 			tmp = skip_ident(index, tmp);
-			appendStringInfoString(&str, tmp);
+			if (*tmp)
+				appendStringInfo(&str, " %s", tmp);
 		}
 	}
 
