@@ -207,9 +207,9 @@ CREATE VIEW repack.tables AS
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
      AND N.nspname NOT LIKE E'pg\\_temp\\_%';
 
-CREATE FUNCTION repack.repack_indexdef(oid, oid) RETURNS text AS
+CREATE FUNCTION repack.repack_indexdef(oid, oid, name) RETURNS text AS
 'MODULE_PATHNAME', 'repack_indexdef'
-LANGUAGE C STABLE STRICT;
+LANGUAGE C STABLE;
 
 CREATE FUNCTION repack.repack_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'repack_trigger'

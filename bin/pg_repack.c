@@ -681,7 +681,7 @@ static bool
 rebuild_indexes(const repack_table *table)
 {
 	PGresult	   *res;
-	const char	   *params[1];
+	const char	   *params[2];
 	int			    num_indexes;
 	int				i;
 	int				num_active_workers;
@@ -693,6 +693,7 @@ rebuild_indexes(const repack_table *table)
 	elog(DEBUG2, "---- create indexes ----");
 
 	params[0] = utoa(table->target_oid, buffer);
+	params[1] = moveidx ? tablespace : NULL;
 
 	/* First, just display a warning message for any invalid indexes
 	 * which may be on the table (mostly to match the behavior of 1.1.8).
@@ -708,8 +709,9 @@ rebuild_indexes(const repack_table *table)
 	}
 
 	res = execute("SELECT indexrelid,"
-		" repack.repack_indexdef(indexrelid, indrelid) "
-		" FROM pg_index WHERE indrelid = $1 AND indisvalid", 1, params);
+		" repack.repack_indexdef(indexrelid, indrelid, $2) "
+		" FROM pg_index WHERE indrelid = $1 AND indisvalid",
+		2, params);
 
 	num_indexes = PQntuples(res);
 
