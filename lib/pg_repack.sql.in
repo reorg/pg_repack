@@ -217,6 +217,7 @@ CREATE FUNCTION repack.conflicted_triggers(oid) RETURNS SETOF name AS
 $$
 SELECT tgname FROM pg_trigger
  WHERE tgrelid = $1 AND tgname >= 'z_repack_trigger'
+ ORDER BY tgname;
 $$
 LANGUAGE sql STABLE STRICT;
 

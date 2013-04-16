@@ -886,10 +886,35 @@ repack_one_table(const repack_table *table, const char *orderby)
 	res = execute("SELECT repack.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
 	{
-		ereport(WARNING,
-			(errcode(E_PG_COMMAND),
-			 errmsg("trigger %s conflicted for %s",
+		if (0 == strcmp("z_repack_trigger", PQgetvalue(res, 0, 0)))
+		{
+			ereport(WARNING,
+				(errcode(E_PG_COMMAND),
+				 errmsg("the table \"%s\" has already a trigger called \"%s\"",
+					table->target_name, PQgetvalue(res, 0, 0)),
+				 errdetail(
+					"The trigger was probably installed during a previous"
+					" attempt to run pg_repack on the table which was"
+					" interrupted and for some reason failed to clean up"
+					" the temporary objects.  Please drop the trigger or drop"
+					" and recreate the pg_repack extension altogether"
+					" to remove all the temporary objects left over.")));
+		}
+		else
+		{
+			ereport(WARNING,
+				(errcode(E_PG_COMMAND),
+				 errmsg("trigger \"%s\" conflicting on table \"%s\"",
+					PQgetvalue(res, 0, 0), table->target_name),
+				 errdetail(
+					"The trigger \"z_repack_trigger\" must be the last of the"
+					" BEFORE triggers to fire on the table (triggers fire in"
+					" alphabetical order). Please rename the trigger so that"
+					" it sorts before \"z_repack_trigger\": you can use"
+					" \"ALTER TRIGGER %s ON %s RENAME TO newname\".",
 					PQgetvalue(res, 0, 0), table->target_name)));
+		}
+
 		have_error = true;
 		goto cleanup;
 	}
