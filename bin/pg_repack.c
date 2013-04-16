@@ -198,6 +198,7 @@ static bool				noorder = false;
 static SimpleStringList	table_list = {NULL, NULL};
 static char				*orderby = NULL;
 static char				*tablespace = NULL;
+static bool				moveidx = false;
 static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 
@@ -216,6 +217,7 @@ static pgut_option options[] =
 	{ 'b', 'n', "no-order", &noorder },
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
+	{ 'b', 'S', "moveidx", &moveidx },
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
@@ -256,6 +258,12 @@ main(int argc, char *argv[])
 					 errmsg("%s", errbuf)));
 	}
 
+	if (moveidx && tablespace == NULL)
+	{
+		ereport(ERROR,
+			(errcode(EINVAL),
+			 errmsg("cannot specify --moveidx (-S) without --tablespace (-s)")));
+	}
 	return 0;
 }
 
@@ -1464,6 +1472,7 @@ pgut_help(bool details)
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
 	printf("  -s, --tablespace=TABLESPC move repacked tables to a new tablespace\n");
+	printf("  -S, --moveidx             move repacked indexes to TABLESPC too\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }
