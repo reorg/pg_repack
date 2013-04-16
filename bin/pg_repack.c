@@ -172,6 +172,7 @@ typedef struct repack_index
 } repack_index;
 
 static bool is_superuser(void);
+static void check_tablespace(void);
 static void repack_all_databases(const char *order_by);
 static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
 static void repack_one_table(const repack_table *table, const char *order_by);
@@ -238,6 +239,8 @@ main(int argc, char *argv[])
 			(errcode(EINVAL),
 			 errmsg("too many arguments")));
 
+	check_tablespace();
+
 	if (noorder)
 		orderby = "";
 
@@ -258,12 +261,6 @@ main(int argc, char *argv[])
 					 errmsg("%s", errbuf)));
 	}
 
-	if (moveidx && tablespace == NULL)
-	{
-		ereport(ERROR,
-			(errcode(EINVAL),
-			 errmsg("cannot specify --moveidx (-S) without --tablespace (-s)")));
-	}
 	return 0;
 }
 
@@ -289,6 +286,56 @@ is_superuser(void)
 		return true;
 
 	return false;
+}
+
+/*
+ * Check if the tablespace requested exists.
+ *
+ * Raise an exception on error.
+ */
+void
+check_tablespace()
+{
+	PGresult		*res = NULL;
+	const char *params[1];
+
+	if (tablespace == NULL)
+	{
+		/* nothing to check, but let's see the options */
+		if (moveidx)
+		{
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot specify --moveidx (-S) without --tablespace (-s)")));
+		}
+		return;
+	}
+
+	/* check if the tablespace exists */
+	reconnect(ERROR);
+	params[0] = tablespace;
+	res = execute_elevel(
+		"select spcname from pg_tablespace where spcname = $1",
+		1, params, DEBUG2);
+
+	if (PQresultStatus(res) == PGRES_TUPLES_OK)
+	{
+		if (PQntuples(res) == 0)
+		{
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("the tablespace \"%s\" doesn't exist", tablespace)));
+		}
+	}
+	else
+	{
+		ereport(ERROR,
+			(errcode(EINVAL),
+			 errmsg("error checking the namespace: %s",
+				 PQerrorMessage(connection))));
+	}
+
+	CLEARPGRES(res);
 }
 
 

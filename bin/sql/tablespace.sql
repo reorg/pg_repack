@@ -38,7 +38,7 @@ FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
 WHERE relname ~ '^testts1';
 
 -- can move the table together with the indexes
-\! pg_repack --dbname=contrib_regression --no-order --table=testts1 --tablespace pg_default --moveidx
+\! pg_repack --dbname=contrib_regression --no-order --table=testts1 --tablespace testts --moveidx
 
 SELECT relname, spcname
 FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
