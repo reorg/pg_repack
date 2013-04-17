@@ -117,10 +117,10 @@ The following options can be specified in ``OPTIONS``.
 
 Options:
   -a, --all                 repack all databases
-  -j, --jobs                Use this many parallel jobs for each table
-  -n, --no-order            do vacuum full instead of cluster
-  -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -t, --table=TABLE         repack specific table only
+  -o, --order-by=COLUMNS    order by columns instead of cluster keys
+  -n, --no-order            do vacuum full instead of cluster
+  -j, --jobs                Use this many parallel jobs for each table
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
   -Z, --no-analyze          don't analyze at end
 
@@ -142,25 +142,26 @@ Generic options:
 Reorg Options
 ^^^^^^^^^^^^^
 
-Options to order rows. If not specified, pg_repack performs an online CLUSTER
-using cluster indexes. Only one option can be specified. You may also specify
-target tables or databases.
-
-``-j``, ``--jobs``
-   Create the specified number of extra connections to PostgreSQL, and
-   use these extra connections to parallelize the rebuild of indexes
-   on each table. If your PostgreSQL server has extra cores and disk
-   I/O available, this can be a useful way to speed up pg_repack.
-
-``-n``, ``--no-order``
-    Perform an online VACUUM FULL.
-
-``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
-    Perform an online CLUSTER ordered by the specified columns.
+``-a``, ``--all``
+    Attempt repack all the databases of the cluster. Databases where the
+    ``pg_repack`` extension is not installed will be skipped.
 
 ``-t TABLE``, ``--table=TABLE``
     Reorganize the specified table only. By default, all eligible tables in
     the target databases are reorganized.
+
+``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
+    Perform an online CLUSTER ordered by the specified columns.
+
+``-n``, ``--no-order``
+    Perform an online VACUUM FULL.  Since version 1.2 this is the default for
+    non-clustered tables.
+
+``-j``, ``--jobs``
+    Create the specified number of extra connections to PostgreSQL, and
+    use these extra connections to parallelize the rebuild of indexes
+    on each table. If your PostgreSQL server has extra cores and disk
+    I/O available, this can be a useful way to speed up pg_repack.
 
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
@@ -174,6 +175,7 @@ target tables or databases.
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after the reorganization. If not specified, run ANALYZE
     after the reorganization.
+
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
