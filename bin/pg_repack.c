@@ -1542,8 +1542,8 @@ pgut_help(bool details)
 	printf("Options:\n");
 	printf("  -a, --all                 repack all databases\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
-	printf("  -s, --tablespace=TABLESPC move repacked tables to a new tablespace\n");
-	printf("  -S, --moveidx             move repacked indexes to TABLESPC too\n");
+	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
+	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -j --jobs                 Use this many parallel jobs for each table\n");

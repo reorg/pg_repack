@@ -118,8 +118,8 @@ The following options can be specified in ``OPTIONS``.
 Options:
   -a, --all                 repack all databases
   -t, --table=TABLE         repack specific table only
-  -s, --tablespace=TABLESPC move repacked tables to a new tablespace
-  -S, --moveidx             move repacked indexes to TABLESPC too
+  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
+  -S, --moveidx             move repacked indexes to TBLSPC too
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -n, --no-order            do vacuum full instead of cluster
   -j, --jobs                Use this many parallel jobs for each table
@@ -165,7 +165,7 @@ Reorg Options
     on each table. If your PostgreSQL server has extra cores and disk
     I/O available, this can be a useful way to speed up pg_repack.
 
-``-s TABLESPC``, ``--tablespace=TABLESPC``
+``-s TBLSPC``, ``--tablespace=TBLSPC``
     Move the repacked tables to the specified tablespace: essentially an
     online version of ``ALTER TABLE ... SET TABLESPACE``. The tables indexes
     are left on the original tablespace unless ``--moveidx`` is specified too.
