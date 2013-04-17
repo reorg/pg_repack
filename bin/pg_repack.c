@@ -186,6 +186,7 @@ static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
+#define SQLSTATE_UNDEFINED_FUNCTION		"42883"
 #define SQLSTATE_QUERY_CANCELED			"57014"
 
 static bool sqlstate_equals(PGresult *res, const char *state)
@@ -364,22 +365,10 @@ repack_all_databases(const char *orderby)
 
 		dbname = PQgetvalue(result, i, 0);
 
-		if (pgut_log_level >= INFO)
-		{
-			printf("%s: repack database \"%s\"\n", PROGRAM_NAME, dbname);
-			fflush(stdout);
-		}
-
+		elog(INFO, "repacking database \"%s\"", dbname);
 		ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
-
-		if (pgut_log_level >= INFO)
-		{
-			if (ret)
-				printf("\n");
-			else
-				printf(" ... skipped: %s\n", errbuf);
-			fflush(stdout);
-		}
+		if (!ret)
+			elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
 	}
 
 	CLEARPGRES(result);
@@ -477,12 +466,16 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	}
 	else
 	{
-		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
+		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME)
+			|| sqlstate_equals(res, SQLSTATE_UNDEFINED_FUNCTION))
 		{
-			/* Schema repack does not exist. Skip the database. */
+			/* Schema repack does not exist, or version too old (version
+			 * functions not found). Skip the database.
+			 */
 			if (errbuf)
 				snprintf(errbuf, errsize,
-						 "%s is not installed in the database", PROGRAM_NAME);
+					"%s %s is not installed in the database",
+					PROGRAM_NAME, PROGRAM_VERSION);
 		}
 		else
 		{
@@ -547,19 +540,9 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	/* on error skip the database */
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
-		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME))
-		{
-			/* Schema repack does not exist. Skip the database. */
-			if (errbuf)
-				snprintf(errbuf, errsize,
-						 "%s is not installed in the database", PROGRAM_NAME);
-		}
-		else
-		{
-			/* Return the error message otherwise */
-			if (errbuf)
-				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
-		}
+		/* Return the error message otherwise */
+		if (errbuf)
+			snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
 		goto cleanup;
 	}
 
@@ -935,6 +918,8 @@ repack_one_table(const repack_table *table, const char *orderby)
 
 	initStringInfo(&sql);
 
+	elog(INFO, "repacking table \"%s\"", table->target_name);
+
 	elog(DEBUG2, "---- repack_one_table ----");
 	elog(DEBUG2, "target_name    : %s", table->target_name);
 	elog(DEBUG2, "target_oid     : %u", table->target_oid);
@@ -1029,12 +1014,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	 * pg_locks momentarily.
 	 */
 	res = pgut_execute(conn2, "SELECT pg_backend_pid()", 0, NULL);
-	if (PQresultStatus(res) != PGRES_TUPLES_OK)
-	{
-		printf("%s", PQerrorMessage(conn2));
-		have_error = true;
-		goto cleanup;
-	}
 	buffer[0] = '\0';
 	strncat(buffer, PQgetvalue(res, 0, 0), sizeof(buffer) - 1);
 	CLEARPGRES(res);
