@@ -918,6 +918,8 @@ repack_one_table(const repack_table *table, const char *orderby)
 
 	initStringInfo(&sql);
 
+	elog(INFO, "repacking table \"%s\"", table->target_name);
+
 	elog(DEBUG2, "---- repack_one_table ----");
 	elog(DEBUG2, "target_name    : %s", table->target_name);
 	elog(DEBUG2, "target_oid     : %u", table->target_oid);
