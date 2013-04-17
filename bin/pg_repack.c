@@ -93,7 +93,7 @@ const char *PROGRAM_VERSION = "unknown";
 	"SELECT repack.array_accum(virtualtransaction) FROM pg_locks" \
 	" WHERE locktype = 'virtualxid' AND pid NOT IN (pg_backend_pid(), $1)" \
 	" AND (virtualxid, virtualtransaction) <> ('1/1', '-1/0') " \
-	" AND ($2 IS NOT NULL)"
+	" AND ($2::text IS NOT NULL)"
 
 #define SQL_XID_SNAPSHOT \
 	(PQserverVersion(connection) >= 90200 ? SQL_XID_SNAPSHOT_90200 : \
