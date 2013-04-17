@@ -1024,12 +1024,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	 * pg_locks momentarily.
 	 */
 	res = pgut_execute(conn2, "SELECT pg_backend_pid()", 0, NULL);
-	if (PQresultStatus(res) != PGRES_TUPLES_OK)
-	{
-		printf("%s", PQerrorMessage(conn2));
-		have_error = true;
-		goto cleanup;
-	}
 	buffer[0] = '\0';
 	strncat(buffer, PQgetvalue(res, 0, 0), sizeof(buffer) - 1);
 	CLEARPGRES(res);
