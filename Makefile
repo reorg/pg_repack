@@ -6,18 +6,18 @@
 #  Portions Copyright (c) 2012, The Reorg Development Team
 #
 
-USE_PGXS = 1
-PG_CONFIG = pg_config
-PGXS := $(shell $(PG_CONFIG) --pgxs)
-include $(PGXS)
+PG_CONFIG ?= pg_config
 
 SUBDIRS = bin lib
 
 # Pull out the version number from pg_config
-VERSION = $(shell $(PG_CONFIG) --version | awk '{print $$2}')
+VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
+
+# version as a number, e.g. 9.1.4 -> 90104
+INTVERSION := $(shell echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+)\.?([0-9]+)?(.*)/(\1*100+\2)*100+0\3/' | bc)
 
 # We support PostgreSQL 8.3 and later.
-ifneq ($(shell echo $(VERSION) | grep -E "^7\.|^8\.[012]"),)
+ifeq ($(shell echo $$(($(INTVERSION) < 80300))),1)
 $(error pg_repack requires PostgreSQL 8.3 or later. This is $(VERSION))
 endif
 
