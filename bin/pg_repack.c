@@ -521,8 +521,6 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	else
 	{
 		appendStringInfoString(&sql, "pkid IS NOT NULL");
-		if (!orderby)
-			appendStringInfoString(&sql, " AND ckid IS NOT NULL");
 	}
 
 	/* double check the parameters array is sane */
