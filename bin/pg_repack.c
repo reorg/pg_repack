@@ -365,22 +365,10 @@ repack_all_databases(const char *orderby)
 
 		dbname = PQgetvalue(result, i, 0);
 
-		if (pgut_log_level >= INFO)
-		{
-			printf("%s: repack database \"%s\"\n", PROGRAM_NAME, dbname);
-			fflush(stdout);
-		}
-
+		elog(INFO, "repacking database \"%s\"", dbname);
 		ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
-
-		if (pgut_log_level >= INFO)
-		{
-			if (ret)
-				printf("\n");
-			else
-				printf(" ... skipped: %s\n", errbuf);
-			fflush(stdout);
-		}
+		if (!ret)
+			elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
 	}
 
 	CLEARPGRES(result);
