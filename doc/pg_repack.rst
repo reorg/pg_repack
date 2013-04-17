@@ -118,6 +118,8 @@ The following options can be specified in ``OPTIONS``.
 Options:
   -a, --all                 repack all databases
   -t, --table=TABLE         repack specific table only
+  -s, --tablespace=TABLESPC move repacked tables to a new tablespace
+  -S, --moveidx             move repacked indexes to TABLESPC too
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -n, --no-order            do vacuum full instead of cluster
   -j, --jobs                Use this many parallel jobs for each table
@@ -162,6 +164,15 @@ Reorg Options
     use these extra connections to parallelize the rebuild of indexes
     on each table. If your PostgreSQL server has extra cores and disk
     I/O available, this can be a useful way to speed up pg_repack.
+
+``-s TABLESPC``, ``--tablespace=TABLESPC``
+    Move the repacked tables to the specified tablespace: essentially an
+    online version of ``ALTER TABLE ... SET TABLESPACE``. The tables indexes
+    are left on the original tablespace unless ``--moveidx`` is specified too.
+
+``-S``, ``--moveidx``
+    Move the indexes too of the repacked tables to the tablespace specified
+    by the option ``--tablespace``.
 
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
@@ -405,6 +416,7 @@ Releases
 
 * pg_repack 1.2
 
+  * Added --tablespace and --moveidx options to perform online SET TABLESPACE.
   * Added --jobs option for parallel operation.
   * Don't require --no-order to perform a VACUUM FULL on non-clustered tables
     (pg_repack issue #6).

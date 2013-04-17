@@ -618,20 +618,59 @@ repack_get_order_by(PG_FUNCTION_ARGS)
  *
  * @param	index	Oid of target index.
  * @param	table	Oid of table of the index.
+ * @param	tablespace	Namespace for the index. If NULL keep the original.
  * @retval			Create index DDL for temp table.
  */
 Datum
 repack_indexdef(PG_FUNCTION_ARGS)
 {
-	Oid				index = PG_GETARG_OID(0);
-	Oid				table = PG_GETARG_OID(1);
+	Oid				index;
+	Oid				table;
+	Name			tablespace = NULL;
 	IndexDef		stmt;
 	StringInfoData	str;
 
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+		PG_RETURN_NULL();
+
+	index = PG_GETARG_OID(0);
+	table = PG_GETARG_OID(1);
+
+	if (!PG_ARGISNULL(2))
+		tablespace = PG_GETARG_NAME(2);
+
 	parse_indexdef(&stmt, index, table);
+
 	initStringInfo(&str);
-	appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)%s",
-		stmt.create, index, table, stmt.type, stmt.columns, stmt.options);
+	appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)",
+		stmt.create, index, table, stmt.type, stmt.columns);
+
+	/* Replace the tablespace in the index options */
+	if (tablespace == NULL)
+	{
+		/* tablespace is just fine */
+		appendStringInfoString(&str, stmt.options);
+	}
+	else
+	{
+		if (NULL == strstr(stmt.options, "TABLESPACE"))
+		{
+			/* tablespace is to append */
+			appendStringInfoString(&str, " TABLESPACE ");
+			appendStringInfoString(&str, NameStr(*tablespace));
+		}
+		else
+		{
+			/* tablespace is to replace */
+			char *tmp;
+			tmp = skip_const(index, stmt.options, " TABLESPACE", NULL);
+			appendStringInfoString(&str, stmt.options);
+			appendStringInfo(&str, " %s", NameStr(*tablespace));
+			tmp = skip_ident(index, tmp);
+			if (*tmp)
+				appendStringInfo(&str, " %s", tmp);
+		}
+	}
 
 	PG_RETURN_TEXT_P(cstring_to_text(str.data));
 }
