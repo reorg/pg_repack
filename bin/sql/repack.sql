@@ -120,7 +120,7 @@ SELECT * FROM tbl_with_dropped_toast;
 -- do repack
 --
 
-\! pg_repack --dbname=contrib_regression --no-order
+\! pg_repack --dbname=contrib_regression --table=tbl_badindex
 \! pg_repack --dbname=contrib_regression
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster
 
@@ -177,15 +177,15 @@ CREATE TABLE tbl_nn_uk (col1 int NOT NULL, col2 int NOT NULL, UNIQUE(col1, col2)
 CREATE TABLE tbl_pk_uk (col1 int NOT NULL, col2 int NOT NULL, PRIMARY KEY(col1, col2), UNIQUE(col2, col1));
 CREATE TABLE tbl_nn_puk (col1 int NOT NULL, col2 int NOT NULL);
 CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
-\! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn
+\! pg_repack --dbname=contrib_regression --table=tbl_nn
 -- => WARNING
-\! pg_repack --dbname=contrib_regression --no-order --table=tbl_uk
+\! pg_repack --dbname=contrib_regression --table=tbl_uk
 -- => WARNING
-\! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn_uk
+\! pg_repack --dbname=contrib_regression --table=tbl_nn_uk
 -- => OK
-\! pg_repack --dbname=contrib_regression --no-order --table=tbl_pk_uk
+\! pg_repack --dbname=contrib_regression --table=tbl_pk_uk
 -- => OK
-\! pg_repack --dbname=contrib_regression --no-order --table=tbl_nn_puk
+\! pg_repack --dbname=contrib_regression --table=tbl_nn_puk
 -- => WARNING
 
 --
@@ -194,24 +194,24 @@ CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
 CREATE TABLE issue3_1 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_1_idx ON issue3_1 (col1, col2 DESC);
 SELECT repack.get_order_by('issue3_1_idx'::regclass::oid, 'issue3_1'::regclass::oid);
-\! pg_repack --dbname=contrib_regression --no-order --table=issue3_1
+\! pg_repack --dbname=contrib_regression --table=issue3_1
 
 CREATE TABLE issue3_2 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_2_idx ON issue3_2 (col1 DESC, col2 text_pattern_ops);
 SELECT repack.get_order_by('issue3_2_idx'::regclass::oid, 'issue3_2'::regclass::oid);
-\! pg_repack --dbname=contrib_regression --no-order --table=issue3_2
+\! pg_repack --dbname=contrib_regression --table=issue3_2
 
 CREATE TABLE issue3_3 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_3_idx ON issue3_3 (col1 DESC, col2 DESC);
 SELECT repack.get_order_by('issue3_3_idx'::regclass::oid, 'issue3_3'::regclass::oid);
-\! pg_repack --dbname=contrib_regression --no-order --table=issue3_3
+\! pg_repack --dbname=contrib_regression --table=issue3_3
 
 CREATE TABLE issue3_4 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_4_idx ON issue3_4 (col1 NULLS FIRST, col2 text_pattern_ops DESC NULLS LAST);
 SELECT repack.get_order_by('issue3_4_idx'::regclass::oid, 'issue3_4'::regclass::oid);
-\! pg_repack --dbname=contrib_regression --no-order --table=issue3_4
+\! pg_repack --dbname=contrib_regression --table=issue3_4
 
 CREATE TABLE issue3_5 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_5_idx ON issue3_5 (col1 DESC NULLS FIRST, col2 COLLATE "POSIX" DESC);
 SELECT repack.get_order_by('issue3_5_idx'::regclass::oid, 'issue3_5'::regclass::oid);
-\! pg_repack --dbname=contrib_regression --no-order --table=issue3_5
+\! pg_repack --dbname=contrib_regression --table=issue3_5

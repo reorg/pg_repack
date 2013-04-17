@@ -253,13 +253,13 @@ Environment
 Examples
 --------
 
-Execute the following command to perform an online CLUSTER of all tables in
-database ``test``::
+Perform an online CLUSTER of all the clustered tables in the database
+``test``, and perform an online VACUUM FULL of all the non-clustered tables::
 
     $ pg_repack test
 
-Execute the following command to perform an online VACUUM FULL of table
-``foo`` in database ``test``::
+Perform an online VACUUM FULL on the table ``foo`` in the database ``test``
+(an eventual cluster index is ignored)::
 
     $ pg_repack --no-order --table foo -d test
 
@@ -319,7 +319,7 @@ ERROR: relation "table" has no cluster key
     Define a CLUSTER KEY on the table, via ALTER TABLE CLUSTER ON, or use
     one of the --no-order or --order-by modes.
 
-pg_repack: query failed: ERROR: column "col" does not exist
+ERROR: query failed: ERROR: column "col" does not exist
     The target table doesn't have columns specified by ``--order-by`` option.
 
     Specify existing columns.
@@ -404,6 +404,8 @@ Releases
 * pg_repack 1.2
 
   * Added --jobs option for parallel operation.
+  * Don't require --no-order to perform a VACUUM FULL on non-clustered tables
+    (pg_repack issue #6).
   * More helpful error messages.
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).

@@ -521,27 +521,28 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		resetStringInfo(&sql);
 		if (!orderby)
 		{
-			/* CLUSTER mode */
-			if (ckey == NULL)
+			if (ckey != NULL)
 			{
-				ereport(WARNING,
-					(errcode(E_PG_COMMAND),
-					 errmsg("relation \"%s\" has no cluster key", table.target_name)));
-				continue;
+				/* CLUSTER mode */
+				appendStringInfo(&sql, "%s ORDER BY %s", create_table, ckey);
+				table.create_table = sql.data;
 			}
-			appendStringInfo(&sql, "%s ORDER BY %s", create_table, ckey);
-            table.create_table = sql.data;
+			else
+			{
+				/* VACUUM FULL mode (non-clustered tables) */
+				table.create_table = create_table;
+			}
 		}
 		else if (!orderby[0])
 		{
-			/* VACUUM FULL mode */
-            table.create_table = create_table;
+			/* VACUUM FULL mode (for clustered tables too) */
+			table.create_table = create_table;
 		}
 		else
 		{
 			/* User specified ORDER BY */
 			appendStringInfo(&sql, "%s ORDER BY %s", create_table, orderby);
-            table.create_table = sql.data;
+			table.create_table = sql.data;
 		}
 
 		table.sql_peek = getstr(res, i, c++);
