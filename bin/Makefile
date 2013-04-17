@@ -16,6 +16,11 @@ SRCS = pg_repack.c pgut/pgut.c pgut/pgut-fe.c
 OBJS = $(SRCS:.c=.o)
 PROGRAM = pg_repack
 
+
+#
+# Test suite
+#
+
 ifeq ($(shell echo $$(($(INTVERSION) >= 90100))),1)
 REGRESS = init-extension
 else
@@ -23,6 +28,12 @@ REGRESS = init-legacy
 endif
 
 REGRESS += repack tablespace
+
+# This test depends on collate, not supported before 9.0
+ifeq ($(shell echo $$(($(INTVERSION) >= 90000))),1)
+REGRESS += issue3
+endif
+
 
 # The version number of the program. It should be the same of the library.
 REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
