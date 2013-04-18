@@ -187,3 +187,22 @@ CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_nn_puk
 -- => WARNING
+
+--
+-- Triggers handling
+--
+CREATE FUNCTION trgtest() RETURNS trigger AS
+$$BEGIN RETURN NEW; END$$
+LANGUAGE plpgsql;
+CREATE TABLE trg1 (id integer PRIMARY KEY);
+CREATE TRIGGER z_repack_triggeq BEFORE UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+\! pg_repack --dbname=contrib_regression --table=trg1
+CREATE TABLE trg2 (id integer PRIMARY KEY);
+CREATE TRIGGER z_repack_trigger BEFORE UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+\! pg_repack --dbname=contrib_regression --table=trg2
+CREATE TABLE trg3 (id integer PRIMARY KEY);
+CREATE TRIGGER z_repack_trigges BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+\! pg_repack --dbname=contrib_regression --table=trg3
+CREATE TABLE trg4 (id integer PRIMARY KEY);
+CREATE TRIGGER zzzzzz AFTER UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+\! pg_repack --dbname=contrib_regression --table=trg4
