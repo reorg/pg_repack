@@ -22,9 +22,14 @@ PROGRAM = pg_repack
 #
 
 ifeq ($(shell echo $$(($(INTVERSION) >= 901))),1)
-REGRESS = init-extension
+REGRESS := init-extension
 else
-REGRESS = init-legacy
+REGRESS := init-legacy
+endif
+
+# plpgsql not available by default on pg < 9.0
+ifeq ($(shell echo $$(($(INTVERSION) < 900))),1)
+REGRESS += plpgsql
 endif
 
 REGRESS += repack tablespace
