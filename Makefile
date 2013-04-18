@@ -8,19 +8,22 @@
 
 PG_CONFIG ?= pg_config
 
-SUBDIRS = bin lib
-
 # Pull out the version number from pg_config
 VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
+ifeq ("$(VERSION)","")
+$(error pg_config not found)
+endif
 
-# version as a number, e.g. 9.1.4 -> 90104
-INTVERSION := $(shell echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+)\.?([0-9]+)?(.*)/(\1*100+\2)*100+0\3/' | bc)
+# version as a number, e.g. 9.1.4 -> 901
+INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+).*/\1*100+\2/'))))
 
 # We support PostgreSQL 8.3 and later.
-ifeq ($(shell echo $$(($(INTVERSION) < 80300))),1)
+ifeq ($(shell echo $$(($(INTVERSION) < 803))),1)
 $(error pg_repack requires PostgreSQL 8.3 or later. This is $(VERSION))
 endif
 
+
+SUBDIRS = bin lib
 
 all install installdirs uninstall distprep clean distclean maintainer-clean debug:
 	@for dir in $(SUBDIRS); do \

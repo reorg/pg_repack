@@ -8,9 +8,9 @@
 
 PG_CONFIG ?= pg_config
 
-# version as a number, e.g. 9.1.4 -> 90104
+# version as a number, e.g. 9.1.4 -> 901
 VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
-INTVERSION := $(shell echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+)\.?([0-9]+)?.*/(\1*100+\2)*100+0\3/' | bc)
+INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+).*/\1*100+\2/'))))
 
 EXTENSION = pg_repack
 MODULE_big = $(EXTENSION)
@@ -24,7 +24,7 @@ REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
 PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
 # Support CREATE EXTENSION for PG >= 9.1 and a simple sql script for PG < 9.1
-ifeq ($(shell echo $$(($(INTVERSION) >= 90100))),1)
+ifeq ($(shell echo $$(($(INTVERSION) >= 901))),1)
 DATA_built = pg_repack--$(REPACK_VERSION).sql pg_repack.control
 else
 DATA_built = pg_repack.sql

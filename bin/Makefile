@@ -8,9 +8,9 @@
 
 PG_CONFIG ?= pg_config
 
-# version as a number, e.g. 9.1.4 -> 90104
+# version as a number, e.g. 9.1.4 -> 901
 VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
-INTVERSION := $(shell echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+)\.?([0-9]+)?.*/(\1*100+\2)*100+0\3/' | bc)
+INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+).*/\1*100+\2/'))))
 
 SRCS = pg_repack.c pgut/pgut.c pgut/pgut-fe.c
 OBJS = $(SRCS:.c=.o)
@@ -21,7 +21,7 @@ PROGRAM = pg_repack
 # Test suite
 #
 
-ifeq ($(shell echo $$(($(INTVERSION) >= 90100))),1)
+ifeq ($(shell echo $$(($(INTVERSION) >= 901))),1)
 REGRESS = init-extension
 else
 REGRESS = init-legacy
@@ -29,8 +29,8 @@ endif
 
 REGRESS += repack tablespace
 
-# This test depends on collate, not supported before 9.0
-ifeq ($(shell echo $$(($(INTVERSION) >= 90000))),1)
+# This test depends on collate, not supported before 9.1
+ifeq ($(shell echo $$(($(INTVERSION) >= 901))),1)
 REGRESS += issue3
 endif
 
