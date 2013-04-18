@@ -119,7 +119,7 @@ Options:
   -a, --all                 repack all databases
   -t, --table=TABLE         repack specific table only
   -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
-  -S, --moveidx             move repacked indexes to TBLSPC too
+  -S, --moveidx             move repacked indexes to *TBLSPC* too
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -n, --no-order            do vacuum full instead of cluster
   -j, --jobs                Use this many parallel jobs for each table
@@ -293,13 +293,13 @@ database where the error occured and then load
 
 .. class:: diag
 
-pg_repack: repack database "template1" ... skipped: pg_repack is not installed in the database
-    pg_repack is not installed in the database when ``--all`` option is
+INFO: database "db" skipped: pg_repack VER is not installed in the database
+    pg_repack is not installed in the database when the ``--all`` option is
     specified.
 
     Create the pg_repack extension in the database.
 
-ERROR: pg_repack is not installed
+ERROR: pg_repack VER is not installed in the database
     pg_repack is not installed in the database specified by ``--dbname``.
 
     Create the pg_repack extension in the database.
@@ -326,21 +326,10 @@ ERROR: relation "table" must have a primary key or not-null unique keys
 
     Define a PRIMARY KEY or a UNIQUE constraint on the table.
 
-ERROR: relation "table" has no cluster key
-    The target table doesn't have CLUSTER KEY.
-
-    Define a CLUSTER KEY on the table, via ALTER TABLE CLUSTER ON, or use
-    one of the --no-order or --order-by modes.
-
 ERROR: query failed: ERROR: column "col" does not exist
     The target table doesn't have columns specified by ``--order-by`` option.
 
     Specify existing columns.
-
-ERROR: permission denied for schema repack
-    Permission error.
-
-    pg_repack must be executed by a superuser.
 
 WARNING: the table "tbl" has already a trigger called z_repack_trigger
     The trigger was probably installed during a previous attempt to run
@@ -416,13 +405,14 @@ Releases
 
 * pg_repack 1.2
 
-  * Added --tablespace and --moveidx options to perform online SET TABLESPACE.
-  * Added --jobs option for parallel operation.
-  * Don't require --no-order to perform a VACUUM FULL on non-clustered tables
-    (pg_repack issue #6).
-  * More helpful error messages.
+  * Added ``--tablespace`` and ``--moveidx`` options to perform online
+    SET TABLESPACE.
+  * Added ``--jobs`` option for parallel operation.
+  * Don't require ``--no-order`` to perform a VACUUM FULL on non-clustered
+    tables (pg_repack issue #6).
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).
+  * More helpful program output and error messages.
 
 * pg_repack 1.1.8
 
