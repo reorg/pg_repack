@@ -1253,6 +1253,10 @@ cleanup:
 	if (vxid)
 		free(vxid);
 
+	/* Rollback current transactions */
+	pgut_rollback(connection);
+	pgut_rollback(conn2);
+
 	/* XXX: distinguish between fatal and non-fatal errors via the first
 	 * arg to repack_cleanup().
 	 */
@@ -1490,10 +1494,6 @@ repack_cleanup(bool fatal, const repack_table *table)
 	{
 		char		buffer[12];
 		const char *params[1];
-
-		/* Rollback current transactions */
-		pgut_rollback(connection);
-		pgut_rollback(conn2);
 
 		/* Try reconnection if not available. */
 		if (PQstatus(connection) != CONNECTION_OK ||
