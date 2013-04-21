@@ -662,12 +662,13 @@ repack_indexdef(PG_FUNCTION_ARGS)
 		else
 		{
 			/* tablespace is to replace */
-			char *tmp;
+			char *tmp, *limit;
+			limit = strchr(stmt.options, '\0');
 			tmp = skip_const(index, stmt.options, " TABLESPACE", NULL);
 			appendStringInfoString(&str, stmt.options);
 			appendStringInfo(&str, " %s", NameStr(*tablespace));
 			tmp = skip_ident(index, tmp);
-			if (*tmp)
+			if (tmp < limit)
 				appendStringInfo(&str, " %s", tmp);
 		}
 	}
