@@ -617,6 +617,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			/* User specified ORDER BY */
 			appendStringInfoString(&sql, " ORDER BY ");
 			appendStringInfoString(&sql, orderby);
+			table.create_table = sql.data;
 		}
 
 		repack_one_table(&table, orderby);

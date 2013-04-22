@@ -53,3 +53,5 @@ ORDER BY relname;
 \! pg_repack --dbname=contrib_regression --no-order --table=testts1 --moveidx
 \! pg_repack --dbname=contrib_regression --no-order --table=testts1 -S
 
+-- not broken with order
+\! pg_repack --dbname=contrib_regression -o id --table=testts1 --tablespace pg_default --moveidx

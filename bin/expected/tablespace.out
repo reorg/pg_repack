@@ -78,3 +78,6 @@ ORDER BY relname;
 ERROR: cannot specify --moveidx (-S) without --tablespace (-s)
 \! pg_repack --dbname=contrib_regression --no-order --table=testts1 -S
 ERROR: cannot specify --moveidx (-S) without --tablespace (-s)
+-- not broken with order
+\! pg_repack --dbname=contrib_regression -o id --table=testts1 --tablespace pg_default --moveidx
+INFO: repacking table "testts1"
