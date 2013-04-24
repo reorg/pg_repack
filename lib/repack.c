@@ -90,8 +90,10 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
  */
 #if PG_VERSION_NUM < 90200
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
-#else
+#elif PG_VERSION_NUM < 90300
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
+#else
+#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true);
 #endif
 
 #ifdef REPACK_VERSION
