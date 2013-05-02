@@ -11,6 +11,7 @@ SELECT spcname FROM pg_tablespace WHERE spcname = 'testts';
 
 CREATE TABLE testts1 (id serial primary key, data text);
 CREATE INDEX testts1_partial_idx on testts1 (id) where (id > 0);
+CREATE INDEX testts1_with_idx on testts1 (id) with (fillfactor=80);
 INSERT INTO testts1 (data) values ('a');
 INSERT INTO testts1 (data) values ('b');
 INSERT INTO testts1 (data) values ('c');

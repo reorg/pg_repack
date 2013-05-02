@@ -13,6 +13,7 @@ SELECT spcname FROM pg_tablespace WHERE spcname = 'testts';
 -- If the query above failed you must create the 'testts' tablespace;
 CREATE TABLE testts1 (id serial primary key, data text);
 CREATE INDEX testts1_partial_idx on testts1 (id) where (id > 0);
+CREATE INDEX testts1_with_idx on testts1 (id) with (fillfactor=80);
 INSERT INTO testts1 (data) values ('a');
 INSERT INTO testts1 (data) values ('b');
 INSERT INTO testts1 (data) values ('c');
@@ -71,7 +72,8 @@ ORDER BY relname;
  testts1             | testts
  testts1_partial_idx | testts
  testts1_pkey        | testts
-(3 rows)
+ testts1_with_idx    | testts
+(4 rows)
 
 -- can't specify --moveidx without --tablespace
 \! pg_repack --dbname=contrib_regression --no-order --table=testts1 --moveidx

@@ -347,6 +347,24 @@ skip_const(Oid index, char *sql, const char *arg1, const char *arg2)
 }
 
 static char *
+skip_until_const(Oid index, char *sql, const char *what)
+{
+    char *pos;
+
+	if ((pos = strstr(sql, what)))
+	{
+        size_t	len;
+
+        len = strlen(what);
+		pos[len] = '\0';
+		return pos + len + 1;
+	}
+
+	/* error */
+	return parse_error(index);
+}
+
+static char *
 skip_ident(Oid index, char *sql)
 {
 	while (*sql && isspace((unsigned char) *sql))
@@ -664,7 +682,7 @@ repack_indexdef(PG_FUNCTION_ARGS)
 			/* tablespace is to replace */
 			char *tmp, *limit;
 			limit = strchr(stmt.options, '\0');
-			tmp = skip_const(index, stmt.options, " TABLESPACE", NULL);
+			tmp = skip_until_const(index, stmt.options, " TABLESPACE");
 			appendStringInfoString(&str, stmt.options);
 			appendStringInfo(&str, " %s", NameStr(*tablespace));
 			tmp = skip_ident(index, tmp);
