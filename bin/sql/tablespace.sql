@@ -16,6 +16,19 @@ INSERT INTO testts1 (data) values ('a');
 INSERT INTO testts1 (data) values ('b');
 INSERT INTO testts1 (data) values ('c');
 
+-- check the indexes definitions
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, NULL),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, 'foo'),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+
 -- can move the tablespace from default
 \! pg_repack --dbname=contrib_regression --no-order --table=testts1 --tablespace testts
 
