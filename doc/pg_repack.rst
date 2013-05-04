@@ -117,10 +117,12 @@ The following options can be specified in ``OPTIONS``.
 
 Options:
   -a, --all                 repack all databases
-  -j, --jobs                Use this many parallel jobs for each table
-  -n, --no-order            do vacuum full instead of cluster
-  -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -t, --table=TABLE         repack specific table only
+  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
+  -S, --moveidx             move repacked indexes to *TBLSPC* too
+  -o, --order-by=COLUMNS    order by columns instead of cluster keys
+  -n, --no-order            do vacuum full instead of cluster
+  -j, --jobs                Use this many parallel jobs for each table
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
   -Z, --no-analyze          don't analyze at end
 
@@ -142,25 +144,35 @@ Generic options:
 Reorg Options
 ^^^^^^^^^^^^^
 
-Options to order rows. If not specified, pg_repack performs an online CLUSTER
-using cluster indexes. Only one option can be specified. You may also specify
-target tables or databases.
-
-``-j``, ``--jobs``
-   Create the specified number of extra connections to PostgreSQL, and
-   use these extra connections to parallelize the rebuild of indexes
-   on each table. If your PostgreSQL server has extra cores and disk
-   I/O available, this can be a useful way to speed up pg_repack.
-
-``-n``, ``--no-order``
-    Perform an online VACUUM FULL.
-
-``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
-    Perform an online CLUSTER ordered by the specified columns.
+``-a``, ``--all``
+    Attempt repack all the databases of the cluster. Databases where the
+    ``pg_repack`` extension is not installed will be skipped.
 
 ``-t TABLE``, ``--table=TABLE``
     Reorganize the specified table only. By default, all eligible tables in
     the target databases are reorganized.
+
+``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
+    Perform an online CLUSTER ordered by the specified columns.
+
+``-n``, ``--no-order``
+    Perform an online VACUUM FULL.  Since version 1.2 this is the default for
+    non-clustered tables.
+
+``-j``, ``--jobs``
+    Create the specified number of extra connections to PostgreSQL, and
+    use these extra connections to parallelize the rebuild of indexes
+    on each table. If your PostgreSQL server has extra cores and disk
+    I/O available, this can be a useful way to speed up pg_repack.
+
+``-s TBLSPC``, ``--tablespace=TBLSPC``
+    Move the repacked tables to the specified tablespace: essentially an
+    online version of ``ALTER TABLE ... SET TABLESPACE``. The tables indexes
+    are left on the original tablespace unless ``--moveidx`` is specified too.
+
+``-S``, ``--moveidx``
+    Move the indexes too of the repacked tables to the tablespace specified
+    by the option ``--tablespace``.
 
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
@@ -174,6 +186,7 @@ target tables or databases.
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after the reorganization. If not specified, run ANALYZE
     after the reorganization.
+
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
@@ -253,13 +266,13 @@ Environment
 Examples
 --------
 
-Execute the following command to perform an online CLUSTER of all tables in
-database ``test``::
+Perform an online CLUSTER of all the clustered tables in the database
+``test``, and perform an online VACUUM FULL of all the non-clustered tables::
 
     $ pg_repack test
 
-Execute the following command to perform an online VACUUM FULL of table
-``foo`` in database ``test``::
+Perform an online VACUUM FULL on the table ``foo`` in the database ``test``
+(an eventual cluster index is ignored)::
 
     $ pg_repack --no-order --table foo -d test
 
@@ -280,13 +293,13 @@ database where the error occured and then load
 
 .. class:: diag
 
-pg_repack: repack database "template1" ... skipped: pg_repack is not installed in the database
-    pg_repack is not installed in the database when ``--all`` option is
+INFO: database "db" skipped: pg_repack VER is not installed in the database
+    pg_repack is not installed in the database when the ``--all`` option is
     specified.
 
     Create the pg_repack extension in the database.
 
-ERROR: pg_repack is not installed
+ERROR: pg_repack VER is not installed in the database
     pg_repack is not installed in the database specified by ``--dbname``.
 
     Create the pg_repack extension in the database.
@@ -313,37 +326,28 @@ ERROR: relation "table" must have a primary key or not-null unique keys
 
     Define a PRIMARY KEY or a UNIQUE constraint on the table.
 
-ERROR: relation "table" has no cluster key
-    The target table doesn't have CLUSTER KEY.
-
-    Define a CLUSTER KEY on the table, via ALTER TABLE CLUSTER ON, or use
-    one of the --no-order or --order-by modes.
-
-pg_repack: query failed: ERROR: column "col" does not exist
+ERROR: query failed: ERROR: column "col" does not exist
     The target table doesn't have columns specified by ``--order-by`` option.
 
     Specify existing columns.
 
-ERROR: permission denied for schema repack
-    Permission error.
-
-    pg_repack must be executed by a superuser.
-
-pg_repack: query failed: ERROR: trigger "z_repack_trigger" for relation "tbl" already exists
-    The target table has already a trigger named ``z_repack_trigger``.  This
-    is probably caused by a previous failed attempt to run pg_repack on the
-    table, which for some reason failed to clean up the temporary object.
+WARNING: the table "tbl" has already a trigger called z_repack_trigger
+    The trigger was probably installed during a previous attempt to run
+    pg_repack on the table which was interrupted and for some reason failed
+    to clean up the temporary objects.
 
     You can remove all the temporary objects by dropping and re-creating the
     extension: see the installation_ section for the details.
 
-pg_repack: trigger conflicted for tbl
+WARNING: trigger "trg" conflicting on table "tbl"
     The target table has a trigger whose name follows ``z_repack_trigger``
     in alphabetical order.
 
     The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
     Please rename your trigger to that it sorts alphabetically before
-    pg_repack's one.
+    pg_repack's one; you can use::
+
+        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
 
 
 Restrictions
@@ -398,6 +402,17 @@ and the original one.
 
 Releases
 --------
+
+* pg_repack 1.2
+
+  * Added ``--tablespace`` and ``--moveidx`` options to perform online
+    SET TABLESPACE.
+  * Added ``--jobs`` option for parallel operation.
+  * Don't require ``--no-order`` to perform a VACUUM FULL on non-clustered
+    tables (pg_repack issue #6).
+  * Bugfix: correctly handle key indexes with options such as DESC, NULL
+    FIRST/LAST, COLLATE (pg_repack issue #3).
+  * More helpful program output and error messages.
 
 * pg_repack 1.1.8
 

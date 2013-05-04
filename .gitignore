@@ -1,3 +1,5 @@
 # Global excludes across all subdirectories
 *.o
 *.so
+bin/regression.diffs
+bin/regression.out

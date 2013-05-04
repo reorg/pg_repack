@@ -307,7 +307,9 @@ typedef struct IndexDef
 	char *table;	/* table name including schema */
 	char *type;		/* btree, hash, gist or gin */
 	char *columns;	/* column definition */
-	char *options;	/* options after columns. WITH, TABLESPACE and WHERE */
+	char *options;	/* options after columns, before TABLESPACE (e.g. COLLATE) */
+	char *tablespace; /* tablespace if specified */
+	char *where;	/* WHERE content if specified */
 } IndexDef;
 
 static char *
@@ -342,6 +344,24 @@ skip_const(Oid index, char *sql, const char *arg1, const char *arg2)
 	{
 		sql[len] = '\0';
 		return sql + len + 1;
+	}
+
+	/* error */
+	return parse_error(index);
+}
+
+static char *
+skip_until_const(Oid index, char *sql, const char *what)
+{
+	char *pos;
+
+	if ((pos = strstr(sql, what)))
+	{
+		size_t	len;
+
+		len = strlen(what);
+		pos[-1] = '\0';
+		return pos + len + 1;
 	}
 
 	/* error */
@@ -446,6 +466,7 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 	char *sql = pg_get_indexdef_string(index);
 	const char *idxname = get_quoted_relname(index);
 	const char *tblname = get_relation_name(table);
+	const char *limit = strchr(sql, '\0');
 
 	/* CREATE [UNIQUE] INDEX */
 	stmt->create = sql;
@@ -470,8 +491,36 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 	stmt->columns = sql;
 	if ((sql = skip_until(index, sql, ')')) == NULL)
 		parse_error(index);
+
 	/* options */
 	stmt->options = sql;
+	stmt->tablespace = NULL;
+	stmt->where = NULL;
+
+	/* Is there a tablespace? Note that apparently there is never, but
+	 * if there was one it would appear here. */
+	if (sql < limit && strstr(sql, "TABLESPACE"))
+	{
+		sql = skip_until_const(index, sql, "TABLESPACE");
+		stmt->tablespace = sql;
+		sql = skip_ident(index, sql);
+	}
+
+	/* Note: assuming WHERE is the only clause allowed after TABLESPACE */
+	if (sql < limit && strstr(sql, "WHERE"))
+	{
+		sql = skip_until_const(index, sql, "WHERE");
+		stmt->where = sql;
+	}
+
+	elog(DEBUG2, "indexdef.create  = %s", stmt->create);
+	elog(DEBUG2, "indexdef.index   = %s", stmt->index);
+	elog(DEBUG2, "indexdef.table   = %s", stmt->table);
+	elog(DEBUG2, "indexdef.type    = %s", stmt->type);
+	elog(DEBUG2, "indexdef.columns = %s", stmt->columns);
+	elog(DEBUG2, "indexdef.options = %s", stmt->options);
+	elog(DEBUG2, "indexdef.tspace  = %s", stmt->tablespace);
+	elog(DEBUG2, "indexdef.where   = %s", stmt->where);
 }
 
 /*
@@ -530,12 +579,6 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 	int				nattr;
 
 	parse_indexdef(&stmt, index, table);
-	elog(DEBUG2, "indexdef.create  = %s", stmt.create);
-	elog(DEBUG2, "indexdef.index   = %s", stmt.index);
-	elog(DEBUG2, "indexdef.table   = %s", stmt.table);
-	elog(DEBUG2, "indexdef.type    = %s", stmt.type);
-	elog(DEBUG2, "indexdef.columns = %s", stmt.columns);
-	elog(DEBUG2, "indexdef.options = %s", stmt.options);
 
 	/*
 	 * FIXME: this is very unreliable implementation but I don't want to
@@ -620,20 +663,40 @@ repack_get_order_by(PG_FUNCTION_ARGS)
  *
  * @param	index	Oid of target index.
  * @param	table	Oid of table of the index.
+ * @param	tablespace	Namespace for the index. If NULL keep the original.
  * @retval			Create index DDL for temp table.
  */
 Datum
 repack_indexdef(PG_FUNCTION_ARGS)
 {
-	Oid				index = PG_GETARG_OID(0);
-	Oid				table = PG_GETARG_OID(1);
+	Oid				index;
+	Oid				table;
+	Name			tablespace = NULL;
 	IndexDef		stmt;
 	StringInfoData	str;
 
+	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
+		PG_RETURN_NULL();
+
+	index = PG_GETARG_OID(0);
+	table = PG_GETARG_OID(1);
+
+	if (!PG_ARGISNULL(2))
+		tablespace = PG_GETARG_NAME(2);
+
 	parse_indexdef(&stmt, index, table);
+
 	initStringInfo(&str);
 	appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)%s",
 		stmt.create, index, table, stmt.type, stmt.columns, stmt.options);
+
+	/* specify the new tablespace or the original one if any */
+	if (tablespace || stmt.tablespace)
+		appendStringInfo(&str, " TABLESPACE %s",
+			(tablespace ? NameStr(*tablespace) : stmt.tablespace));
+
+	if (stmt.where)
+		appendStringInfo(&str, " WHERE %s", stmt.where);
 
 	PG_RETURN_TEXT_P(cstring_to_text(str.data));
 }

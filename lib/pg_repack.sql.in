@@ -179,7 +179,9 @@ CREATE VIEW repack.tables AS
          'CREATE TABLE repack.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk repack.pk_' || R.oid || ', row ' || repack.oid2text(R.oid) || ')' AS create_log,
          repack.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
          repack.get_enable_trigger(R.oid) as enable_trigger,
-         'CREATE TABLE repack.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE ' || coalesce(quote_ident(S.spcname), 'pg_default') || ' AS SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS create_table,
+         'CREATE TABLE repack.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE '  AS create_table_1,
+         coalesce(quote_ident(S.spcname), 'pg_default') as tablespace_orig,
+         ' AS SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS create_table_2,
          repack.get_drop_columns(R.oid, 'repack.table_' || R.oid) AS drop_columns,
          'DELETE FROM repack.log_' || R.oid AS delete_log,
          'LOCK TABLE ' || repack.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
@@ -205,9 +207,9 @@ CREATE VIEW repack.tables AS
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
      AND N.nspname NOT LIKE E'pg\\_temp\\_%';
 
-CREATE FUNCTION repack.repack_indexdef(oid, oid) RETURNS text AS
+CREATE FUNCTION repack.repack_indexdef(oid, oid, name) RETURNS text AS
 'MODULE_PATHNAME', 'repack_indexdef'
-LANGUAGE C STABLE STRICT;
+LANGUAGE C STABLE;
 
 CREATE FUNCTION repack.repack_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'repack_trigger'
@@ -217,6 +219,8 @@ CREATE FUNCTION repack.conflicted_triggers(oid) RETURNS SETOF name AS
 $$
 SELECT tgname FROM pg_trigger
  WHERE tgrelid = $1 AND tgname >= 'z_repack_trigger'
+ AND (tgtype & 2) = 2      -- BEFORE trigger
+ ORDER BY tgname;
 $$
 LANGUAGE sql STABLE STRICT;
 
