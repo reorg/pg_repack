@@ -23,7 +23,7 @@ $(error pg_repack requires PostgreSQL 8.3 or later. This is $(VERSION))
 endif
 
 
-SUBDIRS = bin lib
+SUBDIRS = bin lib regress
 
 all install installdirs uninstall distprep clean distclean maintainer-clean debug:
 	@for dir in $(SUBDIRS); do \
