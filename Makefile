@@ -15,7 +15,7 @@ $(error pg_config not found)
 endif
 
 # version as a number, e.g. 9.1.4 -> 901
-INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed -E 's/([0-9]+)\.([0-9]+).*/\1*100+\2/'))))
+INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)\.\([[:digit:]]\{1,\}\).*/\1*100+\2/'))))
 
 # We support PostgreSQL 8.3 and later.
 ifeq ($(shell echo $$(($(INTVERSION) < 803))),1)
