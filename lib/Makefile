@@ -35,9 +35,12 @@ USE_PGXS = 1
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
-# remove dependency to libxml2 and libxslt
+# remove dependency on libxml2, libxslt, and libpam.
+# XXX: find a better way to make sure we are linking with libraries
+# from pg_config which we actually need.
 LIBS := $(filter-out -lxml2, $(LIBS))
 LIBS := $(filter-out -lxslt, $(LIBS))
+LIBS := $(filter-out -lpam, $(LIBS))
 
 pg_repack.sql: pg_repack.sql.in
 	echo "BEGIN;\n" > $@; \
