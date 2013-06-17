@@ -1404,7 +1404,9 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
  *  conn: connection to use
  *  relid: OID of relation
  *  lock_query: LOCK TABLE ... IN ACCESS EXCLUSIVE query to be executed
- *  start_xact: whether we need to issue a BEGIN;
+ *  start_xact: whether we will issue a BEGIN ourselves. If not, we will
+ *              use a SAVEPOINT and ROLLBACK TO SAVEPOINT if our query
+ *              times out, to avoid leaving the transaction in error state.
  */
 static bool
 lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact)
@@ -1422,6 +1424,8 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 
 		if (start_xact)
 			pgut_command(conn, "BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+		else
+			pgut_command(conn, "SAVEPOINT repack_sp1", 0, NULL);
 
 		duration = time(NULL) - start;
 		if (duration > wait_timeout)
@@ -1463,7 +1467,10 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		{
 			/* retry if lock conflicted */
 			CLEARPGRES(res);
-			pgut_rollback(conn);
+			if (start_xact)
+				pgut_rollback(conn);
+			else
+				pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
 			continue;
 		}
 		else
