@@ -1531,7 +1531,7 @@ pgut_help(bool details)
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
-	printf("  -j --jobs                 Use this many parallel jobs for each table\n");
+	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }
