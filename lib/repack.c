@@ -46,6 +46,7 @@ extern Datum PGUT_EXPORT repack_indexdef(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_swap(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_drop(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_disable_autovacuum(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_index_swap(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(repack_version);
 PG_FUNCTION_INFO_V1(repack_trigger);
@@ -55,6 +56,7 @@ PG_FUNCTION_INFO_V1(repack_indexdef);
 PG_FUNCTION_INFO_V1(repack_swap);
 PG_FUNCTION_INFO_V1(repack_drop);
 PG_FUNCTION_INFO_V1(repack_disable_autovacuum);
+PG_FUNCTION_INFO_V1(repack_index_swap);
 
 static void	repack_init(void);
 static SPIPlanPtr repack_prepare(const char *src, int nargs, Oid *argtypes);
@@ -674,6 +676,7 @@ repack_indexdef(PG_FUNCTION_ARGS)
 	Name			tablespace = NULL;
 	IndexDef		stmt;
 	StringInfoData	str;
+	bool			concurrent_index = PG_GETARG_BOOL(3);
 
 	if (PG_ARGISNULL(0) || PG_ARGISNULL(1))
 		PG_RETURN_NULL();
@@ -687,8 +690,12 @@ repack_indexdef(PG_FUNCTION_ARGS)
 	parse_indexdef(&stmt, index, table);
 
 	initStringInfo(&str);
-	appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)%s",
-		stmt.create, index, table, stmt.type, stmt.columns, stmt.options);
+	if(concurrent_index)
+		appendStringInfo(&str, "%s CONCURRENTLY index_%u ON %s USING %s (%s)%s",
+			stmt.create, index, stmt.table, stmt.type, stmt.columns, stmt.options);
+	else
+		appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)%s",
+			stmt.create, index, table, stmt.type, stmt.columns, stmt.options);
 
 	/* specify the new tablespace or the original one if any */
 	if (tablespace || stmt.tablespace)
@@ -1184,6 +1191,36 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	heap_freetuple(reltup2);
 
 	heap_close(relRelation, RowExclusiveLock);
+}
+
+Datum
+repack_index_swap(PG_FUNCTION_ARGS)
+{
+	Oid                oid = PG_GETARG_OID(0);
+	Oid                idx1, idx2;
+	StringInfoData     str;
+	SPITupleTable      *tuptable;
+	TupleDesc          desc;
+	HeapTuple          tuple;
+
+	/* authority check */
+	must_be_superuser("repack_index_swap");
+
+	/* connect to SPI manager */
+	repack_init();
+
+	idx1 = oid;
+	initStringInfo(&str);
+	appendStringInfo(&str,"SELECT oid FROM pg_class WHERE relname = 'index_%u'",idx1);
+	execute(SPI_OK_SELECT, str.data);
+	tuptable = SPI_tuptable;
+	desc = tuptable->tupdesc;
+	tuple = tuptable->vals[0];
+	idx2 = getoid(tuple, desc, 1);
+	swap_heap_or_index_files(idx1, idx2);
+	CommandCounterIncrement();
+	SPI_finish();
+	PG_RETURN_VOID();
 }
 
 #if PG_VERSION_NUM < 80400

@@ -177,6 +177,8 @@ static bool preliminary_checks(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by);
 static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
 static void repack_one_table(const repack_table *table, const char *order_by);
+static bool repack_one_index(Oid table, const char *table_name, Oid index, const char *schema_name);
+static bool repack_all_indexes(char *errbuf, size_t errsize);
 static void repack_cleanup(bool fatal, const repack_table *table);
 static bool rebuild_indexes(const repack_table *table);
 
@@ -202,6 +204,8 @@ static SimpleStringList	table_list = {NULL, NULL};
 static char				*orderby = NULL;
 static char				*tablespace = NULL;
 static bool				moveidx = false;
+static char				*r_index = NULL;
+static bool				only_indexes = false;
 static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 
@@ -221,6 +225,8 @@ static pgut_option options[] =
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
+	{ 's', 'i', "index", &r_index },
+	{ 'b', 'x', "only-index", &only_indexes },
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
@@ -231,6 +237,7 @@ int
 main(int argc, char *argv[])
 {
 	int						i;
+	char						errbuf[256];
 
 	i = pgut_getopt(argc, argv, options);
 
@@ -243,24 +250,58 @@ main(int argc, char *argv[])
 
 	check_tablespace();
 
-	if (noorder)
-		orderby = "";
-
-	if (alldb)
+	if (r_index || only_indexes)
 	{
-		if (table_list.head)
-			ereport(ERROR,
-				(errcode(EINVAL),
-				 errmsg("cannot repack specific table(s) in all databases")));
-		repack_all_databases(orderby);
+		if (r_index && table_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --index (-i) and --table (-t)")));
+		else if (r_index && only_indexes)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --index (-i) and --indexes_only (-x)")));
+		else if (only_indexes && !table_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot repack all indexes of database, specify the table with -t option")));
+		else if (alldb)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot repack specific index(es) in all databases")));
+		else
+		{
+			if (orderby)
+				ereport(WARNING, (errcode(EINVAL),
+					errmsg("option -o (--order-by) has no effect while repacking indexes")));
+			else if (noorder)
+				ereport(WARNING, (errcode(EINVAL),
+					errmsg("option -n (--no-order) has no effect while repacking indexes")));
+			else if (!analyze)
+				ereport(WARNING, (errcode(EINVAL),
+					errmsg("ANALYZE is not performed after repacking indexes, -z (--no-analyze) has no effect")));
+			else if (jobs)
+				ereport(WARNING, (errcode(EINVAL),
+					errmsg("option -j (--jobs) has no effect, repacking indexes doesnot use parallel jobs")));
+			if (!repack_all_indexes(errbuf, sizeof(errbuf)))
+				ereport(ERROR,
+					(errcode(ERROR), errmsg("%s", errbuf)));
+		}
 	}
 	else
 	{
-		char	errbuf[256];
-		if (!repack_one_database(orderby, errbuf, sizeof(errbuf)))
-			ereport(ERROR,
-					(errcode(ERROR),
-					 errmsg("%s", errbuf)));
+		if (noorder)
+			orderby = "";
+
+		if (alldb)
+		{
+			if (table_list.head)
+				ereport(ERROR,
+					(errcode(EINVAL),
+					 errmsg("cannot repack specific table(s) in all databases")));
+			repack_all_databases(orderby);
+		}
+		else
+		{
+			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)))
+				ereport(ERROR,
+					(errcode(ERROR), errmsg("%s", errbuf)));
+		}
 	}
 
 	return 0;
@@ -710,7 +751,7 @@ rebuild_indexes(const repack_table *table)
 	}
 
 	res = execute("SELECT indexrelid,"
-		" repack.repack_indexdef(indexrelid, indrelid, $2) "
+		" repack.repack_indexdef(indexrelid, indrelid, $2, FALSE) "
 		" FROM pg_index WHERE indrelid = $1 AND indisvalid",
 		2, params);
 
@@ -1533,6 +1574,223 @@ repack_cleanup(bool fatal, const repack_table *table)
 	}
 }
 
+/*
+ * repack one index
+ */
+static bool 
+repack_one_index(Oid table, const char *table_name, Oid index, const char *schema_name){
+	bool				ret = false;
+	PGresult			*res = NULL;
+	StringInfoData			sql, temp_index;
+	char				buffer[2][12];
+	char				*create_idx;
+	const char			*params[3];
+
+	params[0] = utoa(index, buffer[0]);
+	params[1] = utoa(table, buffer[1]);
+	params[2] = tablespace;
+	res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3, params);
+	if (PQntuples(res) < 1)
+	{
+		ereport(ERROR, (errcode(EINVAL),
+			 errmsg("unable to generate SQL to CREATE new index")));
+		goto cleanup;
+	}
+	create_idx = getstr(res, 0, 0);
+	CLEARPGRES(res);
+	res = execute_elevel(create_idx, 0, NULL, DEBUG2);
+	
+	initStringInfo(&temp_index);
+	if (schema_name)
+		appendStringInfo(&temp_index, "%s.index_%u", schema_name, index);
+	else
+		appendStringInfo(&temp_index, "index_%u", index);
+
+	if (PQresultStatus(res) != PGRES_COMMAND_OK)
+	{
+		ereport(ERROR,
+			(errcode(E_PG_COMMAND),
+			errmsg("%s", PQerrorMessage(connection)),
+			errdetail("The temporary index may be left behind "
+				" by a pg_repack command on the table which"
+				" was interrupted and failed to clean up"
+				" the temporary objects. Please use the \"DROP INDEX %s\""
+				" to remove the temporary index.", temp_index.data)));
+		goto cleanup;
+	}
+	CLEARPGRES(res);
+
+	/* take exclusive lock on table before calling repack_index_swap() */
+	initStringInfo(&sql);
+	if (schema_name)
+		appendStringInfo(&sql, "LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE", schema_name, table_name);
+	else
+		appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE", table_name);
+	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
+	{
+		elog(WARNING, "lock_exclusive() failed in connection for %s",
+			 table_name);		
+		goto drop_idx;
+	}
+	pgut_command(connection, "SELECT repack.repack_index_swap($1)", 1, params);
+	pgut_command(connection, "COMMIT", 0, NULL);
+
+drop_idx:
+	initStringInfo(&sql);
+#if PG_VERSION_NUM < 90200
+	appendStringInfoString(&sql, "DROP INDEX ");
+#else
+	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY ");
+#endif
+	appendStringInfo(&sql, "%s",  temp_index.data);
+	command(sql.data, 0, NULL);
+	ret = true;
+cleanup:
+	CLEARPGRES(res);
+	termStringInfo(&sql);
+	return ret;
+}
+
+/*
+ * Call repack_one_index for each of the indexes
+ */
+static bool 
+repack_all_indexes(char *errbuf, size_t errsize){
+	bool				ret = false;
+	PGresult			*res = NULL, *res2 = NULL;
+	int				i;
+	int				num;
+	StringInfoData			sql;
+	const char			*params[1];
+	const char			*table_name = NULL;
+	const char			*schema_name = NULL;
+	char				*pos;    
+
+	initStringInfo(&sql);
+	reconnect(ERROR);
+
+	if (!preliminary_checks(errbuf, errsize))
+		goto cleanup;	
+
+	/* If only one index is specified, append the appropriate data to the sql and check if the index exists */
+	if (r_index)
+	{
+		appendStringInfoString(&sql, "SELECT i.relname, idx.indexrelid, idx.indisvalid, tbl.oid, tbl.relname"
+			" FROM pg_class tbl JOIN pg_index idx ON tbl.oid = idx.indrelid"
+			" JOIN pg_class i ON i.oid = idx.indexrelid"
+			" WHERE idx.indexrelid = $1::regclass");
+		params[0] = r_index;
+
+		res = execute_elevel(sql.data, 1, params, DEBUG2);
+
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		{
+			snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+			goto cleanup;
+		}
+		else
+		{
+			num = PQntuples(res);
+			if (num == 0)
+			{
+				ereport(ERROR,
+					(errcode(EINVAL),
+				 	errmsg("index \"%s\" doesnot exist.\n", r_index)));
+				goto cleanup;
+			}
+		}
+			
+		// seperate schema name and index name
+		pos = strchr(params[0], '.');
+		if (pos)
+		{
+			pos[0]  = '\0';
+			schema_name = params[0];
+			r_index = pos + 1;
+		}
+		table_name = getstr(res, 0, 4);
+	} 
+	/* To repack all indexes, append appropriate data to the sql and run the query */
+	else {
+		params[0] = table_list.head->val;
+		
+		appendStringInfoString(&sql, "SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid"
+			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
+			" WHERE idx.indrelid = $1::regclass");
+
+		res = execute_elevel(sql.data, 1, params, DEBUG2);
+
+		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+		{
+			snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+			goto cleanup;
+		}
+		else 
+		{
+			num = PQntuples(res);
+			if (num == 0)
+			{
+				elog(WARNING, "\"%s\" doesnot have any indexes", table_list.head->val);
+				ret = true;
+				goto cleanup;
+			}
+		}
+
+		// seperate schema name and table name
+		pos = strchr(params[0], '.');
+		if (pos)
+		{
+			pos[0]  = '\0';
+			schema_name = params[0];
+			table_name = pos + 1;
+		}
+		else
+			table_name = params[0];
+	}
+
+	/* Check if any concurrent pg_repack command is being run on the same table */
+	initStringInfo(&sql);
+	appendStringInfo(&sql, "SELECT pg_try_advisory_lock(%u)", getoid(res, 0, 3));
+
+	res2 = execute_elevel(sql.data, 0, NULL, DEBUG2);
+	if (PQresultStatus(res2) != PGRES_TUPLES_OK)
+	{
+		elog(ERROR, "%s",  PQerrorMessage(connection));
+		goto cleanup;
+	}
+	else if (strcmp(getstr(res2, 0, 0), "f") == 0)
+	{
+		snprintf(errbuf, errsize, "Another pg_repack command may be running on the table. Please try again later.");
+		goto cleanup;
+	}
+
+	for (i = 0; i < num; i++)
+	{
+		char *isvalid = getstr(res, i, 2);
+		if (isvalid[0] == 't') 
+		{
+			if (schema_name)
+				elog(INFO, "repacking index \"%s.%s\"", schema_name, getstr(res, i, 0));
+			else
+				elog(INFO, "repacking index \"%s\"", getstr(res, i, 0));
+
+			if (!(repack_one_index(getoid(res, i, 3), table_name, getoid(res, i, 1), schema_name)))
+				goto cleanup;
+		}
+		else
+			if (schema_name)
+				elog(WARNING, "skipping invalid index: %s.%s", schema_name, getstr(res, i, 0));				
+			else
+				elog(WARNING, "skipping invalid index: %s", getstr(res, i, 0));				
+	}
+	ret = true;
+cleanup:
+	CLEARPGRES(res);
+	disconnect();
+	termStringInfo(&sql);
+	return ret;
+}
+
 void
 pgut_help(bool details)
 {
@@ -1551,6 +1809,8 @@ pgut_help(bool details)
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
+	printf("  -i, --index=INDEX         move only the specified index\n");
+	printf("  -x, --only-index          move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }
