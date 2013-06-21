@@ -173,6 +173,7 @@ typedef struct repack_index
 
 static bool is_superuser(void);
 static void check_tablespace(void);
+static bool preliminary_checks(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by);
 static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
 static void repack_one_table(const repack_table *table, const char *order_by);
@@ -339,6 +340,93 @@ check_tablespace()
 	CLEARPGRES(res);
 }
 
+/*
+ * Perform sanity checks before beginning work. Make sure pg_repack is
+ * installed in the database, the user is a superuser, etc.
+ */
+static bool
+preliminary_checks(char *errbuf, size_t errsize){
+	bool			ret = false;
+	PGresult		*res = NULL;
+
+	if (!is_superuser()) {
+		if (errbuf)
+			snprintf(errbuf, errsize, "You must be a superuser to use %s",
+					 PROGRAM_NAME);
+		goto cleanup;
+	}
+
+	/* Query the extension version. Exit if no match */
+	res = execute_elevel("select repack.version(), repack.version_sql()",
+		0, NULL, DEBUG2);
+	if (PQresultStatus(res) == PGRES_TUPLES_OK)
+	{
+		const char	   *libver;
+		char			buf[64];
+
+		/* the string is something like "pg_repack 1.1.7" */
+		snprintf(buf, sizeof(buf), "%s %s", PROGRAM_NAME, PROGRAM_VERSION);
+
+		/* check the version of the C library */
+		libver = getstr(res, 0, 0);
+		if (0 != strcmp(buf, libver))
+		{
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"program '%s' does not match database library '%s'",
+					buf, libver);
+			goto cleanup;
+		}
+
+		/* check the version of the SQL extension */
+		libver = getstr(res, 0, 1);
+		if (0 != strcmp(buf, libver))
+		{
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"extension '%s' required, found extension '%s'",
+					buf, libver);
+			goto cleanup;
+		}
+	}
+	else
+	{
+		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME)
+			|| sqlstate_equals(res, SQLSTATE_UNDEFINED_FUNCTION))
+		{
+			/* Schema repack does not exist, or version too old (version
+			 * functions not found). Skip the database.
+			 */
+			if (errbuf)
+				snprintf(errbuf, errsize,
+					"%s %s is not installed in the database",
+					PROGRAM_NAME, PROGRAM_VERSION);
+		}
+		else
+		{
+			/* Return the error message otherwise */
+			if (errbuf)
+				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+		}
+		goto cleanup;
+	}
+	CLEARPGRES(res);
+
+	/* Disable statement timeout. */
+	command("SET statement_timeout = 0", 0, NULL);
+
+	/* Restrict search_path to system catalog. */
+	command("SET search_path = pg_catalog, pg_temp, public", 0, NULL);
+
+	/* To avoid annoying "create implicit ..." messages. */
+	command("SET client_min_messages = warning", 0, NULL);
+
+	ret = true;
+
+cleanup:
+	CLEARPGRES(res);
+	return ret;
+}
 
 /*
  * Call repack_one_database for each database.
@@ -424,77 +512,8 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	if (jobs > 1)
 		setup_workers(jobs);
 
-	if (!is_superuser()) {
-		if (errbuf)
-			snprintf(errbuf, errsize, "You must be a superuser to use %s",
-					 PROGRAM_NAME);
+	if (!preliminary_checks(errbuf, errsize))
 		goto cleanup;
-	}
-
-	/* Query the extension version. Exit if no match */
-	res = execute_elevel("select repack.version(), repack.version_sql()",
-		0, NULL, DEBUG2);
-	if (PQresultStatus(res) == PGRES_TUPLES_OK)
-	{
-		const char	   *libver;
-		char			buf[64];
-
-		/* the string is something like "pg_repack 1.1.7" */
-		snprintf(buf, sizeof(buf), "%s %s", PROGRAM_NAME, PROGRAM_VERSION);
-
-		/* check the version of the C library */
-		libver = getstr(res, 0, 0);
-		if (0 != strcmp(buf, libver))
-		{
-			if (errbuf)
-				snprintf(errbuf, errsize,
-					"program '%s' does not match database library '%s'",
-					buf, libver);
-			goto cleanup;
-		}
-
-		/* check the version of the SQL extension */
-		libver = getstr(res, 0, 1);
-		if (0 != strcmp(buf, libver))
-		{
-			if (errbuf)
-				snprintf(errbuf, errsize,
-					"extension '%s' required, found extension '%s'",
-					buf, libver);
-			goto cleanup;
-		}
-	}
-	else
-	{
-		if (sqlstate_equals(res, SQLSTATE_INVALID_SCHEMA_NAME)
-			|| sqlstate_equals(res, SQLSTATE_UNDEFINED_FUNCTION))
-		{
-			/* Schema repack does not exist, or version too old (version
-			 * functions not found). Skip the database.
-			 */
-			if (errbuf)
-				snprintf(errbuf, errsize,
-					"%s %s is not installed in the database",
-					PROGRAM_NAME, PROGRAM_VERSION);
-		}
-		else
-		{
-			/* Return the error message otherwise */
-			if (errbuf)
-				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
-		}
-		goto cleanup;
-	}
-	CLEARPGRES(res);
-
-	/* Disable statement timeout. */
-	command("SET statement_timeout = 0", 0, NULL);
-
-	/* Restrict search_path to system catalog. */
-	command("SET search_path = pg_catalog, pg_temp, public", 0, NULL);
-
-	/* To avoid annoying "create implicit ..." messages. */
-	command("SET client_min_messages = warning", 0, NULL);
 
 	/* acquire target tables */
 	appendStringInfoString(&sql,
