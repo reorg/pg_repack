@@ -257,7 +257,7 @@ main(int argc, char *argv[])
 				errmsg("cannot specify --index (-i) and --table (-t)")));
 		else if (r_index && only_indexes)
 			ereport(ERROR, (errcode(EINVAL),
-				errmsg("cannot specify --index (-i) and --indexes_only (-x)")));
+				errmsg("cannot specify --index (-i) and --only-index (-x)")));
 		else if (only_indexes && !table_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack all indexes of database, specify the table with -t option")));
@@ -969,7 +969,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 
 	/* Keep track of whether we have gotten through setup to install
 	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
-	 * go through repack_cleanup() if we didnt' actually set up the
+	 * go through repack_cleanup() if we didn't actually set up the
 	 * trigger ourselves, lest we be cleaning up another pg_repack's mess,
 	 * or worse, interfering with a still-running pg_repack.
 	 */
@@ -1012,7 +1012,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	}
 
 	/*
-	 * Check z_repack_trigger is the trigger executed at last so that
+	 * Check z_repack_trigger is the trigger executed last so that
 	 * other before triggers cannot modify triggered tuples.
 	 */
 	params[0] = utoa(table->target_oid, buffer);
@@ -1577,11 +1577,12 @@ repack_cleanup(bool fatal, const repack_table *table)
 /*
  * repack one index
  */
-static bool 
-repack_one_index(Oid table, const char *table_name, Oid index, const char *schema_name){
+static bool
+repack_one_index(Oid table, const char *table_name, Oid index, const char *schema_name)
+{
 	bool				ret = false;
 	PGresult			*res = NULL;
-	StringInfoData			sql, temp_index;
+	StringInfoData		sql, temp_index;
 	char				buffer[2][12];
 	char				*create_idx;
 	const char			*params[3];
@@ -1593,13 +1594,13 @@ repack_one_index(Oid table, const char *table_name, Oid index, const char *schem
 	if (PQntuples(res) < 1)
 	{
 		ereport(ERROR, (errcode(EINVAL),
-			 errmsg("unable to generate SQL to CREATE new index")));
+						errmsg("unable to generate SQL to CREATE new index")));
 		goto cleanup;
 	}
 	create_idx = getstr(res, 0, 0);
 	CLEARPGRES(res);
 	res = execute_elevel(create_idx, 0, NULL, DEBUG2);
-	
+
 	initStringInfo(&temp_index);
 	if (schema_name)
 		appendStringInfo(&temp_index, "%s.index_%u", schema_name, index);
@@ -1611,11 +1612,11 @@ repack_one_index(Oid table, const char *table_name, Oid index, const char *schem
 		ereport(ERROR,
 			(errcode(E_PG_COMMAND),
 			errmsg("%s", PQerrorMessage(connection)),
-			errdetail("The temporary index may be left behind "
-				" by a pg_repack command on the table which"
-				" was interrupted and failed to clean up"
-				" the temporary objects. Please use the \"DROP INDEX %s\""
-				" to remove the temporary index.", temp_index.data)));
+			errdetail("An invalid index may have been left behind "
+					  " by a pg_repack command on the table which"
+					  " was interrupted and failed to clean up"
+					  " the temporary objects. Please use \"DROP INDEX %s\""
+					  " to remove this index.", temp_index.data)));
 		goto cleanup;
 	}
 	CLEARPGRES(res);
@@ -1623,13 +1624,15 @@ repack_one_index(Oid table, const char *table_name, Oid index, const char *schem
 	/* take exclusive lock on table before calling repack_index_swap() */
 	initStringInfo(&sql);
 	if (schema_name)
-		appendStringInfo(&sql, "LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE", schema_name, table_name);
+		appendStringInfo(&sql, "LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE",
+						 schema_name, table_name);
 	else
-		appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE", table_name);
+		appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
+						 table_name);
 	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
 	{
 		elog(WARNING, "lock_exclusive() failed in connection for %s",
-			 table_name);		
+			 table_name);
 		goto drop_idx;
 	}
 	pgut_command(connection, "SELECT repack.repack_index_swap($1)", 1, params);
@@ -1645,6 +1648,7 @@ drop_idx:
 	appendStringInfo(&sql, "%s",  temp_index.data);
 	command(sql.data, 0, NULL);
 	ret = true;
+
 cleanup:
 	CLEARPGRES(res);
 	termStringInfo(&sql);
@@ -1654,25 +1658,27 @@ cleanup:
 /*
  * Call repack_one_index for each of the indexes
  */
-static bool 
+static bool
 repack_all_indexes(char *errbuf, size_t errsize){
 	bool				ret = false;
-	PGresult			*res = NULL, *res2 = NULL;
-	int				i;
-	int				num;
-	StringInfoData			sql;
+	PGresult		   *res = NULL, *res2 = NULL;
+	int					i;
+	int					num;
+	StringInfoData		sql;
 	const char			*params[1];
 	const char			*table_name = NULL;
 	const char			*schema_name = NULL;
-	char				*pos;    
+	char				*pos;
 
 	initStringInfo(&sql);
 	reconnect(ERROR);
 
 	if (!preliminary_checks(errbuf, errsize))
-		goto cleanup;	
+		goto cleanup;
 
-	/* If only one index is specified, append the appropriate data to the sql and check if the index exists */
+	/* If only one index is specified, append the appropriate data to the sql
+	 * and check if the index exists
+	 */
 	if (r_index)
 	{
 		appendStringInfoString(&sql, "SELECT i.relname, idx.indexrelid, idx.indisvalid, tbl.oid, tbl.relname"
@@ -1699,7 +1705,7 @@ repack_all_indexes(char *errbuf, size_t errsize){
 				goto cleanup;
 			}
 		}
-			
+
 		// seperate schema name and index name
 		pos = strchr(params[0], '.');
 		if (pos)
@@ -1709,11 +1715,11 @@ repack_all_indexes(char *errbuf, size_t errsize){
 			r_index = pos + 1;
 		}
 		table_name = getstr(res, 0, 4);
-	} 
+	}
 	/* To repack all indexes, append appropriate data to the sql and run the query */
 	else {
 		params[0] = table_list.head->val;
-		
+
 		appendStringInfoString(&sql, "SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" WHERE idx.indrelid = $1::regclass");
@@ -1725,12 +1731,12 @@ repack_all_indexes(char *errbuf, size_t errsize){
 			snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
 			goto cleanup;
 		}
-		else 
+		else
 		{
 			num = PQntuples(res);
 			if (num == 0)
 			{
-				elog(WARNING, "\"%s\" doesnot have any indexes", table_list.head->val);
+				elog(WARNING, "\"%s\" does not have any indexes", table_list.head->val);
 				ret = true;
 				goto cleanup;
 			}
@@ -1747,6 +1753,14 @@ repack_all_indexes(char *errbuf, size_t errsize){
 		else
 			table_name = params[0];
 	}
+
+	/* XXX: Make sure that repack_one_table() also obtains an advisory
+	 * lock on the table, so that we can't have a table-wide repack running
+	 * along with an indexes-only repack. Also, since advisory locks are
+	 * 8 bytes wide and OIDs are only 4 bytes, consider using our own prefix
+	 * rather than just the table OID, to avoid inadvertent conflict with
+	 * other applications using advisory locks.
+	 */
 
 	/* Check if any concurrent pg_repack command is being run on the same table */
 	initStringInfo(&sql);
@@ -1767,7 +1781,7 @@ repack_all_indexes(char *errbuf, size_t errsize){
 	for (i = 0; i < num; i++)
 	{
 		char *isvalid = getstr(res, i, 2);
-		if (isvalid[0] == 't') 
+		if (isvalid[0] == 't')
 		{
 			if (schema_name)
 				elog(INFO, "repacking index \"%s.%s\"", schema_name, getstr(res, i, 0));
@@ -1779,9 +1793,9 @@ repack_all_indexes(char *errbuf, size_t errsize){
 		}
 		else
 			if (schema_name)
-				elog(WARNING, "skipping invalid index: %s.%s", schema_name, getstr(res, i, 0));				
+				elog(WARNING, "skipping invalid index: %s.%s", schema_name, getstr(res, i, 0));
 			else
-				elog(WARNING, "skipping invalid index: %s", getstr(res, i, 0));				
+				elog(WARNING, "skipping invalid index: %s", getstr(res, i, 0));
 	}
 	ret = true;
 cleanup:
