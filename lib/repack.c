@@ -663,9 +663,10 @@ repack_get_order_by(PG_FUNCTION_ARGS)
  *
  * repack_indexdef(index, table)
  *
- * @param	index	Oid of target index.
- * @param	table	Oid of table of the index.
+ * @param	index		Oid of target index.
+ * @param	table		Oid of table of the index.
  * @param	tablespace	Namespace for the index. If NULL keep the original.
+ * @param   boolean		Whether to use CONCURRENTLY when creating the index.
  * @retval			Create index DDL for temp table.
  */
 Datum
@@ -690,7 +691,7 @@ repack_indexdef(PG_FUNCTION_ARGS)
 	parse_indexdef(&stmt, index, table);
 
 	initStringInfo(&str);
-	if(concurrent_index)
+	if (concurrent_index)
 		appendStringInfo(&str, "%s CONCURRENTLY index_%u ON %s USING %s (%s)%s",
 			stmt.create, index, stmt.table, stmt.type, stmt.columns, stmt.options);
 	else

@@ -18,13 +18,13 @@ INSERT INTO testts1 (data) values ('c');
 
 -- check the indexes definitions
 SELECT regexp_replace(
-    repack.repack_indexdef(indexrelid, 'testts1'::regclass, NULL),
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, NULL, false),
     '_[0-9]+', '_OID', 'g')
 FROM pg_index i join pg_class c ON c.oid = indexrelid
 WHERE indrelid = 'testts1'::regclass ORDER BY relname;
 
 SELECT regexp_replace(
-    repack.repack_indexdef(indexrelid, 'testts1'::regclass, 'foo'),
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, 'foo', false),
     '_[0-9]+', '_OID', 'g')
 FROM pg_index i join pg_class c ON c.oid = indexrelid
 WHERE indrelid = 'testts1'::regclass ORDER BY relname;
