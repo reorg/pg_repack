@@ -1193,11 +1193,20 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	heap_close(relRelation, RowExclusiveLock);
 }
 
+/**
+ * @fn      Datum repack_index_swap(PG_FUNCTION_ARGS)
+ * @brief   Swap out an original index on a table with the newly-created one.
+ *
+ * repack_index_swap(index)
+ *
+ * @param	index	Oid of the *original* index.
+ * @retval	void
+ */
 Datum
 repack_index_swap(PG_FUNCTION_ARGS)
 {
-	Oid                oid = PG_GETARG_OID(0);
-	Oid                idx1, idx2;
+	Oid                orig_idx_oid = PG_GETARG_OID(0);
+	Oid                repacked_idx_oid;
 	StringInfoData     str;
 	SPITupleTable      *tuptable;
 	TupleDesc          desc;
@@ -1209,16 +1218,22 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	repack_init();
 
-	idx1 = oid;
 	initStringInfo(&str);
-	appendStringInfo(&str,"SELECT oid FROM pg_class WHERE relname = 'index_%u'",idx1);
+
+	/* Find the OID of our new index. Indexes should have a reltype of 0. */
+	appendStringInfo(&str, "SELECT oid FROM pg_class "
+					 "WHERE relname = 'index_%u' AND reltype = 0",
+					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);
+	if (SPI_processed != 1)
+		elog(ERROR, "Could not find index 'index_%u', found %d matches",
+			 orig_idx_oid, SPI_processed);
+
 	tuptable = SPI_tuptable;
 	desc = tuptable->tupdesc;
 	tuple = tuptable->vals[0];
-	idx2 = getoid(tuple, desc, 1);
-	swap_heap_or_index_files(idx1, idx2);
-	CommandCounterIncrement();
+	repacked_idx_oid = getoid(tuple, desc, 1);
+	swap_heap_or_index_files(orig_idx_oid, repacked_idx_oid);
 	SPI_finish();
 	PG_RETURN_VOID();
 }
