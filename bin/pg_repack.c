@@ -1001,9 +1001,31 @@ repack_one_table(const repack_table *table, const char *orderby)
 	elog(DEBUG2, "sql_pop        : %s", table->sql_pop);
 
 	/*
-	 * 1. Setup workspaces and a trigger.
+	 * 1. Setup advisory lock and trigger on main table.
 	 */
 	elog(DEBUG2, "---- setup ----");
+
+	/* Obtain an advisory lock on the table's OID, to make sure no other
+	 * pg_repack is working on the table. (Not a real concern with only
+	 * full-table repacks, but mainly for index-only repacks.)
+	 */
+	params[0] = utoa(table->target_oid, buffer);
+	res = pgut_execute(connection, "SELECT pg_try_advisory_lock($1::bigint)",
+					   1, params);
+	if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	{
+		elog(ERROR, "%s",  PQerrorMessage(connection));
+		have_error = true;
+		goto cleanup;
+	}
+	else if (strcmp(getstr(res, 0, 0), "t") != 0)
+	{
+		elog(WARNING, "Another pg_repack command may be running on the table. Please try again later.");
+		have_error = true;
+		goto cleanup;
+	}
+	CLEARPGRES(res);
+
 	if (!(lock_exclusive(connection, utoa(table->target_oid, buffer), table->lock_table, TRUE)))
 	{
 		elog(WARNING, "lock_exclusive() failed for %s", table->target_name);
@@ -1015,8 +1037,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	 * Check z_repack_trigger is the trigger executed last so that
 	 * other before triggers cannot modify triggered tuples.
 	 */
-	params[0] = utoa(table->target_oid, buffer);
-
 	res = execute("SELECT repack.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
 	{
@@ -1289,7 +1309,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	elog(DEBUG2, "---- drop ----");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-	params[0] = utoa(table->target_oid, buffer);
 	command("SELECT repack.repack_drop($1)", 1, params);
 	command("COMMIT", 0, NULL);
 
@@ -1307,6 +1326,10 @@ repack_one_table(const repack_table *table, const char *orderby)
 		command(sql.data, 0, NULL);
 		command("COMMIT", 0, NULL);
 	}
+
+	/* Release advisory lock on table. */
+	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1::bigint)",
+					   1, params);
 
 cleanup:
 	CLEARPGRES(res);
@@ -1772,7 +1795,7 @@ repack_all_indexes(char *errbuf, size_t errsize){
 		elog(ERROR, "%s",  PQerrorMessage(connection));
 		goto cleanup;
 	}
-	else if (strcmp(getstr(res2, 0, 0), "f") == 0)
+	else if (strcmp(getstr(res2, 0, 0), "t") != 0)
 	{
 		snprintf(errbuf, errsize, "Another pg_repack command may be running on the table. Please try again later.");
 		goto cleanup;
@@ -1798,8 +1821,10 @@ repack_all_indexes(char *errbuf, size_t errsize){
 				elog(WARNING, "skipping invalid index: %s", getstr(res, i, 0));
 	}
 	ret = true;
+
 cleanup:
 	CLEARPGRES(res);
+	CLEARPGRES(res2);
 	disconnect();
 	termStringInfo(&sql);
 	return ret;
