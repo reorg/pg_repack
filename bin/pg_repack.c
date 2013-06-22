@@ -965,7 +965,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	char		   *vxid = NULL;
 	char			buffer[12];
 	StringInfoData	sql;
-	bool            have_error = false;
+	bool            ret = false;
 
 	/* Keep track of whether we have gotten through setup to install
 	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
@@ -1015,13 +1015,11 @@ repack_one_table(const repack_table *table, const char *orderby)
 	if (PQresultStatus(res) != PGRES_TUPLES_OK)
 	{
 		elog(ERROR, "%s",  PQerrorMessage(connection));
-		have_error = true;
 		goto cleanup;
 	}
 	else if (strcmp(getstr(res, 0, 0), "t") != 0)
 	{
 		elog(WARNING, "Another pg_repack command may be running on the table. Please try again later.");
-		have_error = true;
 		goto cleanup;
 	}
 	CLEARPGRES(res);
@@ -1029,7 +1027,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	if (!(lock_exclusive(connection, utoa(table->target_oid, buffer), table->lock_table, TRUE)))
 	{
 		elog(WARNING, "lock_exclusive() failed for %s", table->target_name);
-		have_error = true;
 		goto cleanup;
 	}
 
@@ -1069,7 +1066,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 					PQgetvalue(res, 0, 0), table->target_name)));
 		}
 
-		have_error = true;
 		goto cleanup;
 	}
 	CLEARPGRES(res);
@@ -1108,14 +1104,12 @@ repack_one_table(const repack_table *table, const char *orderby)
 	if (PQsetnonblocking(conn2, 1))
 	{
 		elog(WARNING, "Unable to set conn2 nonblocking.");
-		have_error = true;
 		goto cleanup;
 	}
 	if (!(PQsendQuery(conn2, sql.data)))
 	{
 		elog(WARNING, "Error sending async query: %s\n%s", sql.data,
 			 PQerrorMessage(conn2));
-		have_error = true;
 		goto cleanup;
 	}
 
@@ -1132,7 +1126,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	if (!(kill_ddl(connection, table->target_oid, true)))
 	{
 		elog(WARNING, "kill_ddl() failed.");
-		have_error = true;
 		goto cleanup;
 	}
 
@@ -1156,7 +1149,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 		if (PQresultStatus(res) != PGRES_COMMAND_OK)
 		{
 			elog(WARNING, "Error with LOCK TABLE: %s", PQerrorMessage(conn2));
-			have_error = true;
 			goto cleanup;
 		}
 		CLEARPGRES(res);
@@ -1166,7 +1158,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	if (PQsetnonblocking(conn2, 0))
 	{
 		elog(WARNING, "Unable to set conn2 blocking.");
-		have_error = true;
 		goto cleanup;
 	}
 
@@ -1194,7 +1185,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	{
 		elog(WARNING, "Unable to allocate vxid, length: %d\n",
 			 PQgetlength(res, 0, 0));
-		have_error = true;
 		goto cleanup;
 	}
 	CLEARPGRES(res);
@@ -1219,10 +1209,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	 * AccessShare lock.
 	 */
 	if (!(lock_access_share(connection, table->target_oid, table->target_name)))
-	{
-		have_error = true;
 		goto cleanup;
-	}
 
 	command(table->create_table, 0, NULL);
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
@@ -1234,10 +1221,9 @@ repack_one_table(const repack_table *table, const char *orderby)
 	/*
 	 * 3. Create indexes on temp table.
 	 */
-	if (!rebuild_indexes(table)) {
-		have_error = true;
+	if (!rebuild_indexes(table))
 		goto cleanup;
-	}
+
 	CLEARPGRES(res);
 
 	/*
@@ -1294,7 +1280,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	{
 		elog(WARNING, "lock_exclusive() failed in conn2 for %s",
 			 table->target_name);
-		have_error = true;
 		goto cleanup;
 	}
 
@@ -1330,6 +1315,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	/* Release advisory lock on table. */
 	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1::bigint)",
 					   1, params);
+	ret = true;
 
 cleanup:
 	CLEARPGRES(res);
@@ -1344,7 +1330,7 @@ cleanup:
 	/* XXX: distinguish between fatal and non-fatal errors via the first
 	 * arg to repack_cleanup().
 	 */
-	if (have_error && table_init)
+	if ((!ret) && table_init)
 		repack_cleanup(false, table);
 }
 
