@@ -126,6 +126,9 @@ const char *PROGRAM_VERSION = "unknown";
 	" AND granted = false AND relation = %u"\
 	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
 
+/* Will be used as a unique prefix for advisory locks. */
+#define REPACK_LOCK_PREFIX_STR "16185446"
+
 /*
  * per-table information
  */
@@ -1300,8 +1303,10 @@ repack_one_table(const repack_table *table, const char *orderby)
 	}
 
 	/* Release advisory lock on table. */
-	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1::bigint)",
-					   1, params);
+	params[0] = REPACK_LOCK_PREFIX_STR;
+	params[1] = buffer;
+	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1, $2)",
+					   2, params);
 	ret = true;
 
 cleanup:
@@ -1452,14 +1457,6 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 }
 
 
-/* XXX: Make sure that repack_one_table() also obtains an advisory
- * lock on the table, so that we can't have a table-wide repack running
- * along with an indexes-only repack. Also, since advisory locks are
- * 8 bytes wide and OIDs are only 4 bytes, consider using our own prefix
- * rather than just the table OID, to avoid inadvertent conflict with
- * other applications using advisory locks.
- */
-
 /* Obtain an advisory lock on the table's OID, to make sure no other
  * pg_repack is working on the table. This is not so much a concern with
  * full-table repacks, but mainly so that index-only repacks don't interfere
@@ -1467,11 +1464,15 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
  */
 static bool advisory_lock(PGconn *conn, const char *relid)
 {
-	PGresult       *res = NULL;
-	bool            ret = false;
+	PGresult	   *res = NULL;
+	bool			ret = false;
+	const char	   *params[2];
 
-	res = pgut_execute(conn, "SELECT pg_try_advisory_lock($1::bigint)",
-					   1, &relid);
+	params[0] = REPACK_LOCK_PREFIX_STR;
+	params[1] = relid;
+
+	res = pgut_execute(conn, "SELECT pg_try_advisory_lock($1, $2)",
+					   2, params);
 
 	if (PQresultStatus(res) != PGRES_TUPLES_OK) {
 		elog(ERROR, "%s",  PQerrorMessage(connection));
@@ -1790,7 +1791,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	 * table.
 	 */
 	if (!advisory_lock(connection, utoa(getoid(res, 0, 3), buffer))) {
-		snprintf(errbuf, errsize, "Unable to obtain advisory lock on %s",
+		snprintf(errbuf, errsize, "Unable to obtain advisory lock on \"%s\"",
 				 table_name);
 		goto cleanup;
 	}
