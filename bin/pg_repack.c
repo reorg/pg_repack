@@ -1626,7 +1626,6 @@ repack_one_index(Oid table, const char *table_name, Oid index, const char *schem
 	{
 		ereport(ERROR, (errcode(EINVAL),
 						errmsg("unable to generate SQL to CREATE new index")));
-		goto cleanup;
 	}
 	create_idx = getstr(res, 0, 0);
 	CLEARPGRES(res);
@@ -1648,7 +1647,6 @@ repack_one_index(Oid table, const char *table_name, Oid index, const char *schem
 					  " was interrupted and failed to clean up"
 					  " the temporary objects. Please use \"DROP INDEX %s\""
 					  " to remove this index.", temp_index.data)));
-		goto cleanup;
 	}
 	CLEARPGRES(res);
 
@@ -1669,6 +1667,8 @@ repack_one_index(Oid table, const char *table_name, Oid index, const char *schem
 	pgut_command(connection, "SELECT repack.repack_index_swap($1)", 1, params);
 	pgut_command(connection, "COMMIT", 0, NULL);
 
+	ret = true;
+
 drop_idx:
 	initStringInfo(&sql);
 #if PG_VERSION_NUM < 90200
@@ -1678,9 +1678,7 @@ drop_idx:
 #endif
 	appendStringInfo(&sql, "%s",  temp_index.data);
 	command(sql.data, 0, NULL);
-	ret = true;
 
-cleanup:
 	CLEARPGRES(res);
 	termStringInfo(&sql);
 	return ret;
@@ -1735,7 +1733,6 @@ repack_all_indexes(char *errbuf, size_t errsize)
 				ereport(ERROR,
 					(errcode(EINVAL),
 				 	errmsg("index \"%s\" does not exist.\n", r_index)));
-				goto cleanup;
 			}
 		}
 
@@ -1769,7 +1766,8 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			num = PQntuples(res);
 			if (num == 0)
 			{
-				elog(WARNING, "\"%s\" does not have any indexes", table_list.head->val);
+				elog(WARNING, "\"%s\" does not have any indexes",
+					 table_list.head->val);
 				ret = true;
 				goto cleanup;
 			}
