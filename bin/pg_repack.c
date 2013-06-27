@@ -230,7 +230,7 @@ static pgut_option options[] =
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
 	{ 's', 'i', "index", &r_index },
-	{ 'b', 'x', "only-index", &only_indexes },
+	{ 'b', 'x', "only-indexes", &only_indexes },
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
@@ -261,7 +261,7 @@ main(int argc, char *argv[])
 				errmsg("cannot specify --index (-i) and --table (-t)")));
 		else if (r_index && only_indexes)
 			ereport(ERROR, (errcode(EINVAL),
-				errmsg("cannot specify --index (-i) and --only-index (-x)")));
+				errmsg("cannot specify --index (-i) and --only-indexes (-x)")));
 		else if (only_indexes && !table_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack all indexes of database, specify the table with -t option")));
@@ -1842,7 +1842,7 @@ pgut_help(bool details)
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
 	printf("  -i, --index=INDEX         move only the specified index\n");
-	printf("  -x, --only-index          move only indexes of the specified table\n");
+	printf("  -x, --only-indexes        move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }
