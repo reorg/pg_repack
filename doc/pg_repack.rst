@@ -122,7 +122,9 @@ Options:
   -S, --moveidx             move repacked indexes to *TBLSPC* too
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -n, --no-order            do vacuum full instead of cluster
-  -j, --jobs                Use this many parallel jobs for each table
+  -j, --jobs=NUM            Use this many parallel jobs for each table
+  -i, --index=INDEX         move only the specified index
+  -x, --only-indexes        move only indexes of the specified table
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
   -Z, --no-analyze          don't analyze at end
 
@@ -149,8 +151,9 @@ Reorg Options
     ``pg_repack`` extension is not installed will be skipped.
 
 ``-t TABLE``, ``--table=TABLE``
-    Reorganize the specified table only. By default, all eligible tables in
-    the target databases are reorganized.
+    Reorganize the specified table(s) only. Multiple tables may be
+    reorganized by writing multiple `-t` switches. By default, all eligible
+    tables in the target databases are reorganized.
 
 ``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
     Perform an online CLUSTER ordered by the specified columns.
@@ -174,6 +177,15 @@ Reorg Options
     Move the indexes too of the repacked tables to the tablespace specified
     by the option ``--tablespace``.
 
+``-i``, ``--index``
+    Repack the specified index(es) only. Multiple indexes may be repacked
+    by writing multiple `-i` switches. May be used in conjunction with
+    ``--tablespace`` to move the index to a different tablespace.
+
+``-x``, ``--only-indexes``
+    Repack only the indexes of the specified table(s), which must be specified
+    with the ``--table`` option.
+
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
@@ -184,8 +196,8 @@ Reorg Options
     twice this timeout has passed. The default is 60 seconds.
 
 ``-Z``, ``--no-analyze``
-    Disable ANALYZE after the reorganization. If not specified, run ANALYZE
-    after the reorganization.
+    Disable ANALYZE after a full-table reorganization. If not specified, run
+    ANALYZE after the reorganization.
 
 
 Connection Options
@@ -271,10 +283,18 @@ Perform an online CLUSTER of all the clustered tables in the database
 
     $ pg_repack test
 
-Perform an online VACUUM FULL on the table ``foo`` in the database ``test``
-(an eventual cluster index is ignored)::
+Perform an online VACUUM FULL on the tables ``foo`` and ``bar`` in the
+database ``test`` (an eventual cluster index is ignored)::
 
-    $ pg_repack --no-order --table foo -d test
+    $ pg_repack --no-order --table foo --table bar test
+
+Move all indexes of table ``foo`` to tablespace ``tbs``::
+
+    $ pg_repack -d test --table foo --only-indexes --tablespace tbs
+
+Move the specified index to tablespace ``tbs``::
+
+    $ pg_repack -d test --index idx --tablespace tbs
 
 
 Diagnostics
@@ -349,6 +369,22 @@ WARNING: trigger "trg" conflicting on table "tbl"
 
         ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
 
+ERROR: Another pg_repack command may be running on the table. Please try again
+    later.
+
+   There is a chance of deadlock when two concurrent pg_repack commands are run
+   on the same table. So, try to run the command after some time.
+
+WARNING: Error creating index: ERROR:  relation "index_xxxxx" already exists
+DETAIL: An invalid index may have been left behind by a previous pg_repack on
+the table which was interrupted. Please use DROP INDEX "schema"."index_xxxxx"
+to remove this index and try again.
+
+   A temporary index apparently created by pg_repack has been left behind, and
+   we do not want to risk dropping this index ourselves. If the index was in
+   fact created by an old pg_repack job which didn't get cleaned up, you 
+   should just use DROP INDEX and try the repack command again. 
+
 
 Restrictions
 ------------
@@ -395,9 +431,13 @@ ALTER TABLE ... SET TABLESPACE
 Details
 -------
 
-pg_repack creates a work table in the repack schema and sorts the rows in this
-table. Then, it updates the system catalogs directly to swap the work table
-and the original one.
+To perform full table repacks, pg_repack creates a work table in the "repack"
+schema and sorts the rows in this table. Then, it updates the system catalogs
+directly to swap the work table and the original one.
+
+To perform index only repacks, pg_repack creates its work index on the target
+table and then updates the system catalogs directly to swap the work index and
+the original index.
 
 
 Releases
@@ -413,6 +453,7 @@ Releases
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).
   * More helpful program output and error messages.
+  * Added feature to repack indexes only.
 
 * pg_repack 1.1.8
 

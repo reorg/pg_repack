@@ -264,7 +264,7 @@ main(int argc, char *argv[])
 				errmsg("cannot specify --index (-i) and --only-indexes (-x)")));
 		else if (only_indexes && !table_list.head)
 			ereport(ERROR, (errcode(EINVAL),
-				errmsg("cannot repack all indexes of database, specify the table with -t option")));
+				errmsg("cannot repack all indexes of database, specify the table(s) via --table (-t)")));
 		else if (alldb)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack specific index(es) in all databases")));
