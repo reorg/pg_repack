@@ -281,7 +281,7 @@ main(int argc, char *argv[])
 					errmsg("ANALYZE is not performed after repacking indexes, -z (--no-analyze) has no effect")));
 			else if (jobs)
 				ereport(WARNING, (errcode(EINVAL),
-					errmsg("option -j (--jobs) has no effect, repacking indexes doesnot use parallel jobs")));
+					errmsg("option -j (--jobs) has no effect, repacking indexes does not use parallel jobs")));
 			if (!repack_all_indexes(errbuf, sizeof(errbuf)))
 				ereport(ERROR,
 					(errcode(ERROR), errmsg("%s", errbuf)));
@@ -1615,10 +1615,10 @@ repack_table_indexes(PGresult *index_details)
 	PGresult			*res = NULL;
 	StringInfoData		sql, sql_drop;
 	char				buffer[2][12];
-	char				*create_idx;
-	const char			*schema_name, *table_name, *params[3];
+	const char			*create_idx, *schema_name, *table_name, *params[3];
 	Oid					table, index;
-	int					i, num, num_valid = -1;
+	int					i, num;
+	bool                *repacked_indexes;
 
 	num = PQntuples(index_details);
 	table = getoid(index_details, 0, 3);
@@ -1626,6 +1626,13 @@ repack_table_indexes(PGresult *index_details)
 	params[2] = tablespace;
 	schema_name = getstr(index_details, 0, 5);
 	table_name = getstr(index_details, 0, 4);
+
+	/* Keep track of which of the table's indexes we have successfully
+	 * repacked, so that we may DROP only those indexes.
+	 */
+	if (!(repacked_indexes = calloc(num, sizeof(bool))))
+		ereport(ERROR, (errcode(ENOMEM),
+						errmsg("Unable to calloc repacked_indexes")));
 
 	/* Check if any concurrent pg_repack command is being run on the same
 	 * table.
@@ -1643,69 +1650,72 @@ repack_table_indexes(PGresult *index_details)
 			index = getoid(index_details, i, 1);
 			params[0] = utoa(index, buffer[0]);
 
-			res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3, params);
+			res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3,
+						  params);
+
 			if (PQntuples(res) < 1)
 			{
 				elog(WARNING, 
 					"unable to generate SQL to CREATE work index for %s.%s",
 					schema_name, getstr(index_details, i, 0));
-				num_valid = i;
-				goto drop_idx;
+				continue;
 			}
 
 			create_idx = getstr(res, 0, 0);
 			CLEARPGRES(res);
-			res = execute_elevel(create_idx, 0, NULL, DEBUG2);
 
+			res = execute_elevel(create_idx, 0, NULL, DEBUG2);
 			if (PQresultStatus(res) != PGRES_COMMAND_OK)
 			{
 				ereport(WARNING,
-					(errcode(E_PG_COMMAND),
-					errmsg("SQL failed with message- %s", 
-						PQerrorMessage(connection)),
-					errdetail("An invalid index may have been left behind"
-						" by a pg_repack command on the table which"
-						" was interrupted and failed to clean up"
-						" the temporary objects. Please use \"DROP INDEX %s.index_%u\""
-						" to remove this index and try again.", schema_name, index)));
-				num_valid = i + 1;
-				ret = false;
-				goto drop_idx;
+						(errcode(E_PG_COMMAND),
+						 errmsg("Error creating index: %s", 
+								PQerrorMessage(connection)),
+						 errdetail("An invalid index may have been left behind"
+								   " by a previous pg_repack on the table"
+								   " which was interrupted. Please use DROP "
+								   "INDEX \"%s\".\"index_%u\""
+								   " to remove this index and try again.",
+								   schema_name, index)));
 			}
+			else
+				repacked_indexes[i] = true;
+
 			CLEARPGRES(res);
 		}
 		else
-		{
-			if (num_valid == -1)
-				num_valid = i;
-			elog(WARNING, "skipping invalid index: %s.%s", schema_name, getstr(index_details, i, 0));
-		}
+			elog(WARNING, "skipping invalid index: %s.%s", schema_name,
+				 getstr(index_details, i, 0));
 	}
-
-	if (num_valid == -1)
-		num_valid = i;
 
 	/* take exclusive lock on table before calling repack_index_swap() */
 	initStringInfo(&sql);
 	appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
-		table_name);
+					 table_name);
 	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
 	{
 		elog(WARNING, "lock_exclusive() failed in connection for %s", 
-			table_name);
+			 table_name);
 		goto drop_idx;
 	}
-	
-	for (i = 0; i < num_valid; i++)
+
+	for (i = 0; i < num; i++)
 	{
 		index = getoid(index_details, i, 1);
-		params[0] = utoa(index, buffer[0]);
-		pgut_command(connection, "SELECT repack.repack_index_swap($1)", 1, params);
+		if (repacked_indexes[i])
+		{
+			params[0] = utoa(index, buffer[0]);
+			pgut_command(connection, "SELECT repack.repack_index_swap($1)", 1,
+						 params);
+		}
+		else
+			elog(INFO, "Skipping index swap for index_%u", index);
 	}
 	pgut_command(connection, "COMMIT", 0, NULL);
 	ret = true;
 
 drop_idx:
+	CLEARPGRES(res);
 	initStringInfo(&sql);
 	initStringInfo(&sql_drop);
 #if PG_VERSION_NUM < 90200
@@ -1713,13 +1723,19 @@ drop_idx:
 #else
 	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY IF EXISTS ");
 #endif
-	appendStringInfo(&sql, "%s.",  schema_name);
+	appendStringInfo(&sql, "\"%s\".",  schema_name);
 
-	for (i = 0; i < num_valid; i++)
+	for (i = 0; i < num; i++)
 	{
-		initStringInfo(&sql_drop);
-		appendStringInfo(&sql_drop, "%sindex_%u", sql.data, getoid(index_details, i, 1));
-		command(sql_drop.data, 0, NULL);
+		index = getoid(index_details, i, 1);
+		if (repacked_indexes[i])
+		{
+			initStringInfo(&sql_drop);
+			appendStringInfo(&sql_drop, "%s\"index_%u\"", sql.data, index);
+			command(sql_drop.data, 0, NULL);
+		}
+		else
+			elog(INFO, "Skipping drop of index_%u", index);
 	}
 	termStringInfo(&sql_drop);
 	termStringInfo(&sql);
@@ -1727,7 +1743,7 @@ drop_idx:
 }
 
 /*
- * Call repack_table_indexes for each of the table
+ * Call repack_table_indexes for each of the tables
  */
 static bool
 repack_all_indexes(char *errbuf, size_t errsize)
@@ -1774,8 +1790,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 		if (PQresultStatus(res) != PGRES_TUPLES_OK)
 		{
-			elog(WARNING, "SQL failed with message- %s",
-				PQerrorMessage(connection));
+			elog(WARNING, "%s", PQerrorMessage(connection));
 			continue;
 		}
 
@@ -1798,6 +1813,8 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 		if (!repack_table_indexes(res))	
 			elog(WARNING, "repack failed for \"%s\"", cell->val);
+
+		CLEARPGRES(res);
 	}
 	ret = true;
 
