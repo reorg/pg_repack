@@ -1612,7 +1612,7 @@ static bool
 repack_table_indexes(PGresult *index_details)
 {
 	bool				ret = false;
-	PGresult			*res = NULL;
+	PGresult			*res = NULL, *res2 = NULL;
 	StringInfoData		sql, sql_drop;
 	char				buffer[2][12];
 	const char			*create_idx, *schema_name, *table_name, *params[3];
@@ -1655,21 +1655,21 @@ repack_table_indexes(PGresult *index_details)
 
 			if (PQntuples(res) < 1)
 			{
-				elog(WARNING, 
+				elog(WARNING,
 					"unable to generate SQL to CREATE work index for %s.%s",
 					schema_name, getstr(index_details, i, 0));
 				continue;
 			}
 
 			create_idx = getstr(res, 0, 0);
-			CLEARPGRES(res);
+			/* Use a separate PGresult to avoid stomping on create_idx */
+			res2 = execute_elevel(create_idx, 0, NULL, DEBUG2);
 
-			res = execute_elevel(create_idx, 0, NULL, DEBUG2);
-			if (PQresultStatus(res) != PGRES_COMMAND_OK)
+			if (PQresultStatus(res2) != PGRES_COMMAND_OK)
 			{
 				ereport(WARNING,
 						(errcode(E_PG_COMMAND),
-						 errmsg("Error creating index: %s", 
+						 errmsg("Error creating index: %s",
 								PQerrorMessage(connection)),
 						 errdetail("An invalid index may have been left behind"
 								   " by a previous pg_repack on the table"
@@ -1682,6 +1682,7 @@ repack_table_indexes(PGresult *index_details)
 				repacked_indexes[i] = true;
 
 			CLEARPGRES(res);
+			CLEARPGRES(res2);
 		}
 		else
 			elog(WARNING, "skipping invalid index: %s.%s", schema_name,
@@ -1719,9 +1720,9 @@ drop_idx:
 	initStringInfo(&sql);
 	initStringInfo(&sql_drop);
 #if PG_VERSION_NUM < 90200
-	appendStringInfoString(&sql, "DROP INDEX IF EXISTS ");
+	appendStringInfoString(&sql, "DROP INDEX ");
 #else
-	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY IF EXISTS ");
+	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY ");
 #endif
 	appendStringInfo(&sql, "\"%s\".",  schema_name);
 
