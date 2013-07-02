@@ -1617,7 +1617,7 @@ repack_table_indexes(PGresult *index_details)
 	char				buffer[2][12];
 	const char			*create_idx, *schema_name, *table_name, *params[3];
 	Oid					table, index;
-	int					i, num;
+	int					i, num, num_repacked = 0;
 	bool                *repacked_indexes;
 
 	num = PQntuples(index_details);
@@ -1679,7 +1679,10 @@ repack_table_indexes(PGresult *index_details)
 								   schema_name, index)));
 			}
 			else
+			{
 				repacked_indexes[i] = true;
+				num_repacked++;
+			}
 
 			CLEARPGRES(res);
 			CLEARPGRES(res2);
@@ -1689,7 +1692,21 @@ repack_table_indexes(PGresult *index_details)
 				 getstr(index_details, i, 0));
 	}
 
-	/* take exclusive lock on table before calling repack_index_swap() */
+	/* If we did not successfully repack any indexes, e.g. because of some
+	 * error affecting every CREATE INDEX attempt, don't waste time with
+	 * the ACCESS EXCLUSIVE lock on the table, and return false.
+	 * N.B. none of the DROP INDEXes should be performed since
+	 * repacked_indexes[] flags should all be false.
+	 */
+	if (!num_repacked)
+	{
+		elog(WARNING,
+			 "Skipping index swapping for \"%s\", since no new indexes built",
+			 table_name);
+		goto drop_idx;
+	}
+
+	/* take an exclusive lock on table before calling repack_index_swap() */
 	initStringInfo(&sql);
 	appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
 					 table_name);
