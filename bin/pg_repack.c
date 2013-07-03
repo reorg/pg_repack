@@ -1620,6 +1620,8 @@ repack_table_indexes(PGresult *index_details)
 	int					i, num, num_repacked = 0;
 	bool                *repacked_indexes;
 
+	initStringInfo(&sql);
+
 	num = PQntuples(index_details);
 	table = getoid(index_details, 0, 3);
 	params[1] = utoa(table, buffer[1]);
@@ -1648,8 +1650,36 @@ repack_table_indexes(PGresult *index_details)
 		if (isvalid[0] == 't')
 		{
 			index = getoid(index_details, i, 1);
-			params[0] = utoa(index, buffer[0]);
 
+			resetStringInfo(&sql);
+			appendStringInfo(&sql, "SELECT pgc.relname, nsp.nspname "
+							 "FROM pg_class pgc INNER JOIN pg_namespace nsp "
+							 "ON nsp.oid = pgc.relnamespace "
+							 "WHERE pgc.relname = 'index_%u' "
+							 "AND nsp.nspname = $1", index);
+			params[0] = schema_name;
+			res = execute(sql.data, 1, params);
+			if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			{
+				elog(WARNING, "%s", PQerrorMessage(connection));
+				continue;
+			}
+			if (PQntuples(res) > 0)
+			{
+				ereport(WARNING,
+						(errcode(E_PG_COMMAND),
+						 errmsg("Cannot create index \"%s\".\"index_%u\", "
+								"already exists", schema_name, index),
+						 errdetail("An invalid index may have been left behind"
+								   " by a previous pg_repack on the table"
+								   " which was interrupted. Please use DROP "
+								   "INDEX \"%s\".\"index_%u\""
+								   " to remove this index and try again.",
+								   schema_name, index)));
+				continue;
+			}
+
+			params[0] = utoa(index, buffer[0]);
 			res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3,
 						  params);
 
@@ -1669,14 +1699,9 @@ repack_table_indexes(PGresult *index_details)
 			{
 				ereport(WARNING,
 						(errcode(E_PG_COMMAND),
-						 errmsg("Error creating index: %s",
-								PQerrorMessage(connection)),
-						 errdetail("An invalid index may have been left behind"
-								   " by a previous pg_repack on the table"
-								   " which was interrupted. Please use DROP "
-								   "INDEX \"%s\".\"index_%u\""
-								   " to remove this index and try again.",
-								   schema_name, index)));
+						 errmsg("Error creating index \"%s\".\"index_%u\": %s",
+								schema_name, index, PQerrorMessage(connection)
+							 ) ));
 			}
 			else
 			{
@@ -1707,7 +1732,7 @@ repack_table_indexes(PGresult *index_details)
 	}
 
 	/* take an exclusive lock on table before calling repack_index_swap() */
-	initStringInfo(&sql);
+	resetStringInfo(&sql);
 	appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
 					 table_name);
 	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
@@ -1734,7 +1759,7 @@ repack_table_indexes(PGresult *index_details)
 
 drop_idx:
 	CLEARPGRES(res);
-	initStringInfo(&sql);
+	resetStringInfo(&sql);
 	initStringInfo(&sql_drop);
 #if PG_VERSION_NUM < 90200
 	appendStringInfoString(&sql, "DROP INDEX ");
@@ -1790,7 +1815,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 		cell = r_index.head;
 	}
-	else if(table_list.head)
+	else if (table_list.head)
 	{
 		appendStringInfoString(&sql,
 			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
