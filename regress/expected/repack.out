@@ -340,7 +340,7 @@ CREATE TABLE trg2 (id integer PRIMARY KEY);
 CREATE TRIGGER z_repack_trigger BEFORE UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg2
 INFO: repacking table "trg2"
-WARNING: the table "trg2" has already a trigger called "z_repack_trigger"
+WARNING: the table "trg2" already has a trigger called "z_repack_trigger"
 DETAIL: The trigger was probably installed during a previous attempt to run pg_repack on the table which was interrupted and for some reason failed to clean up the temporary objects.  Please drop the trigger or drop and recreate the pg_repack extension altogether to remove all the temporary objects left over.
 CREATE TABLE trg3 (id integer PRIMARY KEY);
 CREATE TRIGGER z_repack_trigges BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();

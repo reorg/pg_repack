@@ -1031,7 +1031,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 		{
 			ereport(WARNING,
 				(errcode(E_PG_COMMAND),
-				 errmsg("the table \"%s\" has already a trigger called \"%s\"",
+				 errmsg("the table \"%s\" already has a trigger called \"%s\"",
 					table->target_name, PQgetvalue(res, 0, 0)),
 				 errdetail(
 					"The trigger was probably installed during a previous"

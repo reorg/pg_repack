@@ -20,6 +20,7 @@ You can choose one of the following methods to reorganize:
 * Online CLUSTER (ordered by cluster index)
 * Ordered by specified columns
 * Online VACUUM FULL (packing rows only)
+* Rebuild or relocate only the indexes of a table
 
 NOTICE:
 
@@ -39,15 +40,13 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2
-
-OS
-    RHEL 5.2, Windows XP SP3
+    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3
 
 Disks
-    Requires free disk space twice as large as the target table(s) and
-    indexes. For example, if the total size of the tables and indexes to be
-    reorganized is 1GB, an additional 2GB of disk space is required.
+    Performing a full-table repack requires free disk space about twice as
+    large as the target table(s) and its indexes. For example, if the total
+    size of the tables and indexes to be reorganized is 1GB, an additional 2GB
+    of disk space is required.
 
 
 Download
@@ -147,7 +146,7 @@ Reorg Options
 ^^^^^^^^^^^^^
 
 ``-a``, ``--all``
-    Attempt repack all the databases of the cluster. Databases where the
+    Attempt to repack all the databases of the cluster. Databases where the
     ``pg_repack`` extension is not installed will be skipped.
 
 ``-t TABLE``, ``--table=TABLE``
@@ -165,17 +164,19 @@ Reorg Options
 ``-j``, ``--jobs``
     Create the specified number of extra connections to PostgreSQL, and
     use these extra connections to parallelize the rebuild of indexes
-    on each table. If your PostgreSQL server has extra cores and disk
-    I/O available, this can be a useful way to speed up pg_repack.
+    on each table. Parallel index builds are only supported for full-table
+    repacks, not with ``--index`` or ``--only-indexes`` options. If your
+    PostgreSQL server has extra cores and disk I/O available, this can be a
+    useful way to speed up pg_repack.
 
 ``-s TBLSPC``, ``--tablespace=TBLSPC``
     Move the repacked tables to the specified tablespace: essentially an
-    online version of ``ALTER TABLE ... SET TABLESPACE``. The tables indexes
-    are left on the original tablespace unless ``--moveidx`` is specified too.
+    online version of ``ALTER TABLE ... SET TABLESPACE``. The tables' indexes
+    are left in the original tablespace unless ``--moveidx`` is specified too.
 
 ``-S``, ``--moveidx``
-    Move the indexes too of the repacked tables to the tablespace specified
-    by the option ``--tablespace``.
+    Also move the indexes of the repacked tables to the tablespace specified
+    by the ``--tablespace`` option.
 
 ``-i``, ``--index``
     Repack the specified index(es) only. Multiple indexes may be repacked
@@ -351,7 +352,7 @@ ERROR: query failed: ERROR: column "col" does not exist
 
     Specify existing columns.
 
-WARNING: the table "tbl" has already a trigger called z_repack_trigger
+WARNING: the table "tbl" already has a trigger called z_repack_trigger
     The trigger was probably installed during a previous attempt to run
     pg_repack on the table which was interrupted and for some reason failed
     to clean up the temporary objects.
@@ -364,7 +365,7 @@ WARNING: trigger "trg" conflicting on table "tbl"
     in alphabetical order.
 
     The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
-    Please rename your trigger to that it sorts alphabetically before
+    Please rename your trigger so that it sorts alphabetically before
     pg_repack's one; you can use::
 
         ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
@@ -375,7 +376,7 @@ ERROR: Another pg_repack command may be running on the table. Please try again
    There is a chance of deadlock when two concurrent pg_repack commands are run
    on the same table. So, try to run the command after some time.
 
-WARNING: Error creating index: ERROR:  relation "index_xxxxx" already exists
+WARNING: Cannot create index  "schema"."index_xxxxx", already exists
 DETAIL: An invalid index may have been left behind by a previous pg_repack on
 the table which was interrupted. Please use DROP INDEX "schema"."index_xxxxx"
 to remove this index and try again.
@@ -389,8 +390,7 @@ to remove this index and try again.
 Restrictions
 ------------
 
-pg_repack has the following restrictions. Be careful to avoid data
-corruptions.
+pg_repack comes with the following restrictions.
 
 Temp tables
 ^^^^^^^^^^^
@@ -405,27 +405,15 @@ pg_repack cannot reorganize tables using GiST indexes.
 DDL commands
 ^^^^^^^^^^^^
 
-You cannot perform DDL commands of the target table(s) **except** VACUUM and
-ANALYZE during pg_repack. In many
-cases pg_repack will fail and rollback correctly, but there are some cases
-which may result in data corruption.
+You will not be able to perform DDL commands of the target table(s) **except**
+VACUUM or ANALYZE while pg_repack is working. pg_repack will hold an
+ACCESS SHARE lock on the target table during a full-table repack, to enforce
+this restriction.
 
-.. class:: ddl
-
-TRUNCATE
-    TRUNCATE is lost. Deleted rows still exist after pg_repack.
-
-CREATE INDEX
-    It causes index corruption.
-
-ALTER TABLE ... ADD COLUMN
-    It causes loss of data. Newly added columns are initialized with NULLs.
-
-ALTER TABLE ... ALTER COLUMN TYPE
-    It causes data corruption.
-
-ALTER TABLE ... SET TABLESPACE
-    It causes data corruption by wrong relfilenode.
+If you are using version 1.1.8 or earlier, you must not attempt to perform any
+DDL commands on the target table(s) while pg_repack is running. In many cases
+pg_repack would fail and rollback correctly, but there were some cases in these
+earlier versions which could result in data corruption.
 
 
 Details
