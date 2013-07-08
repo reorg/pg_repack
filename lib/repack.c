@@ -1221,9 +1221,9 @@ repack_index_swap(PG_FUNCTION_ARGS)
 
 	initStringInfo(&str);
 
-	/* Find the OID of our new index. Indexes should have a reltype of 0. */
+	/* Find the OID of our new index. */
 	appendStringInfo(&str, "SELECT oid FROM pg_class "
-					 "WHERE relname = 'index_%u' AND reltype = 0",
+					 "WHERE relname = 'index_%u' AND relkind = 'i'",
 					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);
 	if (SPI_processed != 1)
