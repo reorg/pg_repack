@@ -59,6 +59,8 @@ const char *PROGRAM_VERSION = "unknown";
  *  c. Other pg_repack clients, as distinguished by application_name, which
  *     may be operating on other tables at the same time. See
  *     https://github.com/reorg/pg_repack/issues/1
+ *  d. open transactions/locks existing on other databases than the actual
+ *     processing relation (except for locks on shared objects)
  *
  * Note, there is some redundancy in how the filtering is done (e.g. excluding
  * based on pg_backend_pid() and application_name), but that shouldn't hurt
@@ -71,28 +73,40 @@ const char *PROGRAM_VERSION = "unknown";
 	"  FROM pg_locks AS l " \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.pid " \
+	"  LEFT JOIN pg_database AS d " \
+	"    ON a.datid = d.oid " \
 	"  WHERE l.locktype = 'virtualxid' " \
 	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
-	"  AND (a.application_name IS NULL OR a.application_name <> $2)"
+	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
+	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 #define SQL_XID_SNAPSHOT_90000 \
 	"SELECT repack.array_accum(l.virtualtransaction) " \
 	"  FROM pg_locks AS l " \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
+	"  LEFT JOIN pg_database AS d " \
+	"    ON a.datid = d.oid " \
 	"  WHERE l.locktype = 'virtualxid' " \
 	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
-	"  AND (a.application_name IS NULL OR a.application_name <> $2)"
+	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
+	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 /* application_name is not available before 9.0. The last clause of
  * the WHERE clause is just to eat the $2 parameter (application name).
  */
 #define SQL_XID_SNAPSHOT_80300 \
-	"SELECT repack.array_accum(virtualtransaction) FROM pg_locks" \
-	" WHERE locktype = 'virtualxid' AND pid NOT IN (pg_backend_pid(), $1)" \
-	" AND (virtualxid, virtualtransaction) <> ('1/1', '-1/0') " \
+	"SELECT repack.array_accum(l.virtualtransaction) " \
+    "  FROM pg_locks AS l" \
+	"  LEFT JOIN pg_stat_activity AS a " \
+	"    ON l.pid = a.procpid " \
+	"  LEFT JOIN pg_database AS d " \
+	"    ON a.datid = d.oid " \
+	" WHERE l.locktype = 'virtualxid' AND l.pid NOT IN (pg_backend_pid(), $1)" \
+	" AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
+	" AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)" \
 	" AND ($2::text IS NOT NULL)"
 
 #define SQL_XID_SNAPSHOT \
