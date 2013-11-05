@@ -43,10 +43,10 @@ LIBS := $(filter-out -lxslt, $(LIBS))
 LIBS := $(filter-out -lpam, $(LIBS))
 
 pg_repack.sql: pg_repack.sql.in
-	echo "BEGIN;\n" > $@; \
+	echo "BEGIN;" > $@; \
 	sed 's,MODULE_PATHNAME,$$libdir/$(MODULE_big),g' $< \
 	| sed 's,REPACK_VERSION,$(REPACK_VERSION),g' >> $@; \
-	echo "\nCOMMIT;" >> $@;
+	echo "COMMIT;" >> $@;
 
 pg_repack--$(REPACK_VERSION).sql: pg_repack.sql.in
 	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@;
