@@ -151,7 +151,7 @@ Reorg Options
 
 ``-t TABLE``, ``--table=TABLE``
     Reorganize the specified table(s) only. Multiple tables may be
-    reorganized by writing multiple `-t` switches. By default, all eligible
+    reorganized by writing multiple ``-t`` switches. By default, all eligible
     tables in the target databases are reorganized.
 
 ``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
@@ -180,7 +180,7 @@ Reorg Options
 
 ``-i``, ``--index``
     Repack the specified index(es) only. Multiple indexes may be repacked
-    by writing multiple `-i` switches. May be used in conjunction with
+    by writing multiple ``-i`` switches. May be used in conjunction with
     ``--tablespace`` to move the index to a different tablespace.
 
 ``-x``, ``--only-indexes``
@@ -383,8 +383,8 @@ to remove this index and try again.
 
    A temporary index apparently created by pg_repack has been left behind, and
    we do not want to risk dropping this index ourselves. If the index was in
-   fact created by an old pg_repack job which didn't get cleaned up, you 
-   should just use DROP INDEX and try the repack command again. 
+   fact created by an old pg_repack job which didn't get cleaned up, you
+   should just use DROP INDEX and try the repack command again.
 
 
 Restrictions
@@ -435,13 +435,14 @@ Releases
 
   * Added ``--tablespace`` and ``--moveidx`` options to perform online
     SET TABLESPACE.
+  * Added ``--index`` to repack indexes only.
   * Added ``--jobs`` option for parallel operation.
   * Don't require ``--no-order`` to perform a VACUUM FULL on non-clustered
     tables (pg_repack issue #6).
+  * Don't wait for locks held in other databases (pg_repack issue #11).
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).
   * More helpful program output and error messages.
-  * Added feature to repack indexes only.
 
 * pg_repack 1.1.8
 
