@@ -28,21 +28,20 @@ What about pg_reorg?
 --------------------
 
 pg_repack is a fork of the pg_reorg_ project, which has proven hugely
-successful.  Unfortunately the last version of pg_reorg was 1.1.7, released
-in Aug. 2011, and development of the project has stagnated since then.  The
-first release of pg_repack contains many key improvements which have been
-missing from pg_reorg (e.g. support for PostgreSQL 9.2, and EXTENSION
-packaging).
+successful. Unfortunately development appears to have stopped after the
+release of the version 1.1.7, around August 2011.
 
-In an effort to make the transition for existing pg_reorg users simple, and
-facilitate a possible merge back with pg_reorg, we are releasing
-pg_repack 1.1.8 as a drop-in replacement for pg_reorg, addressing the
-pg_reorg 1.1.7 bugs and shortcomings. We are also developing new features
-to be released in an upcoming 1.2 version.  pg_repack may be an interim
-solution, should the pg_reorg project come back to life.
+pg_repack 1.1.8 was released as a drop-in replacement for pg_reorg, addressing
+some of the shortcomings of the last pg_reorg version (such as support for
+PostgreSQL 9.2 and EXTENSION packaging) and known bugs. Shortly after the
+first pg_repack release, pg_reorg 1.1.8 was released too, merging all the
+pg_repack changes. Version 1.1.8 is the last pg_reorg release at the time of
+writing.
 
-In the meantime, we thank the original pg_reorg authors for the quality code
-they have released to the community, wish them good luck, and hope to
-collaborate further in the future.
+pg_repack 1.2 is a new development line based on the original pg_reorg
+codebase and offering new features. Its behaviour may be different from the
+1.1.x release so it shouldn't be considered a drop-in replacement: you are
+advised to check the documentation__ before upgrading from previous versions.
 
+.. __: pg_repack_
 .. _pg_reorg: http://reorg.projects.pgfoundry.org/
