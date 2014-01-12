@@ -45,7 +45,10 @@ check installcheck:
 	exit $$CHECKERR
 
 # Prepare the package for PGXN submission
-package: $(EXTENSION)-$(EXTVERSION).zip
+package: dist dist/$(EXTENSION)-$(EXTVERSION).zip
 
-$(EXTENSION)-$(EXTVERSION).zip:
+dist:
+	mkdir -p dist
+
+dist/$(EXTENSION)-$(EXTVERSION).zip:
 	git archive --format zip --prefix=$(EXTENSION)-$(EXTVERSION)/ --output $@ master

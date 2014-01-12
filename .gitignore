@@ -3,3 +3,4 @@
 *.so
 regress/regression.diffs
 regress/regression.out
+dist/*.zip
