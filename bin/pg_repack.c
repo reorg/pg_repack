@@ -658,6 +658,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.target_oid = getoid(res, i, c++);
 		table.target_toast = getoid(res, i, c++);
 		table.target_tidx = getoid(res, i, c++);
+		c++; // Skip schemaname
 		table.pkid = getoid(res, i, c++);
 		table.ckid = getoid(res, i, c++);
 
