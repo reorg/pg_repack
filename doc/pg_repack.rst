@@ -117,6 +117,7 @@ The following options can be specified in ``OPTIONS``.
 Options:
   -a, --all                 repack all databases
   -t, --table=TABLE         repack specific table only
+  -c, --schema=SCHEMA       repack specific schema only
   -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
   -S, --moveidx             move repacked indexes to *TBLSPC* too
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
@@ -153,6 +154,11 @@ Reorg Options
     Reorganize the specified table(s) only. Multiple tables may be
     reorganized by writing multiple ``-t`` switches. By default, all eligible
     tables in the target databases are reorganized.
+
+``-c``, ``--schema``
+    Repack the specified schema(s) only. Multiple schemas may be repacked
+    by writing multiple ``-c`` switches. May be used in conjunction with
+    ``--tablespace`` to move tables and indexes to a different tablespace.
 
 ``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
     Perform an online CLUSTER ordered by the specified columns.
@@ -443,6 +449,7 @@ Releases
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).
   * More helpful program output and error messages.
+  * Added ``--schema`` to repack only specific schema.
 
 * pg_repack 1.1.8
 
