@@ -121,6 +121,7 @@ Options:
   -S, --moveidx             move repacked indexes to *TBLSPC* too
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -n, --no-order            do vacuum full instead of cluster
+  -N, --dry-run             print what would have been repacked
   -j, --jobs=NUM            Use this many parallel jobs for each table
   -i, --index=INDEX         move only the specified index
   -x, --only-indexes        move only indexes of the specified table
@@ -160,6 +161,9 @@ Reorg Options
 ``-n``, ``--no-order``
     Perform an online VACUUM FULL.  Since version 1.2 this is the default for
     non-clustered tables.
+
+``-N``, ``--dry-run``
+    List what would be repacked and exit.
 
 ``-j``, ``--jobs``
     Create the specified number of extra connections to PostgreSQL, and
@@ -443,6 +447,7 @@ Releases
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).
   * More helpful program output and error messages.
+  * Added ``--dry-run`` to do a dry run.
 
 * pg_repack 1.1.8
 

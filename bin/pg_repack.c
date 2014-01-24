@@ -226,6 +226,7 @@ static SimpleStringList	r_index = {NULL, NULL};
 static bool				only_indexes = false;
 static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
+static bool				dryrun = false;
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -240,6 +241,7 @@ static pgut_option options[] =
 	{ 'b', 'a', "all", &alldb },
 	{ 'l', 't', "table", &table_list },
 	{ 'b', 'n', "no-order", &noorder },
+	{ 'b', 'N', "dry-run", &dryrun },
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
@@ -513,9 +515,12 @@ repack_all_databases(const char *orderby)
 		dbname = PQgetvalue(result, i, 0);
 
 		elog(INFO, "repacking database \"%s\"", dbname);
-		ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
-		if (!ret)
-			elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
+		if (!dryrun)
+		{
+			ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
+			if (!ret)
+				elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
+		}
 	}
 
 	CLEARPGRES(result);
@@ -1017,6 +1022,9 @@ repack_one_table(const repack_table *table, const char *orderby)
 	elog(DEBUG2, "sql_delete     : %s", table->sql_delete);
 	elog(DEBUG2, "sql_update     : %s", table->sql_update);
 	elog(DEBUG2, "sql_pop        : %s", table->sql_pop);
+
+	if (dryrun)
+		return;
 
 	/*
 	 * 1. Setup advisory lock and trigger on main table.
@@ -1693,6 +1701,10 @@ repack_table_indexes(PGresult *index_details)
 				continue;
 			}
 
+			elog(INFO, "repacking index \"%s\".\"index_%u\"", schema_name, index);
+			if (dryrun)
+				continue;
+
 			params[0] = utoa(index, buffer[0]);
 			res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3,
 						  params);
@@ -1730,6 +1742,9 @@ repack_table_indexes(PGresult *index_details)
 			elog(WARNING, "skipping invalid index: %s.%s", schema_name,
 				 getstr(index_details, i, 0));
 	}
+
+	if (dryrun)
+		return true;
 
 	/* If we did not successfully repack any indexes, e.g. because of some
 	 * error affecting every CREATE INDEX attempt, don't waste time with
@@ -1899,6 +1914,7 @@ pgut_help(bool details)
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
+	printf("  -N, --dry-run             print what would have been repacked\n");
 	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
 	printf("  -i, --index=INDEX         move only the specified index\n");
 	printf("  -x, --only-indexes        move only indexes of the specified table\n");
