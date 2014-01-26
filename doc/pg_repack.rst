@@ -121,7 +121,7 @@ Options:
   -S, --moveidx             move repacked indexes to *TBLSPC* too
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -n, --no-order            do vacuum full instead of cluster
-  -N, --dry-run             print what would have been repacked
+  -N, --dry-run             print what would have been repacked and exit
   -j, --jobs=NUM            Use this many parallel jobs for each table
   -i, --index=INDEX         move only the specified index
   -x, --only-indexes        move only indexes of the specified table
@@ -435,6 +435,10 @@ the original index.
 Releases
 --------
 
+* pg_repack 1.3
+
+  * Added ``--dry-run`` to do a dry run.
+
 * pg_repack 1.2
 
   * Added ``--tablespace`` and ``--moveidx`` options to perform online
@@ -447,7 +451,6 @@ Releases
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).
   * More helpful program output and error messages.
-  * Added ``--dry-run`` to do a dry run.
 
 * pg_repack 1.1.8
 
