@@ -1704,9 +1704,11 @@ repack_table_indexes(PGresult *index_details)
 				continue;
 			}
 
-			elog(INFO, "repacking index \"%s\".\"index_%u\"", schema_name, index);
 			if (dryrun)
+			{
+				elog(INFO, "repacking index \"%s\".\"index_%u\"", schema_name, index);
 				continue;
+			}
 
 			params[0] = utoa(index, buffer[0]);
 			res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3,
