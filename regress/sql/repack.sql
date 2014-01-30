@@ -206,3 +206,8 @@ CREATE TRIGGER z_repack_trigges BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCE
 CREATE TABLE trg4 (id integer PRIMARY KEY);
 CREATE TRIGGER zzzzzz AFTER UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg4
+
+--
+-- Dry run
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --dry-run
