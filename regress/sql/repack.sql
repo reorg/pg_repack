@@ -206,3 +206,11 @@ CREATE TRIGGER z_repack_trigges BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCE
 CREATE TABLE trg4 (id integer PRIMARY KEY);
 CREATE TRIGGER zzzzzz AFTER UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg4
+
+--
+-- Repack single schema
+--
+CREATE SCHEMA only_this_schema;
+CREATE TABLE only_this_schema.tbl1 (id INTEGER PRIMARY KEY);
+CREATE TABLE only_this_schema.tbl2 (id INTEGER PRIMARY KEY);
+\! pg_repack --dbname=contrib_regression --schema=only_this_schema
