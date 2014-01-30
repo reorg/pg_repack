@@ -270,6 +270,9 @@ main(int argc, char *argv[])
 
 	check_tablespace();
 
+	if (dryrun)
+		elog(INFO, "Dry run enabled, not executing repack");
+
 	if (r_index.head || only_indexes)
 	{
 		if (r_index.head && table_list.head)
