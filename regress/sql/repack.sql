@@ -208,17 +208,19 @@ CREATE TRIGGER zzzzzz AFTER UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtes
 \! pg_repack --dbname=contrib_regression --table=trg4
 
 --
--- Repack single schema
+-- Test --schema
 --
 CREATE SCHEMA test_schema1;
 CREATE TABLE test_schema1.tbl1 (id INTEGER PRIMARY KEY);
 CREATE TABLE test_schema1.tbl2 (id INTEGER PRIMARY KEY);
-\! pg_repack --dbname=contrib_regression --schema=test_schema1
-
---
--- Repack two schemas
---
 CREATE SCHEMA test_schema2;
 CREATE TABLE test_schema2.tbl1 (id INTEGER PRIMARY KEY);
 CREATE TABLE test_schema2.tbl2 (id INTEGER PRIMARY KEY);
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=test_schema1
+-- => OK
 \! pg_repack --dbname=contrib_regression --schema=test_schema1 --schema=test_schema2
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --schema=test_schema1 --table=tbl1
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --all --schema=test_schema1

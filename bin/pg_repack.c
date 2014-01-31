@@ -305,6 +305,11 @@ main(int argc, char *argv[])
 	}
 	else
 	{
+		if (schema_list.head && table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
+
 		if (noorder)
 			orderby = "";
 
