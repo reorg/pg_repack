@@ -17,11 +17,16 @@ CLUSTER directly.
 Please check the documentation (in the ``doc`` directory or online_) for
 installation and usage instructions.
 
+All users of pg_reorg 1.1.9 or earlier, and pg_repack 1.2.0-beta1 or earlier,
+are **urged to upgrade** to the latest pg_repack version to fix a serious
+data corruption issue_.
+
 .. _pg_repack: http://reorg.github.com/pg_repack
 .. _CLUSTER: http://www.postgresql.org/docs/current/static/sql-cluster.html
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
 .. _online: pg_repack_
+.. _issue: https://github.com/reorg/pg_repack/issues/23
 
 
 What about pg_reorg?
