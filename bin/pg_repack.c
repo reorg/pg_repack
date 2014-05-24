@@ -219,6 +219,7 @@ static bool				analyze = true;
 static bool				alldb = false;
 static bool				noorder = false;
 static SimpleStringList	table_list = {NULL, NULL};
+static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
 static char				*tablespace = NULL;
 static bool				moveidx = false;
@@ -240,6 +241,7 @@ static pgut_option options[] =
 {
 	{ 'b', 'a', "all", &alldb },
 	{ 'l', 't', "table", &table_list },
+	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
 	{ 's', 'o', "order-by", &orderby },
@@ -308,6 +310,11 @@ main(int argc, char *argv[])
 	}
 	else
 	{
+		if (schema_list.head && table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
+
 		if (noorder)
 			orderby = "";
 
@@ -317,6 +324,10 @@ main(int argc, char *argv[])
 				ereport(ERROR,
 					(errcode(EINVAL),
 					 errmsg("cannot repack specific table(s) in all databases")));
+			if (schema_list.head)
+				ereport(ERROR,
+					(errcode(EINVAL),
+					 errmsg("cannot repack specific schema(s) in all databases")));
 			repack_all_databases(orderby);
 		}
 		else
@@ -563,12 +574,14 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	const char			  **params = NULL;
 	int						iparam = 0;
 	size_t					num_tables;
+	size_t					num_schemas;
 	size_t					num_params;
 
 	num_tables = simple_string_list_size(table_list);
+	num_schemas = simple_string_list_size(schema_list);
 
 	/* 1st param is the user-specified tablespace */
-	num_params = num_tables + 1;
+	num_params = num_tables + num_schemas + 1;
 	params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
@@ -601,6 +614,19 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			params[iparam++] = cell->val;
 			if (cell->next)
 				appendStringInfoString(&sql, " OR ");
+		}
+		appendStringInfoString(&sql, ")");
+	}
+	else if (num_schemas)
+	{
+		appendStringInfoString(&sql, "schemaname IN (");
+		for (cell = schema_list.head; cell; cell = cell->next)
+		{
+			/* Construct schema name placeholders to be used by PQexecParams */
+			appendStringInfo(&sql, "$%d", iparam + 1);
+			params[iparam++] = cell->val;
+			if (cell->next)
+				appendStringInfoString(&sql, ", ");
 		}
 		appendStringInfoString(&sql, ")");
 	}
@@ -645,6 +671,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.target_oid = getoid(res, i, c++);
 		table.target_toast = getoid(res, i, c++);
 		table.target_tidx = getoid(res, i, c++);
+		c++; // Skip schemaname
 		table.pkid = getoid(res, i, c++);
 		table.ckid = getoid(res, i, c++);
 
@@ -1671,6 +1698,7 @@ repack_table_indexes(PGresult *index_details)
 	for (i = 0; i < num; i++)
 	{
 		char *isvalid = getstr(index_details, i, 2);
+		char *idx_name = getstr(index_details, i, 0);
 
 		if (isvalid[0] == 't')
 		{
@@ -1683,7 +1711,7 @@ repack_table_indexes(PGresult *index_details)
 							 "WHERE pgc.relname = 'index_%u' "
 							 "AND nsp.nspname = $1", index);
 			params[0] = schema_name;
-			elog(INFO, "repacking index \"%s\".\"index_%u\"", schema_name, index);
+			elog(INFO, "repacking index \"%s\".\"%s\"", schema_name, idx_name);
 			res = execute(sql.data, 1, params);
 			if (PQresultStatus(res) != PGRES_TUPLES_OK)
 			{
@@ -1837,6 +1865,10 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	if (!preliminary_checks(errbuf, errsize))
 		goto cleanup;
 
+	/* XXX: tighten these ORDER BYs to avoid intermittent installcheck
+	 * failures due to differently-ordered results for some of the
+	 * --only-indexes tests.
+	 */
 	if (r_index.head)
 	{
 		appendStringInfoString(&sql, 
@@ -1883,8 +1915,6 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 		if(table_list.head)
 			elog(INFO, "repacking indexes of \"%s\"", cell->val);
-		else
-			elog(INFO, "repacking \"%s\"", cell->val);
 
 		if (!repack_table_indexes(res))	
 			elog(WARNING, "repack failed for \"%s\"", cell->val);
@@ -1913,6 +1943,7 @@ pgut_help(bool details)
 	printf("Options:\n");
 	printf("  -a, --all                 repack all databases\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
+	printf("  -c, --schema=SCHEMA       repack tables in specific schema only\n");
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
