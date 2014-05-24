@@ -441,9 +441,11 @@ Releases
 
 * pg_repack 1.2
 
+  * Support PostgreSQL 9.3.
   * Added ``--tablespace`` and ``--moveidx`` options to perform online
     SET TABLESPACE.
-  * Added ``--index`` to repack indexes only.
+  * Added ``--index`` to repack the specified index only.
+  * Added ``--only-indexes`` to repack only the indexes of the specified table
   * Added ``--jobs`` option for parallel operation.
   * Don't require ``--no-order`` to perform a VACUUM FULL on non-clustered
     tables (pg_repack issue #6).
