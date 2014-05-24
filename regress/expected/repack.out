@@ -323,6 +323,9 @@ INFO: repacking table "tbl_nn_uk"
 \! pg_repack --dbname=contrib_regression --table=tbl_pk_uk
 INFO: repacking table "tbl_pk_uk"
 -- => OK
+\! pg_repack --dbname=contrib_regression --table=tbl_pk_uk --only-indexes
+INFO: repacking indexes of "tbl_pk_uk"
+-- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_nn_puk
 WARNING: relation "tbl_nn_puk" must have a primary key or not-null unique keys
 -- => WARNING

@@ -1683,6 +1683,7 @@ repack_table_indexes(PGresult *index_details)
 							 "WHERE pgc.relname = 'index_%u' "
 							 "AND nsp.nspname = $1", index);
 			params[0] = schema_name;
+			elog(INFO, "repacking index \"%s\".\"index_%u\"", schema_name, index);
 			res = execute(sql.data, 1, params);
 			if (PQresultStatus(res) != PGRES_TUPLES_OK)
 			{
@@ -1705,10 +1706,7 @@ repack_table_indexes(PGresult *index_details)
 			}
 
 			if (dryrun)
-			{
-				elog(INFO, "repacking index \"%s\".\"index_%u\"", schema_name, index);
 				continue;
-			}
 
 			params[0] = utoa(index, buffer[0]);
 			res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3,

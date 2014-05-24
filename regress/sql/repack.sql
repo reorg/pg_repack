@@ -185,6 +185,8 @@ CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_pk_uk
 -- => OK
+\! pg_repack --dbname=contrib_regression --table=tbl_pk_uk --only-indexes
+-- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_nn_puk
 -- => WARNING
 
