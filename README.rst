@@ -17,31 +17,34 @@ CLUSTER directly.
 Please check the documentation (in the ``doc`` directory or online_) for
 installation and usage instructions.
 
+All users of pg_reorg 1.1.9 or earlier, and pg_repack 1.2.0-beta1 or earlier,
+are **urged to upgrade** to the latest pg_repack version to fix a serious
+data corruption issue_.
+
 .. _pg_repack: http://reorg.github.com/pg_repack
 .. _CLUSTER: http://www.postgresql.org/docs/current/static/sql-cluster.html
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
 .. _online: pg_repack_
+.. _issue: https://github.com/reorg/pg_repack/issues/23
 
 
 What about pg_reorg?
 --------------------
 
 pg_repack is a fork of the pg_reorg_ project, which has proven hugely
-successful. Unfortunately development appears to have stopped after the
-release of the version 1.1.7, around August 2011.
+successful. Unfortunately new feature development on pg_reorg_ has slowed
+or stopped since late 2011.
 
-pg_repack 1.1.8 was released as a drop-in replacement for pg_reorg, addressing
-some of the shortcomings of the last pg_reorg version (such as support for
-PostgreSQL 9.2 and EXTENSION packaging) and known bugs. Shortly after the
-first pg_repack release, pg_reorg 1.1.8 was released too, merging all the
-pg_repack changes. Version 1.1.8 is the last pg_reorg release at the time of
-writing.
+pg_repack was initially released as a drop-in replacement for pg_reorg,
+addressing some of the shortcomings of the last pg_reorg version (such as
+support for PostgreSQL 9.2 and EXTENSION packaging) and known bugs.
 
-pg_repack 1.2 is a new development line based on the original pg_reorg
-codebase and offering new features. Its behaviour may be different from the
-1.1.x release so it shouldn't be considered a drop-in replacement: you are
-advised to check the documentation__ before upgrading from previous versions.
+pg_repack 1.2 introduces further new features (parallel index builds,
+ability to rebuild only indexes) and bugfixes. In some cases its behaviour
+may be different from the 1.1.x release so it shouldn't be considered a
+drop-in replacement: you are advised to check the documentation__ before
+upgrading from previous versions.
 
 .. __: pg_repack_
 .. _pg_reorg: http://reorg.projects.pgfoundry.org/

@@ -450,6 +450,7 @@ Releases
   * Don't wait for locks held in other databases (pg_repack issue #11).
   * Bugfix: correctly handle key indexes with options such as DESC, NULL
     FIRST/LAST, COLLATE (pg_repack issue #3).
+  * Fixed data corruption bug on delete (pg_repack issue #23).
   * More helpful program output and error messages.
 
 * pg_repack 1.1.8
