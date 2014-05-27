@@ -325,8 +325,8 @@ INFO: repacking table "tbl_pk_uk"
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_pk_uk --only-indexes
 INFO: repacking indexes of "tbl_pk_uk"
-INFO: repacking index "public"."tbl_pk_uk_pkey"
 INFO: repacking index "public"."tbl_pk_uk_col2_col1_key"
+INFO: repacking index "public"."tbl_pk_uk_pkey"
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_nn_puk
 WARNING: relation "tbl_nn_puk" must have a primary key or not-null unique keys
@@ -377,10 +377,10 @@ INFO: repacking table "test_schema1.tbl1"
 INFO: repacking table "test_schema1.tbl2"
 -- => OK
 \! pg_repack --dbname=contrib_regression --schema=test_schema1 --schema=test_schema2
+INFO: repacking table "test_schema1.tbl1"
+INFO: repacking table "test_schema1.tbl2"
 INFO: repacking table "test_schema2.tbl1"
 INFO: repacking table "test_schema2.tbl2"
-INFO: repacking table "test_schema1.tbl2"
-INFO: repacking table "test_schema1.tbl1"
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --schema=test_schema1 --table=tbl1
 ERROR: cannot repack specific table(s) in schema, use schema.table notation instead

@@ -634,6 +634,8 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	{
 		appendStringInfoString(&sql, "pkid IS NOT NULL");
 	}
+	/* Ensure the regression tests get a consistent ordering of tables */
+	appendStringInfoString(&sql, " ORDER BY t.relname, t.schemaname");
 
 	/* double check the parameters array is sane */
 	if (iparam != num_params)
@@ -1865,17 +1867,13 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	if (!preliminary_checks(errbuf, errsize))
 		goto cleanup;
 
-	/* XXX: tighten these ORDER BYs to avoid intermittent installcheck
-	 * failures due to differently-ordered results for some of the
-	 * --only-indexes tests.
-	 */
 	if (r_index.head)
 	{
 		appendStringInfoString(&sql, 
 			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, idx.indrelid::regclass, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
-			" WHERE idx.indexrelid = $1::regclass ORDER BY indisvalid DESC");
+			" WHERE idx.indexrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
 
 		cell = r_index.head;
 	}
@@ -1885,7 +1883,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
-			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC");
+			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
 
 		cell = table_list.head;
 	}

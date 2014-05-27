@@ -135,8 +135,8 @@ INFO: repacking table "testts1"
 --move all indexes of the table to a tablespace
 \! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --tablespace=testts
 INFO: repacking indexes of "testts1"
-INFO: repacking index "public"."testts1_pkey"
 INFO: repacking index "public"."testts1_partial_idx"
+INFO: repacking index "public"."testts1_pkey"
 INFO: repacking index "public"."testts1_with_idx"
 SELECT relname, spcname
 FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
@@ -152,8 +152,8 @@ ORDER BY relname;
 --all indexes of tablespace remain in same tablespace
 \! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes
 INFO: repacking indexes of "testts1"
-INFO: repacking index "public"."testts1_pkey"
 INFO: repacking index "public"."testts1_partial_idx"
+INFO: repacking index "public"."testts1_pkey"
 INFO: repacking index "public"."testts1_with_idx"
 SELECT relname, spcname
 FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
@@ -169,8 +169,8 @@ ORDER BY relname;
 --move all indexes of the table to pg_default
 \! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --tablespace=pg_default
 INFO: repacking indexes of "testts1"
-INFO: repacking index "public"."testts1_pkey"
 INFO: repacking index "public"."testts1_partial_idx"
+INFO: repacking index "public"."testts1_pkey"
 INFO: repacking index "public"."testts1_with_idx"
 SELECT relname, spcname
 FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
