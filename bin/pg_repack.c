@@ -1359,7 +1359,8 @@ repack_one_table(const repack_table *table, const char *orderby)
 	/* Release advisory lock on table. */
 	params[0] = REPACK_LOCK_PREFIX_STR;
 	params[1] = buffer;
-	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1, -2147483648 + $2)",
+
+	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1, CAST(-2147483648 + $2::bigint AS integer))",
 			   2, params);
 	ret = true;
 
@@ -1530,7 +1531,7 @@ static bool advisory_lock(PGconn *conn, const char *relid)
 	 * *unsigned* 4-byte integer. Add -2147483648 to that OID to make
 	 * it fit reliably into signed int space.
 	 */
-	res = pgut_execute(conn, "SELECT pg_try_advisory_lock($1, -2147483648 + $2)",
+	res = pgut_execute(conn, "SELECT pg_try_advisory_lock($1, CAST(-2147483648 + $2::bigint AS integer))",
 			   2, params);
 
 	if (PQresultStatus(res) != PGRES_TUPLES_OK) {
