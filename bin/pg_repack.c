@@ -143,6 +143,24 @@ const char *PROGRAM_VERSION = "unknown";
 /* Will be used as a unique prefix for advisory locks. */
 #define REPACK_LOCK_PREFIX_STR "16185446"
 
+typedef enum
+{
+	UNPROCESSED,
+	INPROGRESS,
+	FINISHED
+} index_status_t;
+
+/*
+ * per-index information
+ */
+typedef struct repack_index
+{
+	Oid				target_oid;		/* target: OID */
+	const char	   *create_index;	/* CREATE INDEX */
+    index_status_t  status; 		/* Track parallel build statuses. */
+	int             worker_idx;		/* which worker conn is handling */
+} repack_index;
+
 /*
  * per-table information
  */
@@ -167,26 +185,10 @@ typedef struct repack_table
 	const char	   *sql_delete;		/* SQL used in flush */
 	const char	   *sql_update;		/* SQL used in flush */
 	const char	   *sql_pop;		/* SQL used in flush */
+	int             n_indexes;      /* number of indexes */
+	repack_index   *indexes;        /* info on each index */
 } repack_table;
 
-
-typedef enum
-{
-	UNPROCESSED,
-	INPROGRESS,
-	FINISHED
-} index_status_t;
-
-/*
- * per-index information
- */
-typedef struct repack_index
-{
-	Oid				target_oid;		/* target: OID */
-	const char	   *create_index;	/* CREATE INDEX */
-    index_status_t  status; 		/* Track parallel build statuses. */
-	int             worker_idx;		/* which worker conn is handling */
-} repack_index;
 
 static bool is_superuser(void);
 static void check_tablespace(void);
@@ -667,6 +669,10 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		const char *create_table_2;
 		const char *tablespace;
 		const char *ckey;
+		PGresult   *indexres = NULL;
+		const char *indexparams[2];
+		char		buffer[12];
+		int         j;
 		int			c = 0;
 
 		table.target_name = getstr(res, i, c++);
@@ -735,6 +741,41 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			table.create_table = sql.data;
 		}
 
+		indexparams[0] = utoa(table.target_oid, buffer);
+		indexparams[1] = moveidx ? tablespace : NULL;
+
+		/* First, just display a warning message for any invalid indexes
+		 * which may be on the table (mostly to match the behavior of 1.1.8).
+		 */
+		indexres = execute(
+			"SELECT pg_get_indexdef(indexrelid)"
+			" FROM pg_index WHERE indrelid = $1 AND NOT indisvalid",
+			1, indexparams);
+
+		for (j = 0; j < PQntuples(indexres); j++)
+		{
+			const char *indexdef;
+			indexdef = getstr(indexres, j, 0);
+			elog(WARNING, "skipping invalid index: %s", indexdef);
+		}
+
+		indexres = execute(
+			"SELECT indexrelid,"
+			" repack.repack_indexdef(indexrelid, indrelid, $2, FALSE) "
+			" FROM pg_index WHERE indrelid = $1 AND indisvalid",
+			2, indexparams);
+
+		table.n_indexes = PQntuples(indexres);
+		table.indexes = pgut_malloc(table.n_indexes * sizeof(repack_index));
+
+		for (j = 0; j < table.n_indexes; j++)
+		{
+			table.indexes[j].target_oid = getoid(indexres, j, 0);
+			table.indexes[j].create_index = getstr(indexres, j, 1);
+			table.indexes[j].status = UNPROCESSED;
+			table.indexes[j].worker_idx = -1; /* Unassigned */
+		}
+
 		repack_one_table(&table, orderby);
 	}
 	ret = true;
@@ -777,40 +818,17 @@ apply_log(PGconn *conn, const repack_table *table, int count)
 static bool
 rebuild_indexes(const repack_table *table)
 {
-	PGresult	   *res;
-	const char	   *params[2];
+	PGresult	   *res = NULL;
 	int			    num_indexes;
 	int				i;
 	int				num_active_workers;
 	int				num_workers;
 	repack_index   *index_jobs;
-	char			buffer[12];
 	bool            have_error = false;
 
 	elog(DEBUG2, "---- create indexes ----");
 
-	params[0] = utoa(table->target_oid, buffer);
-	params[1] = moveidx ? tablespace : NULL;
-
-	/* First, just display a warning message for any invalid indexes
-	 * which may be on the table (mostly to match the behavior of 1.1.8).
-	 */
-	res = execute("SELECT pg_get_indexdef(indexrelid)"
-				  " FROM pg_index WHERE indrelid = $1 AND NOT indisvalid",
-				  1, params);
-	for (i = 0; i < PQntuples(res); i++)
-	{
-		const char *indexdef;
-		indexdef = getstr(res, i, 0);
-		elog(WARNING, "skipping invalid index: %s", indexdef);
-	}
-
-	res = execute("SELECT indexrelid,"
-		" repack.repack_indexdef(indexrelid, indrelid, $2, FALSE) "
-		" FROM pg_index WHERE indrelid = $1 AND indisvalid",
-		2, params);
-
-	num_indexes = PQntuples(res);
+	num_indexes = table->n_indexes;
 
 	/* We might have more actual worker connections than we need,
 	 * if the number of workers exceeds the number of indexes to be
@@ -822,16 +840,10 @@ rebuild_indexes(const repack_table *table)
 	elog(DEBUG2, "Have %d indexes and num_workers=%d", num_indexes,
 		 num_workers);
 
-	index_jobs = pgut_malloc(sizeof(repack_index) * num_indexes);
+	index_jobs = table->indexes;
 
 	for (i = 0; i < num_indexes; i++)
 	{
-		int			c = 0;
-
-		index_jobs[i].target_oid = getoid(res, i, c++);
-		index_jobs[i].create_index = getstr(res, i, c++);
-		index_jobs[i].status = UNPROCESSED;
-		index_jobs[i].worker_idx = -1; /* Unassigned */
 
 		elog(DEBUG2, "set up index_jobs [%d]", i);
 		elog(DEBUG2, "target_oid   : %u", index_jobs[i].target_oid);
@@ -868,7 +880,6 @@ rebuild_indexes(const repack_table *table)
 		 * available. That's OK, we'll get to them later.
 		 */
 	}
-	CLEARPGRES(res);
 
 	if (num_workers > 1)
 	{
@@ -1016,7 +1027,7 @@ repack_one_table(const repack_table *table, const char *orderby)
 	const char	   *params[2];
 	int				num;
 	int				num_waiting = 0;
-
+	int             i;
 	char		   *vxid = NULL;
 	char			buffer[12];
 	StringInfoData	sql;
@@ -1054,6 +1065,11 @@ repack_one_table(const repack_table *table, const char *orderby)
 	elog(DEBUG2, "sql_delete     : %s", table->sql_delete);
 	elog(DEBUG2, "sql_update     : %s", table->sql_update);
 	elog(DEBUG2, "sql_pop        : %s", table->sql_pop);
+	for (i = 0; i < table->n_indexes; i++)
+	{
+		elog(DEBUG2, "index[%d].target_oid      : %u", i, table->indexes[i].target_oid);
+		elog(DEBUG2, "index[%d].create_index    : %s", i, table->indexes[i].create_index);
+	}
 
 	if (dryrun)
 		return;
