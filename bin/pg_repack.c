@@ -195,7 +195,7 @@ static void check_tablespace(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by);
 static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
-static void repack_one_table(const repack_table *table, const char *order_by);
+static void repack_one_table(repack_table *table, const char *order_by);
 static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
 static void repack_cleanup(bool fatal, const repack_table *table);
@@ -669,10 +669,6 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		const char *create_table_2;
 		const char *tablespace;
 		const char *ckey;
-		PGresult   *indexres = NULL;
-		const char *indexparams[2];
-		char		buffer[12];
-		int         j;
 		int			c = 0;
 
 		table.target_name = getstr(res, i, c++);
@@ -739,41 +735,6 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			appendStringInfoString(&sql, " ORDER BY ");
 			appendStringInfoString(&sql, orderby);
 			table.create_table = sql.data;
-		}
-
-		indexparams[0] = utoa(table.target_oid, buffer);
-		indexparams[1] = moveidx ? tablespace : NULL;
-
-		/* First, just display a warning message for any invalid indexes
-		 * which may be on the table (mostly to match the behavior of 1.1.8).
-		 */
-		indexres = execute(
-			"SELECT pg_get_indexdef(indexrelid)"
-			" FROM pg_index WHERE indrelid = $1 AND NOT indisvalid",
-			1, indexparams);
-
-		for (j = 0; j < PQntuples(indexres); j++)
-		{
-			const char *indexdef;
-			indexdef = getstr(indexres, j, 0);
-			elog(WARNING, "skipping invalid index: %s", indexdef);
-		}
-
-		indexres = execute(
-			"SELECT indexrelid,"
-			" repack.repack_indexdef(indexrelid, indrelid, $2, FALSE) "
-			" FROM pg_index WHERE indrelid = $1 AND indisvalid",
-			2, indexparams);
-
-		table.n_indexes = PQntuples(indexres);
-		table.indexes = pgut_malloc(table.n_indexes * sizeof(repack_index));
-
-		for (j = 0; j < table.n_indexes; j++)
-		{
-			table.indexes[j].target_oid = getoid(indexres, j, 0);
-			table.indexes[j].create_index = getstr(indexres, j, 1);
-			table.indexes[j].status = UNPROCESSED;
-			table.indexes[j].worker_idx = -1; /* Unassigned */
 		}
 
 		repack_one_table(&table, orderby);
@@ -1021,17 +982,20 @@ cleanup:
  * Re-organize one table.
  */
 static void
-repack_one_table(const repack_table *table, const char *orderby)
+repack_one_table(repack_table *table, const char *orderby)
 {
 	PGresult	   *res = NULL;
 	const char	   *params[2];
 	int				num;
 	int				num_waiting = 0;
-	int             i;
 	char		   *vxid = NULL;
 	char			buffer[12];
 	StringInfoData	sql;
 	bool            ret = false;
+	PGresult       *indexres = NULL;
+	const char     *indexparams[2];
+	char		    indexbuffer[12];
+	int             j;
 
 	/* Keep track of whether we have gotten through setup to install
 	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
@@ -1065,11 +1029,6 @@ repack_one_table(const repack_table *table, const char *orderby)
 	elog(DEBUG2, "sql_delete     : %s", table->sql_delete);
 	elog(DEBUG2, "sql_update     : %s", table->sql_update);
 	elog(DEBUG2, "sql_pop        : %s", table->sql_pop);
-	for (i = 0; i < table->n_indexes; i++)
-	{
-		elog(DEBUG2, "index[%d].target_oid      : %u", i, table->indexes[i].target_oid);
-		elog(DEBUG2, "index[%d].create_index    : %s", i, table->indexes[i].create_index);
-	}
 
 	if (dryrun)
 		return;
@@ -1089,6 +1048,53 @@ repack_one_table(const repack_table *table, const char *orderby)
 		elog(WARNING, "lock_exclusive() failed for %s", table->target_name);
 		goto cleanup;
 	}
+
+	/*
+	 * pg_get_indexdef requires an access share lock, so do those calls while
+	 * we have an access exclusive lock anyway, so we know they won't block.
+	 */
+
+	indexparams[0] = utoa(table->target_oid, indexbuffer);
+	indexparams[1] = moveidx ? tablespace : NULL;
+
+	/* First, just display a warning message for any invalid indexes
+	 * which may be on the table (mostly to match the behavior of 1.1.8).
+	 */
+	indexres = execute(
+		"SELECT pg_get_indexdef(indexrelid)"
+		" FROM pg_index WHERE indrelid = $1 AND NOT indisvalid",
+		1, indexparams);
+
+	for (j = 0; j < PQntuples(indexres); j++)
+	{
+		const char *indexdef;
+		indexdef = getstr(indexres, j, 0);
+		elog(WARNING, "skipping invalid index: %s", indexdef);
+	}
+
+	indexres = execute(
+		"SELECT indexrelid,"
+		" repack.repack_indexdef(indexrelid, indrelid, $2, FALSE) "
+		" FROM pg_index WHERE indrelid = $1 AND indisvalid",
+		2, indexparams);
+
+	table->n_indexes = PQntuples(indexres);
+	table->indexes = pgut_malloc(table->n_indexes * sizeof(repack_index));
+
+	for (j = 0; j < table->n_indexes; j++)
+	{
+		table->indexes[j].target_oid = getoid(indexres, j, 0);
+		table->indexes[j].create_index = getstr(indexres, j, 1);
+		table->indexes[j].status = UNPROCESSED;
+		table->indexes[j].worker_idx = -1; /* Unassigned */
+	}
+
+	for (j = 0; j < table->n_indexes; j++)
+	{
+		elog(DEBUG2, "index[%d].target_oid      : %u", j, table->indexes[j].target_oid);
+		elog(DEBUG2, "index[%d].create_index    : %s", j, table->indexes[j].create_index);
+	}
+
 
 	/*
 	 * Check z_repack_trigger is the trigger executed last so that
@@ -1284,6 +1290,8 @@ repack_one_table(const repack_table *table, const char *orderby)
 	if (!rebuild_indexes(table))
 		goto cleanup;
 
+	/* don't clear indexres until after rebuild_indexes or bad things happen */
+	CLEARPGRES(indexres);
 	CLEARPGRES(res);
 
 	/*
