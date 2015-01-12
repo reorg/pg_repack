@@ -987,7 +987,6 @@ repack_one_table(repack_table *table, const char *orderby)
 	PGresult	   *res = NULL;
 	const char	   *params[2];
 	int				num;
-	int				num_waiting = 0;
 	char		   *vxid = NULL;
 	char			buffer[12];
 	StringInfoData	sql;
@@ -996,6 +995,11 @@ repack_one_table(repack_table *table, const char *orderby)
 	const char     *indexparams[2];
 	char		    indexbuffer[12];
 	int             j;
+
+	/* appname will be "pg_repack" in normal use on 9.0+, or
+	 * "pg_regress" when run under `make installcheck`
+	 */
+	const char     *appname = getenv("PGAPPNAME");
 
 	/* Keep track of whether we have gotten through setup to install
 	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
@@ -1312,15 +1316,14 @@ repack_one_table(repack_table *table, const char *orderby)
 		if (num > 0)
 		{
 			/* Wait for old transactions.
-			 * Only display the message below when the number of
-			 * transactions we are waiting on changes (presumably,
-			 * num_waiting should only go down), so as not to
-			 * be too noisy.
+			 * Only display this message if we are NOT
+			 * running under pg_regress, so as not to cause
+			 * noise which would trip up pg_regress.
 			 */
-			if (num != num_waiting)
+
+			if (!appname || strcmp(appname, "pg_regress") != 0)
 			{
 				elog(NOTICE, "Waiting for %d transactions to finish. First PID: %s", num, PQgetvalue(res, 0, 0));
-				num_waiting = num;
 			}
 
 			CLEARPGRES(res);
