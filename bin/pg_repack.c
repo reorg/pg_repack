@@ -48,6 +48,11 @@ const char *PROGRAM_VERSION = "unknown";
  */
 #define APPLY_COUNT		1000
 
+/* Once we get down to seeing fewer than this many tuples in the
+ * log table, we'll say that we're ready to perform the switch.
+ */
+#define MIN_TUPLES_BEFORE_SWITCH	20
+
 /* poll() or select() timeout, in seconds */
 #define POLL_TIMEOUT    3
 
@@ -1305,7 +1310,16 @@ repack_one_table(repack_table *table, const char *orderby)
 	for (;;)
 	{
 		num = apply_log(connection, table, APPLY_COUNT);
-		if (num > 0)
+
+		/* We'll keep applying tuples from the log table in batches
+		 * of APPLY_COUNT, until applying a batch of tuples
+		 * (via LIMIT) results in our having applied
+		 * MIN_TUPLES_BEFORE_SWITCH or fewer tuples. We don't want to
+		 * get stuck repetitively applying some small number of tuples 
+		 * from the log table as inserts/updates/deletes may be
+		 * constantly coming into the original table.
+		 */
+		if (num > MIN_TUPLES_BEFORE_SWITCH)
 			continue;	/* there might be still some tuples, repeat. */
 
 		/* old transactions still alive ? */
