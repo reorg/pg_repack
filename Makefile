@@ -24,11 +24,14 @@ INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)
 EXTVERSION = $(shell grep '"version":' META.json | head -1 \
 	| sed -e 's/[ 	]*"version":[ 	]*"\(.*\)",/\1/')
 
-# We support PostgreSQL 8.3 and later.
+# We support PostgreSQL 8.3 through 9.3. We DO NOT yet support 9.4+.
 ifeq ($(shell echo $$(($(INTVERSION) < 803))),1)
 $(error $(EXTENSION) requires PostgreSQL 8.3 or later. This is $(VERSION))
 endif
 
+ifeq ($(shell echo $$(($(INTVERSION) >= 904))),1)
+$(error $(EXTENSION) does not yet support PostgreSQL 9.4 or later. This is $(VERSION))
+endif
 
 SUBDIRS = bin lib regress
 
