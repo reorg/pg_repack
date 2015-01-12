@@ -1210,6 +1210,11 @@ exit_or_abort(int exitcode)
 
 /*
  * unlike the server code, this function automatically extend the buffer.
+ *
+ * TODO: as of http://git.postgresql.org/gitweb/?p=postgresql.git;a=commit;h=3147acd6
+ * server's API of appendStringInfoVA changed. Should be done the same here
+ * or should this function be removed?
+ * 
  */
 bool
 appendStringInfoVA(StringInfo str, const char *fmt, va_list args)
