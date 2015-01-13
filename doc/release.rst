@@ -7,7 +7,7 @@ should be a three-digit dot-separated version, eventually followed by a
 pre-release string: ``1.2.0``, ``1.2.1``, ``1.2-dev0``, ``1.2.0-beta1`` are
 valid version numbers.
 
-In order to release the package you will accounts on Github, Freecode and PGXN
+In order to release the package you will accounts on Github and PGXN
 with the right privileges: contact Daniele Varrazzo to obtain them.
 
 - Set the right version number in ``META.json`` (note: it's in two different
@@ -59,5 +59,3 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
 
 - Announce the package on reorg-general@pgfoundry.org and
   pgsql-announce@postgresql.org.
-
-- Announce the package on http://freecode.com/.
