@@ -341,7 +341,7 @@ main(int argc, char *argv[])
 		{
 			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)))
 				ereport(ERROR,
-					(errcode(ERROR), errmsg("%s", errbuf)));
+					(errcode(ERROR), errmsg("%s failed with error: %s", PROGRAM_NAME, errbuf)));
 		}
 	}
 
