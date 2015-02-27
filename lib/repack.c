@@ -747,6 +747,8 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
  *
  * repack_swap(oid, relname)
  *
+ * TODO: support for several toast indexes for PG 9.4 and higher.
+ *
  * TODO: remove useless CommandCounterIncrement().
  *
  * @param	oid		Oid of table of target.
@@ -783,6 +785,8 @@ repack_swap(PG_FUNCTION_ARGS)
 
 	/* swap relfilenode and dependencies for tables. */
 	values[0] = ObjectIdGetDatum(oid);
+
+#if PG_VERSION_NUM < 90400
 	execute_with_args(SPI_OK_SELECT,
 		"SELECT X.reltoastrelid, TX.reltoastidxid, X.relowner,"
 		"       Y.oid, Y.reltoastrelid, TY.reltoastidxid, Y.relowner"
@@ -793,6 +797,18 @@ repack_swap(PG_FUNCTION_ARGS)
 		" WHERE X.oid = $1"
 		"   AND Y.oid = ('repack.table_' || X.oid)::regclass",
 		1, argtypes, values, nulls);
+#else
+	execute_with_args(SPI_OK_SELECT,
+		"SELECT X.reltoastrelid, COALESCE(IX.indexrelid, 0), X.relowner,"
+		"	Y.oid, Y.reltoastrelid, COALESCE(IY.indexrelid, 0), Y.relowner"
+		"  FROM pg_catalog.pg_class X LEFT JOIN pg_catalog.pg_index IX"
+		"         ON X.reltoastrelid = IX.indrelid,"
+		"     pg_catalog.pg_class Y LEFT JOIN pg_catalog.pg_index IY" 
+		"         ON Y.reltoastrelid = IY.indrelid"
+		" WHERE X.oid = $1"
+		"   AND Y.oid = ('repack.table_' || X.oid)::regclass",
+		1, argtypes, values, nulls);
+#endif
 
 	tuptable = SPI_tuptable;
 	desc = tuptable->tupdesc;
