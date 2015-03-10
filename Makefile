@@ -29,10 +29,6 @@ ifeq ($(shell echo $$(($(INTVERSION) < 803))),1)
 $(error $(EXTENSION) requires PostgreSQL 8.3 or later. This is $(VERSION))
 endif
 
-ifeq ($(shell echo $$(($(INTVERSION) >= 904))),1)
-$(error $(EXTENSION) does not yet support PostgreSQL 9.4 or later. This is $(VERSION))
-endif
-
 SUBDIRS = bin lib regress
 
 all install installdirs uninstall distprep clean distclean maintainer-clean debug:
