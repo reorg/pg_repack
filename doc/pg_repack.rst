@@ -443,8 +443,14 @@ Releases
 
 * pg_repack 1.3
 
-  * Added ``--dry-run`` to do a dry run.
-  * Added ``--schema`` to repack only the specified schema.
+  * Added ``--schema`` to repack only the specified schema (issue #20).
+  * Added ``--dry-run`` to do a dry run (issue #21).
+  * Fixed advisory locking for >2B OID values (issue #30).
+  * Avoid possible deadlock when other sessions lock a to-be-repacked
+    table (issue #32).
+  * Performance improvement for performing sql_pop DELETEs many-at-a-time.
+  * Attempt to avoid pg_repack taking forever when dealing with a
+    constant heavy stream of changes to a table.
 
 * pg_repack 1.2
 
