@@ -441,6 +441,10 @@ the original index.
 Releases
 --------
 
+* pg_repack 1.3.1
+
+  * Added support for PostgreSQL 9.4.
+
 * pg_repack 1.3
 
   * Added ``--schema`` to repack only the specified schema (issue #20).
