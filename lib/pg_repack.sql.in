@@ -172,7 +172,10 @@ CREATE VIEW repack.tables AS
   SELECT R.oid::regclass AS relname,
          R.oid AS relid,
          R.reltoastrelid AS reltoastrelid,
-         CASE WHEN R.reltoastrelid = 0 THEN 0 ELSE (SELECT reltoastidxid FROM pg_class WHERE oid = R.reltoastrelid) END AS reltoastidxid,
+         CASE WHEN R.reltoastrelid = 0 THEN 0 ELSE (
+            SELECT indexrelid FROM pg_index
+            WHERE indrelid = R.reltoastrelid
+            AND indisvalid) END AS reltoastidxid,
          N.nspname AS schemaname,
          PK.indexrelid AS pkid,
          CK.indexrelid AS ckid,
