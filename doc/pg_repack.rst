@@ -441,6 +441,10 @@ the original index.
 Releases
 --------
 
+* pg_repack 1.3.1
+
+  * Added support for PostgreSQL 9.4.
+
 * pg_repack 1.3
 
   * Added ``--dry-run`` to do a dry run.
