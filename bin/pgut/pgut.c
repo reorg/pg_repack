@@ -1180,7 +1180,9 @@ call_atexit_callbacks(bool fatal)
 	pgut_atexit_item  *item;
 
 	for (item = pgut_atexit_stack; item; item = item->next)
+	{
 		item->callback(fatal, item->userdata);
+	}
 }
 
 static void
@@ -1195,10 +1197,11 @@ on_cleanup(void)
 static void
 exit_or_abort(int exitcode)
 {
+	call_atexit_callbacks(true);
 	if (in_cleanup)
 	{
 		/* oops, error in cleanup*/
-		call_atexit_callbacks(true);
+		in_cleanup = false;
 		abort();
 	}
 	else
