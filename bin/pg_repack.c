@@ -198,8 +198,8 @@ typedef struct repack_table
 static bool is_superuser(void);
 static void check_tablespace(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
-static void repack_all_databases(const char *order_by);
-static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
+static void repack_all_databases(const char *order_by, const char *delete_key);
+static bool repack_one_database(const char *order_by, const char *delete_key, char *errbuf, size_t errsize);
 static void repack_one_table(repack_table *table, const char *order_by);
 static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
@@ -228,6 +228,7 @@ static bool				noorder = false;
 static SimpleStringList	table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
+static char				*deletekey = NULL;
 static char				*tablespace = NULL;
 static bool				moveidx = false;
 static SimpleStringList	r_index = {NULL, NULL};
@@ -252,6 +253,7 @@ static pgut_option options[] =
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
 	{ 's', 'o', "order-by", &orderby },
+	{ 's', 'q', "delete-key", &deletekey },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
 	{ 'l', 'i', "index", &r_index },
@@ -310,6 +312,9 @@ main(int argc, char *argv[])
 			else if (jobs)
 				ereport(WARNING, (errcode(EINVAL),
 					errmsg("option -j (--jobs) has no effect, repacking indexes does not use parallel jobs")));
+			else if (deletekey)
+				ereport(WARNING, (errcode(EINVAL),
+					errmsg("option -d (--delete-key) has no effect while repacking indexes")));
 			if (!repack_all_indexes(errbuf, sizeof(errbuf)))
 				ereport(ERROR,
 					(errcode(ERROR), errmsg("%s", errbuf)));
@@ -335,11 +340,11 @@ main(int argc, char *argv[])
 				ereport(ERROR,
 					(errcode(EINVAL),
 					 errmsg("cannot repack specific schema(s) in all databases")));
-			repack_all_databases(orderby);
+			repack_all_databases(orderby,deletekey);
 		}
 		else
 		{
-			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)))
+			if (!repack_one_database(orderby, deletekey, errbuf, sizeof(errbuf)))
 				ereport(ERROR,
 					(errcode(ERROR), errmsg("%s failed with error: %s", PROGRAM_NAME, errbuf)));
 		}
@@ -514,7 +519,7 @@ cleanup:
  * Call repack_one_database for each database.
  */
 static void
-repack_all_databases(const char *orderby)
+repack_all_databases(const char *orderby, const char *deletekey)
 {
 	PGresult   *result;
 	int			i;
@@ -538,7 +543,7 @@ repack_all_databases(const char *orderby)
 		elog(INFO, "repacking database \"%s\"", dbname);
 		if (!dryrun)
 		{
-			ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
+			ret = repack_one_database(orderby, deletekey, errbuf, sizeof(errbuf));
 			if (!ret)
 				elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
 		}
@@ -570,7 +575,7 @@ getoid(PGresult *res, int row, int col)
  * Call repack_one_table for the target tables or each table in a database.
  */
 static bool
-repack_one_database(const char *orderby, char *errbuf, size_t errsize)
+repack_one_database(const char *orderby, const char *deletekey, char *errbuf, size_t errsize)
 {
 	bool					ret = false;
 	PGresult			   *res = NULL;
@@ -714,6 +719,16 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		appendStringInfoString(&sql, create_table_1);
 		appendStringInfoString(&sql, tablespace);
 		appendStringInfoString(&sql, create_table_2);
+		
+		if (deletekey)
+		{
+			/* User specified WHERE clause */
+			/* This will cause a bulk delete to happen for the specified table. */
+                        appendStringInfoString(&sql, " WHERE ");
+                        appendStringInfoString(&sql, deletekey);
+                        table.create_table = sql.data;	
+		}
+
 		if (!orderby)
 		{
 			if (ckey != NULL)
@@ -1992,6 +2007,7 @@ pgut_help(bool details)
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
+	printf("  -q, --delete-key=QUERY    delete data during the COPY phase by using a WHERE clause\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -N, --dry-run             print what would have been repacked\n");
 	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
