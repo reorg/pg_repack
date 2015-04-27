@@ -1579,7 +1579,7 @@ static bool advisory_lock(PGconn *conn, const char *relid)
 		elog(ERROR, "%s",  PQerrorMessage(connection));
 	}
 	else if (strcmp(getstr(res, 0, 0), "t") != 0) {
-		elog(WARNING, "Another pg_repack command may be running on the table. Please try again later.");
+		elog(ERROR, "Another pg_repack command may be running on the table. Please try again later.");
 	}
 	else {
 		ret = true;
