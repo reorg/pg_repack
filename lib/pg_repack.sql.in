@@ -247,7 +247,7 @@ CREATE FUNCTION repack.repack_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_swap'
 LANGUAGE C VOLATILE STRICT;
 
-CREATE FUNCTION repack.repack_drop(oid) RETURNS void AS
+CREATE FUNCTION repack.repack_drop(oid, int) RETURNS void AS
 'MODULE_PATHNAME', 'repack_drop'
 LANGUAGE C VOLATILE STRICT;
 
