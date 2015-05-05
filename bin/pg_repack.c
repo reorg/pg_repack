@@ -1256,12 +1256,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	params[0] = buffer; /* backend PID of conn2 */
 	params[1] = PROGRAM_NAME;
 	res = execute(SQL_XID_SNAPSHOT, 2, params);
-	if (!(vxid = strdup(PQgetvalue(res, 0, 0))))
-	{
-		elog(WARNING, "Unable to allocate vxid, length: %d\n",
-			 PQgetlength(res, 0, 0));
-		goto cleanup;
-	}
+	vxid = pgut_strdup(PQgetvalue(res, 0, 0));
+
 	CLEARPGRES(res);
 
 	/* Delete any existing entries in the log table now, since we have not
