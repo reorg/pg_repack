@@ -434,12 +434,12 @@ Full table repack
 
 To perform a full table repack, pg_repack will:
 
-* create a log table for changes
-* create a trigger on the old table to log all changes to the table
+* create a log table
+* create a trigger on the old table to log all changes to the log table
 * create a new table containing all data in the old table
 * create all indexes on the new table
 * apply all changes from the log table to the new table
-* switch all table files in the system catalog
+* when the log table is empty, swap the table in the system catalog
 * drop the old table
 
 pg_repack will only acquire ACCESS EXCLUSIVE locks when creating the trigger and when 
