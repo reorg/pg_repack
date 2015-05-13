@@ -429,13 +429,35 @@ earlier versions which could result in data corruption.
 Details
 -------
 
-To perform full table repacks, pg_repack creates a work table in the "repack"
-schema and sorts the rows in this table. Then, it updates the system catalogs
-directly to swap the work table and the original one.
+Full table repack
+^^^^^^^^^^^^^^^^^
 
-To perform index only repacks, pg_repack creates its work index on the target
-table and then updates the system catalogs directly to swap the work index and
-the original index.
+To perform a full table repack, pg_repack will:
+
+* create a log table for changes
+* create a trigger on the old table to log all changes to the table
+* create a new table containing all data in the old table
+* create all indexes on the new table
+* apply all changes from the log table to the new table
+* switch all table files in the system catalog
+* drop the old table
+
+pg_repack will only acquire ACCESS EXCLUSIVE locks when creating the trigger and when 
+switching the table files, all other operations are lock-free on the source table.
+
+
+Index only repack
+^^^^^^^^^^^^^^^^^
+
+To perform a index only repack, pg_repack will:
+
+* create a new index on the table using CONCURRENTLY
+* swap the index in the catalog
+* drop the old index
+
+Creating indexes concurrently comes with a few caveats, please see `the documentation`__ for details.
+
+    .. __: http://www.postgresql.org/docs/current/static/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY
 
 
 Releases
