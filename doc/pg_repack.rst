@@ -429,31 +429,34 @@ earlier versions which could result in data corruption.
 Details
 -------
 
-Full table repack
-^^^^^^^^^^^^^^^^^
+Full Table Repacks
+^^^^^^^^^^^^^^^^^^
 
-To perform a full table repack, pg_repack will:
+To perform a full-table repack, pg_repack will:
 
-* create a log table
-* create a trigger on the old table to log all changes to the log table
-* create a new table containing all data in the old table
-* create all indexes on the new table
-* apply all changes from the log table to the new table
-* when the log table is empty, swap the table in the system catalog
-* drop the old table
+1. create a log table to record changes made to the original table
+2. add a trigger onto the original table, logging INSERTs, UPDATEs and DELETEs into our log table
+3. create a new table containing all the rows in the old table
+4. build indexes on this new table
+5. apply all changes which have accrued in the log table to the new table
+6. swap the tables, including indexes and toast tables, using the system catalogs
+7. drop the original table
 
-pg_repack will only acquire ACCESS EXCLUSIVE locks when creating the trigger and when 
-switching the table files, all other operations are lock-free on the source table.
+pg_repack will only hold an ACCESS EXCLUSIVE lock for a short period during
+initial setup (steps 1 and 2 above) and during the final swap-and-drop phase
+(steps 6 and 7). For the rest of its time, pg_repack only needs
+to hold an ACCESS SHARE lock on the original table, meaning INSERTs, UPDATEs,
+and DELETEs may proceed as usual.
 
 
-Index only repack
-^^^^^^^^^^^^^^^^^
+Index Only Repacks
+^^^^^^^^^^^^^^^^^^
 
-To perform a index only repack, pg_repack will:
+To perform an index-only repack, pg_repack will:
 
-* create a new index on the table using CONCURRENTLY
-* swap the index in the catalog
-* drop the old index
+1. create new indexes on the table using CONCURRENTLY matching the definitions of the old indexes
+2. swap out the old for the new indexes in the catalogs
+3. drop the old indexes
 
 Creating indexes concurrently comes with a few caveats, please see `the documentation`__ for details.
 
