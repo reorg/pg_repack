@@ -243,7 +243,7 @@ static char *
 utoa(unsigned int value, char *buffer)
 {
 	sprintf(buffer, "%u", value);
-	return strdup(buffer);
+	return pgut_strdup(buffer);
 }
 
 static pgut_option options[] =
@@ -1391,6 +1391,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	params[1] = utoa(temp_obj_num, buffer);
 	command("SELECT repack.repack_drop($1, $2)", 2, params);
 	command("COMMIT", 0, NULL);
+	temp_obj_num = 0; /* reset temporary object counter after cleanup */
 
 	/*
 	 * 7. Analyze.
@@ -1706,6 +1707,7 @@ repack_cleanup_callback(bool fatal, void *userdata)
 
 		reconnect(ERROR);
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
 }
 
@@ -1734,6 +1736,7 @@ repack_cleanup(bool fatal, const repack_table *table)
 		params[0] = utoa(table->target_oid, buffer);
 		params[1] =  utoa(temp_obj_num, buffer);
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
 }
 
