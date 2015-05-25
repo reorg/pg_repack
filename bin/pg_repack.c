@@ -243,6 +243,12 @@ static char *
 utoa(unsigned int value, char *buffer)
 {
 	sprintf(buffer, "%u", value);
+	/* XXX: originally, we would just return buffer here without
+	 * the pgut_strdup(). But repack_cleanup_callback() seems to
+	 * depend on getting back a freshly strdup'd copy of buffer,
+	 * not sure why. So now we are leaking a tiny bit of memory
+	 * with each utoa() call.
+	 */
 	return pgut_strdup(buffer);
 }
 
@@ -900,6 +906,13 @@ rebuild_indexes(const repack_table *table)
 
 			ret = select(max_fd + 1, &input_mask, NULL, NULL, &timeout);
 #endif
+			/* XXX: the errno != EINTR check means we won't bail
+			 * out on SIGINT. We should probably just remove this
+			 * check, though it seems we also need to fix up
+			 * the on_interrupt handling for workers' index
+			 * builds (those PGconns don't seem to have c->cancel
+			 * set, so we don't cancel the in-progress builds).
+			 */
 			if (ret < 0 && errno != EINTR)
 				elog(ERROR, "poll() failed: %d, %d", ret, errno);
 
@@ -1703,8 +1716,12 @@ repack_cleanup_callback(bool fatal, void *userdata)
 	if(fatal)
 	{
 		params[0] = utoa(target_table, buffer);
-		params[1] =  utoa(temp_obj_num, buffer);
+		params[1] = utoa(temp_obj_num, buffer);
 
+		/* testing PQstatus() of connection and conn2, as we do
+		 * in repack_cleanup(), doesn't seem to work here,
+		 * so just use an unconditional reconnect().
+		 */
 		reconnect(ERROR);
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
 		temp_obj_num = 0; /* reset temporary object counter after cleanup */

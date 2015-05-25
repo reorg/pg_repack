@@ -944,8 +944,11 @@ repack_drop(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	repack_init();
 
-	/* drop log table */
-	if(numobj > 0)
+	/* drop log table: must be done before dropping the pk type,
+	 * since the log table is dependent on the pk type. (That's
+	 * why we check numobj > 1 here.)
+	 */
+	if (numobj > 1)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
@@ -955,7 +958,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	}
 
 	/* drop type for pk type */
-	if(numobj > 0)
+	if (numobj > 0)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
@@ -968,7 +971,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	 * drop repack trigger: We have already dropped the trigger in normal
 	 * cases, but it can be left on error.
 	 */
-	if(numobj > 0)
+	if (numobj > 0)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
@@ -991,7 +994,7 @@ repack_drop(PG_FUNCTION_ARGS)
 #endif
 
 	/* drop temp table */
-	if(numobj > 0)
+	if (numobj > 0)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
