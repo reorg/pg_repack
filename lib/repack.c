@@ -928,6 +928,7 @@ Datum
 repack_drop(PG_FUNCTION_ARGS)
 {
 	Oid			oid = PG_GETARG_OID(0);
+	int			numobj = PG_GETARG_INT32(1);
 	const char *relname = get_quoted_relname(oid);
 	const char *nspname = get_quoted_nspname(oid);
 
@@ -943,14 +944,41 @@ repack_drop(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	repack_init();
 
+	/* drop log table: must be done before dropping the pk type,
+	 * since the log table is dependent on the pk type. (That's
+	 * why we check numobj > 1 here.)
+	 */
+	if (numobj > 1)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TABLE IF EXISTS repack.log_%u CASCADE",
+			oid);
+		--numobj;
+	}
+
+	/* drop type for pk type */
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TYPE IF EXISTS repack.pk_%u",
+			oid);
+		--numobj;
+	}
+
 	/*
 	 * drop repack trigger: We have already dropped the trigger in normal
 	 * cases, but it can be left on error.
 	 */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
-		nspname, relname);
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
+			nspname, relname);
+		--numobj;
+	}
 
 #if PG_VERSION_NUM < 80400
 	/* delete autovacuum settings */
@@ -965,23 +993,15 @@ repack_drop(PG_FUNCTION_ARGS)
 		oid, oid);
 #endif
 
-	/* drop log table */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TABLE IF EXISTS repack.log_%u CASCADE",
-		oid);
-
 	/* drop temp table */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TABLE IF EXISTS repack.table_%u CASCADE",
-		oid);
-
-	/* drop type for log table */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TYPE IF EXISTS repack.pk_%u CASCADE",
-		oid);
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TABLE IF EXISTS repack.table_%u CASCADE",
+			oid);
+		--numobj;
+	}
 
 	SPI_finish();
 

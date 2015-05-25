@@ -64,7 +64,7 @@ static void on_before_exec(pgutConn *conn);
 static void on_after_exec(pgutConn *conn);
 static void on_interrupt(void);
 static void on_cleanup(void);
-static void exit_or_abort(int exitcode);
+static void exit_or_abort(int exitcode, int elevel);
 
 void
 pgut_init(int argc, char **argv)
@@ -872,7 +872,10 @@ pgut_errfinish(int dummy, ...)
 			edata->detail.data);
 
 	if (pgut_abort_level <= edata->elevel && edata->elevel <= PANIC)
-		exit_or_abort(edata->code);
+	{
+		in_cleanup = true; /* need to be set for cleaning temporary objects on error */
+		exit_or_abort(edata->code, edata->elevel);
+	}
 }
 
 #ifndef PGUT_OVERRIDE_ELOG
@@ -1180,7 +1183,9 @@ call_atexit_callbacks(bool fatal)
 	pgut_atexit_item  *item;
 
 	for (item = pgut_atexit_stack; item; item = item->next)
+	{
 		item->callback(fatal, item->userdata);
+	}
 }
 
 static void
@@ -1193,11 +1198,18 @@ on_cleanup(void)
 }
 
 static void
-exit_or_abort(int exitcode)
+exit_or_abort(int exitcode, int elevel)
 {
-	if (in_cleanup)
+	
+	if (in_cleanup && FATAL > elevel)
 	{
 		/* oops, error in cleanup*/
+		call_atexit_callbacks(true);
+		exit(exitcode);
+	}
+	else if (FATAL <= elevel <= PANIC)
+	{
+		/* on FATAL or PANIC */
 		call_atexit_callbacks(true);
 		abort();
 	}
