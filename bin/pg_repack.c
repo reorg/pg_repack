@@ -1392,7 +1392,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "---- drop ----");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-	params[1] = utoa(temp_obj_num, pgut_strdup(buffer));
+	params[1] = utoa(temp_obj_num, indexbuffer);
 	command("SELECT repack.repack_drop($1, $2)", 2, params);
 	command("COMMIT", 0, NULL);
 	temp_obj_num = 0; /* reset temporary object counter after cleanup */
@@ -1414,7 +1414,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	/* Release advisory lock on table. */
 	params[0] = REPACK_LOCK_PREFIX_STR;
-	params[1] = utoa(table->target_oid, pgut_strdup(buffer));
+	params[1] = utoa(table->target_oid, buffer);
 
 	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1, CAST(-2147483648 + $2::bigint AS integer))",
 			   2, params);
@@ -1703,11 +1703,12 @@ repack_cleanup_callback(bool fatal, void *userdata)
 	Oid			target_table = *(Oid *) userdata;
 	const char *params[2];
 	char		buffer[12];
+	char		num_buff[12];	
 
 	if(fatal)
 	{
 		params[0] = utoa(target_table, buffer);
-		params[1] = utoa(temp_obj_num, pgut_strdup(buffer));
+		params[1] = utoa(temp_obj_num, num_buff);
 
 		/* testing PQstatus() of connection and conn2, as we do
 		 * in repack_cleanup(), doesn't seem to work here,
@@ -1733,6 +1734,7 @@ repack_cleanup(bool fatal, const repack_table *table)
 	else
 	{
 		char		buffer[12];
+		char		num_buff[12];
 		const char *params[2];
 
 		/* Try reconnection if not available. */
@@ -1742,7 +1744,7 @@ repack_cleanup(bool fatal, const repack_table *table)
 
 		/* do cleanup */
 		params[0] = utoa(table->target_oid, buffer);
-		params[1] =  utoa(temp_obj_num, pgut_strdup(buffer));
+		params[1] =  utoa(temp_obj_num, num_buff);
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
 		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
