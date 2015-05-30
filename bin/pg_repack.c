@@ -1867,8 +1867,10 @@ repack_table_indexes(PGresult *index_details)
 				 getstr(index_details, i, 0));
 	}
 
-	if (dryrun)
-		return true;
+	if (dryrun) {
+		ret = true;
+		goto done;
+	}
 
 	/* If we did not successfully repack any indexes, e.g. because of some
 	 * error affecting every CREATE INDEX attempt, don't waste time with
@@ -1911,7 +1913,6 @@ repack_table_indexes(PGresult *index_details)
 	ret = true;
 
 drop_idx:
-	CLEARPGRES(res);
 	resetStringInfo(&sql);
 	initStringInfo(&sql_drop);
 #if PG_VERSION_NUM < 90200
@@ -1935,6 +1936,11 @@ drop_idx:
 	}
 	termStringInfo(&sql_drop);
 	termStringInfo(&sql);
+
+done:
+	CLEARPGRES(res);
+	free(repacked_indexes);
+
 	return ret;
 }
 
