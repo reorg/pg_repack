@@ -1200,14 +1200,13 @@ on_cleanup(void)
 static void
 exit_or_abort(int exitcode, int elevel)
 {
-	
 	if (in_cleanup && FATAL > elevel)
 	{
 		/* oops, error in cleanup*/
 		call_atexit_callbacks(true);
 		exit(exitcode);
 	}
-	else if (FATAL <= elevel <= PANIC)
+	else if (elevel >= FATAL && elevel <= PANIC)
 	{
 		/* on FATAL or PANIC */
 		call_atexit_callbacks(true);
