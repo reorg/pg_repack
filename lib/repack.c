@@ -36,6 +36,11 @@
 #include "access/htup_details.h"
 #endif
 
+/* builtins.h was reorganized for 9.5, so now we need this header */
+#if PG_VERSION_NUM >= 90500
+#include "utils/ruleutils.h"
+#endif
+
 PG_MODULE_MAGIC;
 
 extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
