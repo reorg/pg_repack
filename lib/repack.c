@@ -242,7 +242,7 @@ repack_apply(PG_FUNCTION_ARGS)
 		bool			nulls[3];		/* id, pk, row */
 
 		/* peek tuple in log */
-		if (count == 0)
+		if (count <= 0)
 			values_peek[0] = Int32GetDatum(DEFAULT_PEEK_COUNT);
 		else
 			values_peek[0] = Int32GetDatum(Min(count - n, DEFAULT_PEEK_COUNT));
