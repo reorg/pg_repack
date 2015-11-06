@@ -949,6 +949,17 @@ repack_drop(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	repack_init();
 
+	/*
+	 * To prevent concurrent lockers of the repack target table from
+	 * causing deadlocks, take an exclusive lock on it.
+	 *
+	 * Fixes deadlock mentioned in the Github issue #55.
+	 */
+	execute_with_format(
+		SPI_OK_UTILITY,
+		"LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
+		relname);
+
 	/* drop log table: must be done before dropping the pk type,
 	 * since the log table is dependent on the pk type. (That's
 	 * why we check numobj > 1 here.)
