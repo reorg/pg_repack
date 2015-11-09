@@ -950,8 +950,19 @@ repack_drop(PG_FUNCTION_ARGS)
 	repack_init();
 
 	/*
-	 * To prevent concurrent lockers of the repack target table from
-	 * causing deadlocks, take an exclusive lock on it.
+	 * To prevent concurrent lockers of the repack target table from causing
+	 * deadlocks, take an exclusive lock on it. Consider that the following
+	 * commands take exclusive lock on tables log_xxx and the target table
+	 * itself when deleting the z_repack_trigger on it, while concurrent
+	 * updaters require row exclusive lock on the target table and in
+	 * addition, on the log_xxx table, because of the trigger.
+	 *
+	 * Consider how a deadlock could occur - if the DROP TABLE repack.log_%u
+	 * gets a lock on log_%u table before a concurrent updater could get it
+	 * but after the updater has obtained a lock on the target table, the
+	 * subsequent DROP TRIGGER ... ON target-table would report a deadlock as
+	 * it finds itself waiting for a lock on target-table held by the updater,
+	 * which in turn, is waiting for lock on log_%u table.
 	 *
 	 * Fixes deadlock mentioned in the Github issue #55.
 	 */
