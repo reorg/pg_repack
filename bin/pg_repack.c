@@ -1888,7 +1888,7 @@ repack_table_indexes(PGresult *index_details)
 
 	/* take an exclusive lock on table before calling repack_index_swap() */
 	resetStringInfo(&sql);
-	appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
+	appendStringInfo(&sql, "LOCK TABLE \"%s\" IN ACCESS EXCLUSIVE MODE",
 					 table_name);
 	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
 	{
