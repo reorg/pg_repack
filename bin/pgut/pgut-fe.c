@@ -754,12 +754,12 @@ pgut_getopt(int argc, char **argv, pgut_option options[])
 		if (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-?") == 0)
 		{
 			help(true);
-			exit(1);
+			exit(0);
 		}
 		if (strcmp(argv[1], "--version") == 0 || strcmp(argv[1], "-V") == 0)
 		{
 			printf("%s %s\n", PROGRAM_NAME, PROGRAM_VERSION);
-			exit(1);
+			exit(0);
 		}
 		if (strcmp(argv[1], "--configuration") == 0)
 		{
