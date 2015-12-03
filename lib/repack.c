@@ -968,8 +968,8 @@ repack_drop(PG_FUNCTION_ARGS)
 	 */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
-		relname);
+		"LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE",
+		nspname, relname);
 
 	/* drop log table: must be done before dropping the pk type,
 	 * since the log table is dependent on the pk type. (That's
