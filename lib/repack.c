@@ -16,6 +16,15 @@
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/namespace.h"
+
+/*
+ * utils/rel.h no longer includes pg_am.h as of 9.6, so need to include
+ * it explicitly.
+ */
+#if PG_VERSION_NUM >= 90600
+#include "catalog/pg_am.h"
+#endif
+
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
