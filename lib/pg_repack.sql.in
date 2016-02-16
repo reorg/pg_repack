@@ -208,6 +208,7 @@ CREATE VIEW repack.tables AS
          LEFT JOIN pg_namespace N ON N.oid = R.relnamespace
          LEFT JOIN pg_tablespace S ON S.oid = R.reltablespace
    WHERE R.relkind = 'r'
+     AND R.relpersistence = 'p'
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
      AND N.nspname NOT LIKE E'pg\\_temp\\_%';
 
