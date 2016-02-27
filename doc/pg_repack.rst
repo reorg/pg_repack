@@ -466,6 +466,20 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.3.3
+
+  * Added support for PostgreSQL 9.5
+  * Fixed possible deadlock when pg_repack command is interrupted (issue #55)
+  * Fixed exit code for when pg_repack is invoked with ``--help`` and
+    ``--version``
+  * Added Japanese language user manual
+
+* pg_repack 1.3.2
+
+  * Fixed to clean up temporary objects when pg_repack command is interrupted.
+  * Fixed possible crash when pg_repack shared library is loaded alongside
+    pg_statsinfo (issue #43).
+
 * pg_repack 1.3.1
 
   * Added support for PostgreSQL 9.4.
