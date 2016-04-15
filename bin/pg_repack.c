@@ -1392,6 +1392,14 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "---- drop ----");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+        if (!(lock_exclusive(connection, utoa(table->target_oid, buffer),
+                                                table->lock_table, FALSE)))
+        {
+                elog(WARNING, "lock_exclusive() failed in connection for %s",
+                         table->target_name);
+                goto cleanup;
+        }
+ 
 	params[1] = utoa(temp_obj_num, indexbuffer);
 	command("SELECT repack.repack_drop($1, $2)", 2, params);
 	command("COMMIT", 0, NULL);
