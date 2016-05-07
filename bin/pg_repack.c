@@ -943,7 +943,7 @@ rebuild_indexes(const repack_table *table)
 							}
 							CLEARPGRES(res);
 						}
-						
+
 						/* We are only going to re-queue one worker, even
 						 * though more than one index build might be finished.
 						 * Any other jobs which may be finished will
@@ -1051,7 +1051,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	if (dryrun)
 		return;
-	
+
 	/* push repack_cleanup_callback() on stack to clean temporary objects */
 	pgut_atexit_push(repack_cleanup_callback, &table->target_oid);
 
@@ -1328,7 +1328,7 @@ repack_one_table(repack_table *table, const char *orderby)
 		 * of APPLY_COUNT, until applying a batch of tuples
 		 * (via LIMIT) results in our having applied
 		 * MIN_TUPLES_BEFORE_SWITCH or fewer tuples. We don't want to
-		 * get stuck repetitively applying some small number of tuples 
+		 * get stuck repetitively applying some small number of tuples
 		 * from the log table as inserts/updates/deletes may be
 		 * constantly coming into the original table.
 		 */
@@ -1392,14 +1392,14 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "---- drop ----");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-        if (!(lock_exclusive(connection, utoa(table->target_oid, buffer),
-                                                table->lock_table, FALSE)))
-        {
-                elog(WARNING, "lock_exclusive() failed in connection for %s",
-                         table->target_name);
-                goto cleanup;
-        }
- 
+	if (!(lock_exclusive(connection, utoa(table->target_oid, buffer),
+						 table->lock_table, FALSE)))
+	{
+		elog(WARNING, "lock_exclusive() failed in connection for %s",
+			 table->target_name);
+		goto cleanup;
+	}
+
 	params[1] = utoa(temp_obj_num, indexbuffer);
 	command("SELECT repack.repack_drop($1, $2)", 2, params);
 	command("COMMIT", 0, NULL);
@@ -1711,7 +1711,7 @@ repack_cleanup_callback(bool fatal, void *userdata)
 	Oid			target_table = *(Oid *) userdata;
 	const char *params[2];
 	char		buffer[12];
-	char		num_buff[12];	
+	char		num_buff[12];
 
 	if(fatal)
 	{
@@ -1900,7 +1900,7 @@ repack_table_indexes(PGresult *index_details)
 					 table_name);
 	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
 	{
-		elog(WARNING, "lock_exclusive() failed in connection for %s", 
+		elog(WARNING, "lock_exclusive() failed in connection for %s",
 			 table_name);
 		goto drop_idx;
 	}
@@ -1974,7 +1974,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 	if (r_index.head)
 	{
-		appendStringInfoString(&sql, 
+		appendStringInfoString(&sql,
 			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, idx.indrelid::regclass, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
@@ -2019,7 +2019,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 		if(table_list.head)
 			elog(INFO, "repacking indexes of \"%s\"", cell->val);
 
-		if (!repack_table_indexes(res))	
+		if (!repack_table_indexes(res))
 			elog(WARNING, "repack failed for \"%s\"", cell->val);
 
 		CLEARPGRES(res);
