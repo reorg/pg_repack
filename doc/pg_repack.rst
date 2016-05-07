@@ -466,6 +466,11 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.3.4
+
+  * grab exclusive lock before dropping original table (#81)
+  * do not attempt to repack unlogged tables (#71)
+
 * pg_repack 1.3.3
 
   * Added support for PostgreSQL 9.5

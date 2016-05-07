@@ -7,7 +7,7 @@ should be a three-digit dot-separated version, eventually followed by a
 pre-release string: ``1.2.0``, ``1.2.1``, ``1.2-dev0``, ``1.2.0-beta1`` are
 valid version numbers.
 
-In order to release the package you will accounts on Github and PGXN
+In order to release the package you will need accounts on Github and PGXN
 with the right privileges: contact Daniele Varrazzo to obtain them.
 
 - Set the right version number in ``META.json`` (note: it's in two different
@@ -21,10 +21,10 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
 - Create a package running ``make package``. The package will be called
   ``dist/pg_repack-$VER.zip``.
 
-- Check the packages installs and tests ok with `pgxn client`__::
+- Verify the packages installs and passes tests with `pgxn client`__::
 
     pgxn install --sudo -- dist/pg_repack-$VER.zip
-    pgxn check dist/pg_repack-$VER.zip 
+    pgxn check dist/pg_repack-$VER.zip
 
   (note that ``check`` may require the Postgres bin directory to be added to
   the path; check the ``install`` log to see where ``pg_repack`` executable
@@ -47,7 +47,7 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
 - Upload the docs by pushing in the repos at
   http://reorg.github.io/pg_repack/. The operations are roughly::
 
-    git clone git@github.com:reorg/reorg.github.com.git 
+    git clone git@github.com:reorg/reorg.github.com.git
     cd reorg.github.com.git
     git submodule init
     git submodule update
