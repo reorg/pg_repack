@@ -84,6 +84,8 @@ const char *PROGRAM_VERSION = "unknown";
 	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
+	"  AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
+	"  AND a.query !~ E'^autovacuum: ' " \
 	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 #define SQL_XID_SNAPSHOT_90000 \
@@ -97,6 +99,8 @@ const char *PROGRAM_VERSION = "unknown";
 	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
+	"  AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
+	"  AND a.query !~ E'^autovacuum: ' " \
 	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 /* application_name is not available before 9.0. The last clause of
@@ -111,6 +115,8 @@ const char *PROGRAM_VERSION = "unknown";
 	"    ON a.datid = d.oid " \
 	" WHERE l.locktype = 'virtualxid' AND l.pid NOT IN (pg_backend_pid(), $1)" \
 	" AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
+	" AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
+	" AND a.query !~ E'^autovacuum: ' " \
 	" AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)" \
 	" AND ($2::text IS NOT NULL)"
 
