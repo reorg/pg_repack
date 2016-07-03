@@ -66,6 +66,7 @@ const char *PROGRAM_VERSION = "unknown";
  *     https://github.com/reorg/pg_repack/issues/1
  *  d. open transactions/locks existing on other databases than the actual
  *     processing relation (except for locks on shared objects)
+ *  e. VACUUMs which are always executed outside transaction blocks.
  *
  * Note, there is some redundancy in how the filtering is done (e.g. excluding
  * based on pg_backend_pid() and application_name), but that shouldn't hurt
