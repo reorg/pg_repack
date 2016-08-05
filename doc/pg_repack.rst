@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4
+    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5
 
 Disks
     Performing a full-table repack requires free disk space about twice as
