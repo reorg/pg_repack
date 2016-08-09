@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4
+    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -429,17 +429,61 @@ earlier versions which could result in data corruption.
 Details
 -------
 
-To perform full table repacks, pg_repack creates a work table in the "repack"
-schema and sorts the rows in this table. Then, it updates the system catalogs
-directly to swap the work table and the original one.
+Full Table Repacks
+^^^^^^^^^^^^^^^^^^
 
-To perform index only repacks, pg_repack creates its work index on the target
-table and then updates the system catalogs directly to swap the work index and
-the original index.
+To perform a full-table repack, pg_repack will:
+
+1. create a log table to record changes made to the original table
+2. add a trigger onto the original table, logging INSERTs, UPDATEs and DELETEs into our log table
+3. create a new table containing all the rows in the old table
+4. build indexes on this new table
+5. apply all changes which have accrued in the log table to the new table
+6. swap the tables, including indexes and toast tables, using the system catalogs
+7. drop the original table
+
+pg_repack will only hold an ACCESS EXCLUSIVE lock for a short period during
+initial setup (steps 1 and 2 above) and during the final swap-and-drop phase
+(steps 6 and 7). For the rest of its time, pg_repack only needs
+to hold an ACCESS SHARE lock on the original table, meaning INSERTs, UPDATEs,
+and DELETEs may proceed as usual.
+
+
+Index Only Repacks
+^^^^^^^^^^^^^^^^^^
+
+To perform an index-only repack, pg_repack will:
+
+1. create new indexes on the table using CONCURRENTLY matching the definitions of the old indexes
+2. swap out the old for the new indexes in the catalogs
+3. drop the old indexes
+
+Creating indexes concurrently comes with a few caveats, please see `the documentation`__ for details.
+
+    .. __: http://www.postgresql.org/docs/current/static/sql-createindex.html#SQL-CREATEINDEX-CONCURRENTLY
 
 
 Releases
 --------
+
+* pg_repack 1.3.4
+
+  * grab exclusive lock before dropping original table (#81)
+  * do not attempt to repack unlogged tables (#71)
+
+* pg_repack 1.3.3
+
+  * Added support for PostgreSQL 9.5
+  * Fixed possible deadlock when pg_repack command is interrupted (issue #55)
+  * Fixed exit code for when pg_repack is invoked with ``--help`` and
+    ``--version``
+  * Added Japanese language user manual
+
+* pg_repack 1.3.2
+
+  * Fixed to clean up temporary objects when pg_repack command is interrupted.
+  * Fixed possible crash when pg_repack shared library is loaded alongside
+    pg_statsinfo (issue #43).
 
 * pg_repack 1.3.1
 

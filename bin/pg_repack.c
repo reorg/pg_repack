@@ -66,6 +66,7 @@ const char *PROGRAM_VERSION = "unknown";
  *     https://github.com/reorg/pg_repack/issues/1
  *  d. open transactions/locks existing on other databases than the actual
  *     processing relation (except for locks on shared objects)
+ *  e. VACUUMs which are always executed outside transaction blocks.
  *
  * Note, there is some redundancy in how the filtering is done (e.g. excluding
  * based on pg_backend_pid() and application_name), but that shouldn't hurt
@@ -84,6 +85,8 @@ const char *PROGRAM_VERSION = "unknown";
 	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
+	"  AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
+	"  AND a.query !~ E'^autovacuum: ' " \
 	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 #define SQL_XID_SNAPSHOT_90000 \
@@ -97,6 +100,8 @@ const char *PROGRAM_VERSION = "unknown";
 	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
+	"  AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
+	"  AND a.query !~ E'^autovacuum: ' " \
 	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 /* application_name is not available before 9.0. The last clause of
@@ -111,6 +116,8 @@ const char *PROGRAM_VERSION = "unknown";
 	"    ON a.datid = d.oid " \
 	" WHERE l.locktype = 'virtualxid' AND l.pid NOT IN (pg_backend_pid(), $1)" \
 	" AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
+	" AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
+	" AND a.query !~ E'^autovacuum: ' " \
 	" AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)" \
 	" AND ($2::text IS NOT NULL)"
 
@@ -204,6 +211,7 @@ static void repack_one_table(repack_table *table, const char *order_by);
 static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
 static void repack_cleanup(bool fatal, const repack_table *table);
+static void repack_cleanup_callback(bool fatal, void *userdata);
 static bool rebuild_indexes(const repack_table *table);
 
 static char *getstr(PGresult *res, int row, int col);
@@ -236,12 +244,14 @@ static bool				only_indexes = false;
 static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
+static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 
 /* buffer should have at least 11 bytes */
 static char *
 utoa(unsigned int value, char *buffer)
 {
 	sprintf(buffer, "%u", value);
+
 	return buffer;
 }
 
@@ -913,6 +923,13 @@ rebuild_indexes(const repack_table *table)
 
 			ret = select(max_fd + 1, &input_mask, NULL, NULL, &timeout);
 #endif
+			/* XXX: the errno != EINTR check means we won't bail
+			 * out on SIGINT. We should probably just remove this
+			 * check, though it seems we also need to fix up
+			 * the on_interrupt handling for workers' index
+			 * builds (those PGconns don't seem to have c->cancel
+			 * set, so we don't cancel the in-progress builds).
+			 */
 			if (ret < 0 && errno != EINTR)
 				elog(ERROR, "poll() failed: %d, %d", ret, errno);
 
@@ -948,7 +965,7 @@ rebuild_indexes(const repack_table *table)
 							}
 							CLEARPGRES(res);
 						}
-						
+
 						/* We are only going to re-queue one worker, even
 						 * though more than one index build might be finished.
 						 * Any other jobs which may be finished will
@@ -1005,7 +1022,7 @@ static void
 repack_one_table(repack_table *table, const char *orderby)
 {
 	PGresult	   *res = NULL;
-	const char	   *params[2];
+	const char	   *params[3];
 	int				num;
 	char		   *vxid = NULL;
 	char			buffer[12];
@@ -1056,6 +1073,9 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	if (dryrun)
 		return;
+
+	/* push repack_cleanup_callback() on stack to clean temporary objects */
+	pgut_atexit_push(repack_cleanup_callback, &table->target_oid);
 
 	/*
 	 * 1. Setup advisory lock and trigger on main table.
@@ -1161,8 +1181,11 @@ repack_one_table(repack_table *table, const char *orderby)
 	CLEARPGRES(res);
 
 	command(table->create_pktype, 0, NULL);
+	temp_obj_num++;
 	command(table->create_log, 0, NULL);
+	temp_obj_num++;
 	command(table->create_trigger, 0, NULL);
+	temp_obj_num++;
 	command(table->enable_trigger, 0, NULL);
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.log_%u')", table->target_oid);
 	command(sql.data, 0, NULL);
@@ -1271,12 +1294,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	params[0] = buffer; /* backend PID of conn2 */
 	params[1] = PROGRAM_NAME;
 	res = execute(SQL_XID_SNAPSHOT, 2, params);
-	if (!(vxid = strdup(PQgetvalue(res, 0, 0))))
-	{
-		elog(WARNING, "Unable to allocate vxid, length: %d\n",
-			 PQgetlength(res, 0, 0));
-		goto cleanup;
-	}
+	vxid = pgut_strdup(PQgetvalue(res, 0, 0));
+
 	CLEARPGRES(res);
 
 	/* Delete any existing entries in the log table now, since we have not
@@ -1302,6 +1321,7 @@ repack_one_table(repack_table *table, const char *orderby)
 		goto cleanup;
 
 	command(table->create_table, 0, NULL);
+	temp_obj_num++;
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
 	if (table->drop_columns)
 		command(table->drop_columns, 0, NULL);
@@ -1330,7 +1350,7 @@ repack_one_table(repack_table *table, const char *orderby)
 		 * of APPLY_COUNT, until applying a batch of tuples
 		 * (via LIMIT) results in our having applied
 		 * MIN_TUPLES_BEFORE_SWITCH or fewer tuples. We don't want to
-		 * get stuck repetitively applying some small number of tuples 
+		 * get stuck repetitively applying some small number of tuples
 		 * from the log table as inserts/updates/deletes may be
 		 * constantly coming into the original table.
 		 */
@@ -1394,8 +1414,18 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "---- drop ----");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-	command("SELECT repack.repack_drop($1)", 1, params);
+	if (!(lock_exclusive(connection, utoa(table->target_oid, buffer),
+						 table->lock_table, FALSE)))
+	{
+		elog(WARNING, "lock_exclusive() failed in connection for %s",
+			 table->target_name);
+		goto cleanup;
+	}
+
+	params[1] = utoa(temp_obj_num, indexbuffer);
+	command("SELECT repack.repack_drop($1, $2)", 2, params);
 	command("COMMIT", 0, NULL);
+	temp_obj_num = 0; /* reset temporary object counter after cleanup */
 
 	/*
 	 * 7. Analyze.
@@ -1414,7 +1444,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	/* Release advisory lock on table. */
 	params[0] = REPACK_LOCK_PREFIX_STR;
-	params[1] = buffer;
+	params[1] = utoa(table->target_oid, buffer);
 
 	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1, CAST(-2147483648 + $2::bigint AS integer))",
 			   2, params);
@@ -1594,7 +1624,7 @@ static bool advisory_lock(PGconn *conn, const char *relid)
 		elog(ERROR, "%s",  PQerrorMessage(connection));
 	}
 	else if (strcmp(getstr(res, 0, 0), "t") != 0) {
-		elog(WARNING, "Another pg_repack command may be running on the table. Please try again later.");
+		elog(ERROR, "Another pg_repack command may be running on the table. Please try again later.");
 	}
 	else {
 		ret = true;
@@ -1694,6 +1724,32 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 	return ret;
 }
 
+/* This function calls to repack_drop() to clean temporary objects on error
+ * in creation of temporary objects.
+ */
+void
+repack_cleanup_callback(bool fatal, void *userdata)
+{
+	Oid			target_table = *(Oid *) userdata;
+	const char *params[2];
+	char		buffer[12];
+	char		num_buff[12];
+
+	if(fatal)
+	{
+		params[0] = utoa(target_table, buffer);
+		params[1] = utoa(temp_obj_num, num_buff);
+
+		/* testing PQstatus() of connection and conn2, as we do
+		 * in repack_cleanup(), doesn't seem to work here,
+		 * so just use an unconditional reconnect().
+		 */
+		reconnect(ERROR);
+		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		temp_obj_num = 0; /* reset temporary object counter after cleanup */
+	}
+}
+
 /*
  * The userdata pointing a table being re-organized. We need to cleanup temp
  * objects before the program exits.
@@ -1708,7 +1764,8 @@ repack_cleanup(bool fatal, const repack_table *table)
 	else
 	{
 		char		buffer[12];
-		const char *params[1];
+		char		num_buff[12];
+		const char *params[2];
 
 		/* Try reconnection if not available. */
 		if (PQstatus(connection) != CONNECTION_OK ||
@@ -1717,7 +1774,9 @@ repack_cleanup(bool fatal, const repack_table *table)
 
 		/* do cleanup */
 		params[0] = utoa(table->target_oid, buffer);
-		command("SELECT repack.repack_drop($1)", 1, params);
+		params[1] =  utoa(temp_obj_num, num_buff);
+		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
 }
 
@@ -1838,8 +1897,10 @@ repack_table_indexes(PGresult *index_details)
 				 getstr(index_details, i, 0));
 	}
 
-	if (dryrun)
-		return true;
+	if (dryrun) {
+		ret = true;
+		goto done;
+	}
 
 	/* If we did not successfully repack any indexes, e.g. because of some
 	 * error affecting every CREATE INDEX attempt, don't waste time with
@@ -1861,7 +1922,7 @@ repack_table_indexes(PGresult *index_details)
 					 table_name);
 	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
 	{
-		elog(WARNING, "lock_exclusive() failed in connection for %s", 
+		elog(WARNING, "lock_exclusive() failed in connection for %s",
 			 table_name);
 		goto drop_idx;
 	}
@@ -1882,7 +1943,6 @@ repack_table_indexes(PGresult *index_details)
 	ret = true;
 
 drop_idx:
-	CLEARPGRES(res);
 	resetStringInfo(&sql);
 	initStringInfo(&sql_drop);
 #if PG_VERSION_NUM < 90200
@@ -1906,6 +1966,11 @@ drop_idx:
 	}
 	termStringInfo(&sql_drop);
 	termStringInfo(&sql);
+
+done:
+	CLEARPGRES(res);
+	free(repacked_indexes);
+
 	return ret;
 }
 
@@ -1931,7 +1996,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 	if (r_index.head)
 	{
-		appendStringInfoString(&sql, 
+		appendStringInfoString(&sql,
 			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, idx.indrelid::regclass, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
@@ -1976,7 +2041,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 		if(table_list.head)
 			elog(INFO, "repacking indexes of \"%s\"", cell->val);
 
-		if (!repack_table_indexes(res))	
+		if (!repack_table_indexes(res))
 			elog(WARNING, "repack failed for \"%s\"", cell->val);
 
 		CLEARPGRES(res);

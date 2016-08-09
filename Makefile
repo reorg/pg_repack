@@ -24,7 +24,6 @@ INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)
 EXTVERSION = $(shell grep '"version":' META.json | head -1 \
 	| sed -e 's/[ 	]*"version":[ 	]*"\(.*\)",/\1/')
 
-# We support PostgreSQL 8.3 through 9.3. We DO NOT yet support 9.4+.
 ifeq ($(shell echo $$(($(INTVERSION) < 803))),1)
 $(error $(EXTENSION) requires PostgreSQL 8.3 or later. This is $(VERSION))
 endif

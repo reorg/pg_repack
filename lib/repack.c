@@ -16,6 +16,15 @@
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/namespace.h"
+
+/*
+ * utils/rel.h no longer includes pg_am.h as of 9.6, so need to include
+ * it explicitly.
+ */
+#if PG_VERSION_NUM >= 90600
+#include "catalog/pg_am.h"
+#endif
+
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
@@ -34,6 +43,11 @@
 /* htup.h was reorganized for 9.3, so now we need this header */
 #if PG_VERSION_NUM >= 90300
 #include "access/htup_details.h"
+#endif
+
+/* builtins.h was reorganized for 9.5, so now we need this header */
+#if PG_VERSION_NUM >= 90500
+#include "utils/ruleutils.h"
 #endif
 
 PG_MODULE_MAGIC;
@@ -237,7 +251,7 @@ repack_apply(PG_FUNCTION_ARGS)
 		bool			nulls[3];		/* id, pk, row */
 
 		/* peek tuple in log */
-		if (count == 0)
+		if (count <= 0)
 			values_peek[0] = Int32GetDatum(DEFAULT_PEEK_COUNT);
 		else
 			values_peek[0] = Int32GetDatum(Min(count - n, DEFAULT_PEEK_COUNT));
@@ -928,6 +942,7 @@ Datum
 repack_drop(PG_FUNCTION_ARGS)
 {
 	Oid			oid = PG_GETARG_OID(0);
+	int			numobj = PG_GETARG_INT32(1);
 	const char *relname = get_quoted_relname(oid);
 	const char *nspname = get_quoted_nspname(oid);
 
@@ -944,13 +959,62 @@ repack_drop(PG_FUNCTION_ARGS)
 	repack_init();
 
 	/*
-	 * drop repack trigger: We have already dropped the trigger in normal
-	 * cases, but it can be left on error.
+	 * To prevent concurrent lockers of the repack target table from causing
+	 * deadlocks, take an exclusive lock on it. Consider that the following
+	 * commands take exclusive lock on tables log_xxx and the target table
+	 * itself when deleting the z_repack_trigger on it, while concurrent
+	 * updaters require row exclusive lock on the target table and in
+	 * addition, on the log_xxx table, because of the trigger.
+	 *
+	 * Consider how a deadlock could occur - if the DROP TABLE repack.log_%u
+	 * gets a lock on log_%u table before a concurrent updater could get it
+	 * but after the updater has obtained a lock on the target table, the
+	 * subsequent DROP TRIGGER ... ON target-table would report a deadlock as
+	 * it finds itself waiting for a lock on target-table held by the updater,
+	 * which in turn, is waiting for lock on log_%u table.
+	 *
+	 * Fixes deadlock mentioned in the Github issue #55.
 	 */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
+		"LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE",
 		nspname, relname);
+
+	/* drop log table: must be done before dropping the pk type,
+	 * since the log table is dependent on the pk type. (That's
+	 * why we check numobj > 1 here.)
+	 */
+	if (numobj > 1)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TABLE IF EXISTS repack.log_%u CASCADE",
+			oid);
+		--numobj;
+	}
+
+	/* drop type for pk type */
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TYPE IF EXISTS repack.pk_%u",
+			oid);
+		--numobj;
+	}
+
+	/*
+	 * drop repack trigger: We have already dropped the trigger in normal
+	 * cases, but it can be left on error.
+	 */
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
+			nspname, relname);
+		--numobj;
+	}
 
 #if PG_VERSION_NUM < 80400
 	/* delete autovacuum settings */
@@ -965,23 +1029,15 @@ repack_drop(PG_FUNCTION_ARGS)
 		oid, oid);
 #endif
 
-	/* drop log table */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TABLE IF EXISTS repack.log_%u CASCADE",
-		oid);
-
 	/* drop temp table */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TABLE IF EXISTS repack.table_%u CASCADE",
-		oid);
-
-	/* drop type for log table */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"DROP TYPE IF EXISTS repack.pk_%u CASCADE",
-		oid);
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"DROP TABLE IF EXISTS repack.table_%u CASCADE",
+			oid);
+		--numobj;
+	}
 
 	SPI_finish();
 
