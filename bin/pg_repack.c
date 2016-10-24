@@ -109,7 +109,7 @@ const char *PROGRAM_VERSION = "unknown";
  */
 #define SQL_XID_SNAPSHOT_80300 \
 	"SELECT repack.array_accum(l.virtualtransaction) " \
-    "  FROM pg_locks AS l" \
+	"  FROM pg_locks AS l" \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
 	"  LEFT JOIN pg_database AS d " \
@@ -169,7 +169,7 @@ typedef struct repack_index
 {
 	Oid				target_oid;		/* target: OID */
 	const char	   *create_index;	/* CREATE INDEX */
-    index_status_t  status; 		/* Track parallel build statuses. */
+	index_status_t  status; 		/* Track parallel build statuses. */
 	int             worker_idx;		/* which worker conn is handling */
 } repack_index;
 
@@ -244,6 +244,7 @@ static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
+static bool				include_extensions = false; /* repack tables of extensions */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -269,6 +270,7 @@ static pgut_option options[] =
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
+	{ 'b', 'C', "include-extensions", &include_extensions },
 	{ 0 },
 };
 
@@ -651,6 +653,16 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	{
 		appendStringInfoString(&sql, "pkid IS NOT NULL");
 	}
+
+	/* Exclude tables which belong to extensions */
+	if (!include_extensions)
+	{
+		appendStringInfoString(&sql, " AND t.relid NOT IN"
+									 " (SELECT objid FROM pg_depend"
+									 "  WHERE refclassid = 'pg_extension'::regclass"
+									 "  AND classid = 'pg_class'::regclass)");
+	}
+
 	/* Ensure the regression tests get a consistent ordering of tables */
 	appendStringInfoString(&sql, " ORDER BY t.relname, t.schemaname");
 
@@ -2064,4 +2076,5 @@ pgut_help(bool details)
 	printf("  -x, --only-indexes        move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
+	printf("  -C, --include-extensions  repack tables which belong to extensions\n");
 }
