@@ -625,6 +625,12 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	params[iparam++] = tablespace;
 	if (num_tables)
 	{
+		/*
+		 * Tables have been explicitly specified,
+		 * no need to hide tables of extensions
+		 */
+		include_extensions = true;
+
 		appendStringInfoString(&sql, "(");
 		for (cell = table_list.head; cell; cell = cell->next)
 		{
