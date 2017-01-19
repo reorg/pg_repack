@@ -230,3 +230,8 @@ CREATE TABLE test_schema2.tbl2 (id INTEGER PRIMARY KEY);
 \! pg_repack --dbname=contrib_regression --schema=test_schema1 --table=tbl1
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --all --schema=test_schema1
+
+--
+-- don't kill backend
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --dont-kill-backend

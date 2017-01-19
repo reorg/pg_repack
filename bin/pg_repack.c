@@ -152,6 +152,11 @@ const char *PROGRAM_VERSION = "unknown";
 	" AND granted = false AND relation = %u"\
 	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
 
+#define COUNT_COMPETING_LOCKS \
+	"SELECT pid FROM pg_locks WHERE locktype = 'relation'" \
+	"AND granted = false AND relation = %u" \
+	"AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+
 /* Will be used as a unique prefix for advisory locks. */
 #define REPACK_LOCK_PREFIX_STR "16185446"
 
@@ -244,6 +249,7 @@ static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
+static bool				dont_kill_backend = false; /* abandon when timed-out */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -269,6 +275,7 @@ static pgut_option options[] =
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
+	{ 'b', 'D', "dont-kill-backend", &dont_kill_backend },
 	{ 0 },
 };
 
@@ -1453,9 +1460,9 @@ cleanup:
 }
 
 /* Kill off any concurrent DDL (or any transaction attempting to take
- * an AccessExclusive lock) trying to run against our table. Note, we're
- * killing these queries off *before* they are granted an AccessExclusive
- * lock on our table.
+ * an AccessExclusive lock) trying to run against our table if we want to
+ * do. Note, we're killing these queries off *before* they are granted
+ * an AccessExclusive lock on our table.
  *
  * Returns true if no problems encountered, false otherwise.
  */
@@ -1465,35 +1472,57 @@ kill_ddl(PGconn *conn, Oid relid, bool terminate)
 	bool			ret = true;
 	PGresult	   *res;
 	StringInfoData	sql;
+	int				n_tuples;
 
 	initStringInfo(&sql);
 
-	printfStringInfo(&sql, CANCEL_COMPETING_LOCKS, relid);
+	/* Check the number of backends competing AccessExclusiveLock */
+	printfStringInfo(&sql, COUNT_COMPETING_LOCKS, relid);
 	res = pgut_execute(conn, sql.data, 0, NULL);
-	if (PQresultStatus(res) != PGRES_TUPLES_OK)
-	{
-		elog(WARNING, "Error canceling unsafe queries: %s",
-			 PQerrorMessage(conn));
-		ret = false;
-	}
-	else if (PQntuples(res) > 0 && terminate && PQserverVersion(conn) >= 80400)
-	{
-		elog(WARNING,
-			 "Canceled %d unsafe queries. Terminating any remaining PIDs.",
-			 PQntuples(res));
+	n_tuples = PQntuples(res);
 
-		CLEARPGRES(res);
-		printfStringInfo(&sql, KILL_COMPETING_LOCKS, relid);
-		res = pgut_execute(conn, sql.data, 0, NULL);
-		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	if (n_tuples != 0)
+	{
+		/* Competing backend is exsits, but if we do not want to calcel/terminate
+		 * any backend, do nothing.
+		 */
+		if (dont_kill_backend)
 		{
-			elog(WARNING, "Error killing unsafe queries: %s",
-				 PQerrorMessage(conn));
+			elog(WARNING, "%d unsafe queries remain but do not cancel them",
+				 n_tuples);
 			ret = false;
 		}
+		else
+		{
+			resetStringInfo(&sql);
+			printfStringInfo(&sql, CANCEL_COMPETING_LOCKS, relid);
+			res = pgut_execute(conn, sql.data, 0, NULL);
+			if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			{
+				elog(WARNING, "Error canceling unsafe queries: %s",
+					 PQerrorMessage(conn));
+				ret = false;
+			}
+			else if (PQntuples(res) > 0 && terminate && PQserverVersion(conn) >= 80400)
+			{
+				elog(WARNING,
+					 "Canceled %d unsafe queries. Terminating any remaining PIDs.",
+					 PQntuples(res));
+
+				CLEARPGRES(res);
+				printfStringInfo(&sql, KILL_COMPETING_LOCKS, relid);
+				res = pgut_execute(conn, sql.data, 0, NULL);
+				if (PQresultStatus(res) != PGRES_TUPLES_OK)
+				{
+					elog(WARNING, "Error killing unsafe queries: %s",
+						 PQerrorMessage(conn));
+					ret = false;
+				}
+			}
+			else if (PQntuples(res) > 0)
+				elog(NOTICE, "Canceled %d unsafe queries", PQntuples(res));
+		}
 	}
-	else if (PQntuples(res) > 0)
-		elog(NOTICE, "Canceled %d unsafe queries", PQntuples(res));
 	else
 		elog(DEBUG2, "No competing DDL to cancel.");
 
@@ -1652,26 +1681,35 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		duration = time(NULL) - start;
 		if (duration > wait_timeout)
 		{
-			const char *cancel_query;
-			if (PQserverVersion(conn) >= 80400 &&
-				duration > wait_timeout * 2)
+			if (dont_kill_backend)
 			{
-				elog(WARNING, "terminating conflicted backends");
-				cancel_query =
-					"SELECT pg_terminate_backend(pid) FROM pg_locks"
-					" WHERE locktype = 'relation'"
-					"   AND relation = $1 AND pid <> pg_backend_pid()";
+				elog(WARNING, "timed out, do not cancel conflicting backends");
+				ret = false;
+				break;
 			}
 			else
 			{
-				elog(WARNING, "canceling conflicted backends");
-				cancel_query =
-					"SELECT pg_cancel_backend(pid) FROM pg_locks"
-					" WHERE locktype = 'relation'"
-					"   AND relation = $1 AND pid <> pg_backend_pid()";
-			}
+				const char *cancel_query;
+				if (PQserverVersion(conn) >= 80400 &&
+					duration > wait_timeout * 2)
+				{
+					elog(WARNING, "terminating conflicted backends");
+					cancel_query =
+						"SELECT pg_terminate_backend(pid) FROM pg_locks"
+						" WHERE locktype = 'relation'"
+						"   AND relation = $1 AND pid <> pg_backend_pid()";
+				}
+				else
+				{
+					elog(WARNING, "canceling conflicted backends");
+					cancel_query =
+						"SELECT pg_cancel_backend(pid) FROM pg_locks"
+						" WHERE locktype = 'relation'"
+						"   AND relation = $1 AND pid <> pg_backend_pid()";
+				}
 
-			pgut_command(conn, cancel_query, 1, &relid);
+				pgut_command(conn, cancel_query, 1, &relid);
+			}
 		}
 
 		/* wait for a while to lock the table. */
@@ -2063,5 +2101,6 @@ pgut_help(bool details)
 	printf("  -i, --index=INDEX         move only the specified index\n");
 	printf("  -x, --only-indexes        move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
+	printf("  -D, --dont-kill-backend   do not kill other backends when timed out\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }

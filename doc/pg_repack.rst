@@ -127,6 +127,7 @@ Options:
   -i, --index=INDEX         move only the specified index
   -x, --only-indexes        move only indexes of the specified table
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
+  -D, --dont-kill-backend   do not kill other backends when timed out
   -Z, --no-analyze          don't analyze at end
 
 Connection options:
@@ -200,11 +201,17 @@ Reorg Options
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
-    wait to acquire this lock. If the lock cannot be taken after this duration,
-    pg_repack will forcibly cancel the conflicting queries. If you are using
-    PostgreSQL version 8.4 or newer, pg_repack will fall back to using
-    pg_terminate_backend() to disconnect any remaining backends after
-    twice this timeout has passed. The default is 60 seconds.
+    wait to acquire this lock. If the lock cannot be taken after this duration
+    and ``--dont-kill-backend`` option is not specified, pg_repack will forcibly
+    cancel the conflicting queries. If you are using PostgreSQL version 8.4
+    or newer, pg_repack will fall back to using pg_terminate_backend() to
+    disconnect any remaining backends after twice this timeout has passed.
+    The default is 60 seconds.
+
+``-D``, ``--dont-kill-backend``
+    Skip to repack table if the lock cannot be taken for duration specified
+    ``--wait-timeout``, instead of cancelling conflicting queries. The default
+    is false.
 
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
