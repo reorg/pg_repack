@@ -651,7 +651,7 @@ ERROR: query failed: ERROR: column "col" does not exist
     対象のテーブルが  ``--order-by`` オプションで指定したカラムを持っていない場合に表示されます。
     存在しているカラムを指定してください。
 
-.. WARNING: the table "tbl" already has a trigger called z_repack_trigger
+.. WARNING: the table "tbl" already has a trigger called a_repack_trigger
     The trigger was probably installed during a previous attempt to run
     pg_repack on the table which was interrupted and for some reason failed
     to clean up the temporary objects.
@@ -661,31 +661,31 @@ ERROR: query failed: ERROR: column "col" does not exist
 
 .. class:: diag
 
-WARNING: the table "tbl" already has a trigger called z_repack_trigger
+WARNING: the table "tbl" already has a trigger called a_repack_trigger
     以前に実行したが何らかの理由で中断したか、あるいは失敗したpg_repackコマンドにより、
     対象テーブルにpg_repackが利用するトリガが残存している場合に表示されます。
     pg_repackを一度削除して、再度登録することで、こうした一時オブジェクトを削除できます。
     `インストール`_ を参照してください。
     
 .. WARNING: trigger "trg" conflicting on table "tbl"
-    The target table has a trigger whose name follows ``z_repack_trigger``
+    The target table has a trigger whose name follows ``a_repack_trigger``
     in alphabetical order.
   
-    The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
+    The ``a_repack_trigger`` should be the first AFTER trigger to fire.
     Please rename your trigger so that it sorts alphabetically before
     pg_repack's one; you can use::
   
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
+        ALTER TRIGGER aaa_my_trigger ON sometable RENAME TO bbb_my_trigger;
 
 .. class:: diag
 
 WARNING: trigger "trg" conflicting on table "tbl"
-    対象のテーブルが、pg_repackが利用する ``z_repack_trigger`` という名前のトリガ
-    よりもアルファベット順で後ろになるような名前のトリガを持っている場合に表示されます。
-    ``z_repack_trigger`` トリガは最後に実行されるBEFOREトリガになる必要があります。
+    対象のテーブルが、pg_repackが利用する ``a_repack_trigger`` という名前のトリガ
+    よりもアルファベット順で前になるような名前のトリガを持っている場合に表示されます。
+    ``a_repack_trigger`` トリガは最初に実行されるAFTERトリガになる必要があります。
     該当のトリガ名称を変更してください。::
 
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
+        ALTER TRIGGER aaa_my_trigger ON sometable RENAME TO bbb_my_trigger;
 
 .. ERROR: Another pg_repack command may be running on the table. Please try again
     later.

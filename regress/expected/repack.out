@@ -338,23 +338,23 @@ CREATE FUNCTION trgtest() RETURNS trigger AS
 $$BEGIN RETURN NEW; END$$
 LANGUAGE plpgsql;
 CREATE TABLE trg1 (id integer PRIMARY KEY);
-CREATE TRIGGER z_repack_triggeq BEFORE UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER a_repack_trigges AFTER UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg1
 INFO: repacking table "trg1"
 CREATE TABLE trg2 (id integer PRIMARY KEY);
-CREATE TRIGGER z_repack_trigger BEFORE UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER a_repack_trigger AFTER UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg2
 INFO: repacking table "trg2"
-WARNING: the table "trg2" already has a trigger called "z_repack_trigger"
+WARNING: the table "trg2" already has a trigger called "a_repack_trigger"
 DETAIL: The trigger was probably installed during a previous attempt to run pg_repack on the table which was interrupted and for some reason failed to clean up the temporary objects.  Please drop the trigger or drop and recreate the pg_repack extension altogether to remove all the temporary objects left over.
 CREATE TABLE trg3 (id integer PRIMARY KEY);
-CREATE TRIGGER z_repack_trigges BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER a_repack_triggeq AFTER UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg3
 INFO: repacking table "trg3"
-WARNING: trigger "z_repack_trigges" conflicting on table "trg3"
-DETAIL: The trigger "z_repack_trigger" must be the last of the BEFORE triggers to fire on the table (triggers fire in alphabetical order). Please rename the trigger so that it sorts before "z_repack_trigger": you can use "ALTER TRIGGER z_repack_trigges ON trg3 RENAME TO newname".
+WARNING: trigger "a_repack_triggeq" conflicting on table "trg3"
+DETAIL: The trigger "a_repack_trigger" must be the first of the AFTER triggers to fire on the table (triggers fire in alphabetical order). Please rename the trigger so that it sorts after "a_repack_trigger": you can use "ALTER TRIGGER a_repack_triggeq ON trg3 RENAME TO newname".
 CREATE TABLE trg4 (id integer PRIMARY KEY);
-CREATE TRIGGER zzzzzz AFTER UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER a BEFORE UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg4
 INFO: repacking table "trg4"
 --

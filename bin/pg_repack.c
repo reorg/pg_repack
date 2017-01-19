@@ -186,8 +186,8 @@ typedef struct repack_table
 	Oid				ckid;			/* target: CK OID */
 	const char	   *create_pktype;	/* CREATE TYPE pk */
 	const char	   *create_log;		/* CREATE TABLE log */
-	const char	   *create_trigger;	/* CREATE TRIGGER z_repack_trigger */
-	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER z_repack_trigger */
+	const char	   *create_trigger;	/* CREATE TRIGGER a_repack_trigger */
+	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER a_repack_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
@@ -1024,7 +1024,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	const char     *appname = getenv("PGAPPNAME");
 
 	/* Keep track of whether we have gotten through setup to install
-	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
+	 * the a_repack_trigger, log table, etc. ourselves. We don't want to
 	 * go through repack_cleanup() if we didn't actually set up the
 	 * trigger ourselves, lest we be cleaning up another pg_repack's mess,
 	 * or worse, interfering with a still-running pg_repack.
@@ -1126,13 +1126,13 @@ repack_one_table(repack_table *table, const char *orderby)
 
 
 	/*
-	 * Check z_repack_trigger is the trigger executed last so that
-	 * other before triggers cannot modify triggered tuples.
+	 * Check a_repack_trigger is the after trigger executed first
+	 * so that other before triggers cannot modify triggered tuples.
 	 */
 	res = execute("SELECT repack.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
 	{
-		if (0 == strcmp("z_repack_trigger", PQgetvalue(res, 0, 0)))
+		if (0 == strcmp("a_repack_trigger", PQgetvalue(res, 0, 0)))
 		{
 			ereport(WARNING,
 				(errcode(E_PG_COMMAND),
@@ -1153,10 +1153,10 @@ repack_one_table(repack_table *table, const char *orderby)
 				 errmsg("trigger \"%s\" conflicting on table \"%s\"",
 					PQgetvalue(res, 0, 0), table->target_name),
 				 errdetail(
-					"The trigger \"z_repack_trigger\" must be the last of the"
-					" BEFORE triggers to fire on the table (triggers fire in"
+					"The trigger \"a_repack_trigger\" must be the first of the"
+					" AFTER triggers to fire on the table (triggers fire in"
 					" alphabetical order). Please rename the trigger so that"
-					" it sorts before \"z_repack_trigger\": you can use"
+					" it sorts after \"a_repack_trigger\": you can use"
 					" \"ALTER TRIGGER %s ON %s RENAME TO newname\".",
 					PQgetvalue(res, 0, 0), table->target_name)));
 		}
@@ -1232,7 +1232,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	command("COMMIT", 0, NULL);
 
-	/* The main connection has now committed its z_repack_trigger,
+	/* The main connection has now committed its a_repack_trigger,
 	 * log table, and temp. table. If any error occurs from this point
 	 * on and we bail out, we should try to clean those up.
 	 */
