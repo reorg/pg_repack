@@ -197,17 +197,14 @@ CREATE FUNCTION trgtest() RETURNS trigger AS
 $$BEGIN RETURN NEW; END$$
 LANGUAGE plpgsql;
 CREATE TABLE trg1 (id integer PRIMARY KEY);
-CREATE TRIGGER a_repack_trigges AFTER UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER repack_trigger_1 AFTER UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg1
 CREATE TABLE trg2 (id integer PRIMARY KEY);
-CREATE TRIGGER a_repack_trigger AFTER UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER repack_trigger AFTER UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg2
 CREATE TABLE trg3 (id integer PRIMARY KEY);
-CREATE TRIGGER a_repack_triggeq AFTER UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER repack_trigger_1 BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg3
-CREATE TABLE trg4 (id integer PRIMARY KEY);
-CREATE TRIGGER a BEFORE UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtest();
-\! pg_repack --dbname=contrib_regression --table=trg4
 
 --
 -- Dry run

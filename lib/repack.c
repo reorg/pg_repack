@@ -921,7 +921,7 @@ repack_swap(PG_FUNCTION_ARGS)
 	/* drop repack trigger */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS a_repack_trigger ON %s.%s CASCADE",
+		"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
 		nspname, relname);
 
 	SPI_finish();
@@ -962,7 +962,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	 * To prevent concurrent lockers of the repack target table from causing
 	 * deadlocks, take an exclusive lock on it. Consider that the following
 	 * commands take exclusive lock on tables log_xxx and the target table
-	 * itself when deleting the a_repack_trigger on it, while concurrent
+	 * itself when deleting the repack_trigger on it, while concurrent
 	 * updaters require row exclusive lock on the target table and in
 	 * addition, on the log_xxx table, because of the trigger.
 	 *
@@ -1011,7 +1011,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
-			"DROP TRIGGER IF EXISTS a_repack_trigger ON %s.%s CASCADE",
+			"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
 			nspname, relname);
 		--numobj;
 	}
