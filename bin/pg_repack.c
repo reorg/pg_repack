@@ -154,8 +154,8 @@ const char *PROGRAM_VERSION = "unknown";
 
 #define COUNT_COMPETING_LOCKS \
 	"SELECT pid FROM pg_locks WHERE locktype = 'relation'" \
-	"AND granted = false AND relation = %u" \
-	"AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+	" AND granted = false AND relation = %u" \
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
 
 /* Will be used as a unique prefix for advisory locks. */
 #define REPACK_LOCK_PREFIX_STR "16185446"
