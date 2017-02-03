@@ -12,6 +12,10 @@
 
 #include "executor/spi.h"
 
+#ifdef _MSC_VER
+#define __attribute__(x)
+#endif
+
 extern void execute(int expected, const char *sql);
 extern void execute_plan(int expected, SPIPlanPtr plan, Datum *values, const char *nulls);
 extern void execute_with_format(int expected, const char *format, ...)
