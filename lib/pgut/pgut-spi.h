@@ -12,6 +12,10 @@
 
 #include "executor/spi.h"
 
+#ifdef _MSC_VER
+#define __attribute__(x)
+#endif
+
 #if PG_VERSION_NUM < 80400
 
 extern int SPI_execute_with_args(const char *src, int nargs, Oid *argtypes,

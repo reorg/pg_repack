@@ -24,6 +24,10 @@
 
 #define INFINITE_STR		"INFINITE"
 
+#ifdef _MSC_VER
+#define __attribute__(x)
+#endif
+
 typedef enum YesNo
 {
 	DEFAULT,
