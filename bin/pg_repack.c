@@ -203,6 +203,7 @@ typedef struct repack_table
 
 
 static bool is_superuser(void);
+static bool is_rds_superuser(void);
 static void check_tablespace(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by);
@@ -379,7 +380,37 @@ is_superuser(void)
 	if (val && strcmp(val, "on") == 0)
 		return true;
 
+	if (is_rds_superuser())
+		return true;
+
 	return false;
+}
+
+/*
+ * Test if the current user is an rds_superuser.
+ */
+bool
+is_rds_superuser(void)
+{
+	PGresult *res = execute(
+		"SELECT COUNT(*) FROM pg_auth_members WHERE pg_get_userbyid(member) = current_user AND pg_get_userbyid(roleid) = 'rds_superuser';",
+		0,
+		NULL);
+
+	if (1 != PQntuples(res))
+	{
+		CLEARPGRES(res);
+		elog(ERROR, "Could not determine if the current user is an rds_superuser");
+	}
+
+	if (0 == strncmp("0", getstr(res, 0, 0), 1))
+	{
+		CLEARPGRES(res);
+		return false;
+	}
+
+	CLEARPGRES(res);
+	return true;
 }
 
 /*
