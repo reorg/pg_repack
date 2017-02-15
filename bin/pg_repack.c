@@ -244,6 +244,7 @@ static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
+static bool				no_superuser_check = false;
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -269,6 +270,7 @@ static pgut_option options[] =
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
+	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 0 },
 };
 
@@ -370,6 +372,9 @@ bool
 is_superuser(void)
 {
 	const char *val;
+
+	if (no_superuser_check)
+		return true;
 
 	if (!connection)
 		return false;
@@ -2064,4 +2069,5 @@ pgut_help(bool details)
 	printf("  -x, --only-indexes        move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
+	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
 }
