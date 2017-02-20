@@ -4,7 +4,6 @@ SET client_min_messages = warning;
 --
 -- Note: in order to pass this test you must create a tablespace called 'testts'
 --
-CREATE TABLESPACE testts LOCATION '/tmp/pg-repack-tablespace';
 SELECT spcname FROM pg_tablespace WHERE spcname = 'testts';
  spcname 
 ---------
