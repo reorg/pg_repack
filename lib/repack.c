@@ -1306,7 +1306,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);
 	if (SPI_processed != 1)
-		elog(ERROR, "Could not find index 'index_%u', found %lu matches",
+		elog(ERROR, "Could not find index 'index_%u', found " UINT64_FORMAT " matches",
 			 orig_idx_oid, (uint64) SPI_processed);
 
 	tuptable = SPI_tuptable;
