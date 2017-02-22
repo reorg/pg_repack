@@ -186,8 +186,8 @@ typedef struct repack_table
 	Oid				ckid;			/* target: CK OID */
 	const char	   *create_pktype;	/* CREATE TYPE pk */
 	const char	   *create_log;		/* CREATE TABLE log */
-	const char	   *create_trigger;	/* CREATE TRIGGER z_repack_trigger */
-	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER z_repack_trigger */
+	const char	   *create_trigger;	/* CREATE TRIGGER repack_trigger */
+	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER repack_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
@@ -1024,7 +1024,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	const char     *appname = getenv("PGAPPNAME");
 
 	/* Keep track of whether we have gotten through setup to install
-	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
+	 * the repack_trigger, log table, etc. ourselves. We don't want to
 	 * go through repack_cleanup() if we didn't actually set up the
 	 * trigger ourselves, lest we be cleaning up another pg_repack's mess,
 	 * or worse, interfering with a still-running pg_repack.
@@ -1126,43 +1126,28 @@ repack_one_table(repack_table *table, const char *orderby)
 
 
 	/*
-	 * Check z_repack_trigger is the trigger executed last so that
-	 * other before triggers cannot modify triggered tuples.
+	 * Check if repack_trigger is not conflict with existing trigger. We can
+	 * find it out later but we check it in advance and go to cleanup if needed.
+	 * In AFTER trigger context, since triggered tuple is not changed by other
+	 * trigger we don't care about the fire order.
 	 */
 	res = execute("SELECT repack.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
 	{
-		if (0 == strcmp("z_repack_trigger", PQgetvalue(res, 0, 0)))
-		{
-			ereport(WARNING,
+		ereport(WARNING,
 				(errcode(E_PG_COMMAND),
 				 errmsg("the table \"%s\" already has a trigger called \"%s\"",
-					table->target_name, PQgetvalue(res, 0, 0)),
+						table->target_name, "repack_trigger"),
 				 errdetail(
-					"The trigger was probably installed during a previous"
-					" attempt to run pg_repack on the table which was"
-					" interrupted and for some reason failed to clean up"
-					" the temporary objects.  Please drop the trigger or drop"
+					 "The trigger was probably installed during a previous"
+					 " attempt to run pg_repack on the table which was"
+					 " interrupted and for some reason failed to clean up"
+					 " the temporary objects.  Please drop the trigger or drop"
 					" and recreate the pg_repack extension altogether"
-					" to remove all the temporary objects left over.")));
-		}
-		else
-		{
-			ereport(WARNING,
-				(errcode(E_PG_COMMAND),
-				 errmsg("trigger \"%s\" conflicting on table \"%s\"",
-					PQgetvalue(res, 0, 0), table->target_name),
-				 errdetail(
-					"The trigger \"z_repack_trigger\" must be the last of the"
-					" BEFORE triggers to fire on the table (triggers fire in"
-					" alphabetical order). Please rename the trigger so that"
-					" it sorts before \"z_repack_trigger\": you can use"
-					" \"ALTER TRIGGER %s ON %s RENAME TO newname\".",
-					PQgetvalue(res, 0, 0), table->target_name)));
-		}
-
+					 " to remove all the temporary objects left over.")));
 		goto cleanup;
 	}
+
 	CLEARPGRES(res);
 
 	command(table->create_pktype, 0, NULL);
@@ -1232,7 +1217,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	command("COMMIT", 0, NULL);
 
-	/* The main connection has now committed its z_repack_trigger,
+	/* The main connection has now committed its repack_trigger,
 	 * log table, and temp. table. If any error occurs from this point
 	 * on and we bail out, we should try to clean those up.
 	 */

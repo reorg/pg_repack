@@ -362,23 +362,13 @@ ERROR: query failed: ERROR: column "col" does not exist
 
     Specify existing columns.
 
-WARNING: the table "tbl" already has a trigger called z_repack_trigger
+WARNING: the table "tbl" already has a trigger called repack_trigger
     The trigger was probably installed during a previous attempt to run
     pg_repack on the table which was interrupted and for some reason failed
     to clean up the temporary objects.
 
     You can remove all the temporary objects by dropping and re-creating the
     extension: see the installation_ section for the details.
-
-WARNING: trigger "trg" conflicting on table "tbl"
-    The target table has a trigger whose name follows ``z_repack_trigger``
-    in alphabetical order.
-
-    The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
-    Please rename your trigger so that it sorts alphabetically before
-    pg_repack's one; you can use::
-
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
 
 ERROR: Another pg_repack command may be running on the table. Please try again
     later.
