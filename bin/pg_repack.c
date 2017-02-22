@@ -1081,7 +1081,10 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	if (!(lock_exclusive(connection, buffer, table->lock_table, TRUE)))
 	{
-		elog(WARNING, "lock_exclusive() failed for %s", table->target_name);
+		if (no_kill_backend)
+			elog(INFO, "Skipping repack %s due to timeout", table->target_name);
+		else
+			elog(WARNING, "lock_exclusive() failed for %s", table->target_name);
 		goto cleanup;
 	}
 
@@ -1230,7 +1233,10 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	if (!(kill_ddl(connection, table->target_oid, true)))
 	{
-		elog(WARNING, "kill_ddl() failed.");
+		if (no_kill_backend)
+			elog(INFO, "Skipping repack %s due to timeout.", table->target_name);
+		else
+			elog(WARNING, "kill_ddl() failed.");
 		goto cleanup;
 	}
 
@@ -1488,7 +1494,7 @@ kill_ddl(PGconn *conn, Oid relid, bool terminate)
 		 */
 		if (no_kill_backend)
 		{
-			elog(WARNING, "%d unsafe queries remain but do not cancel them",
+			elog(WARNING, "%d unsafe queries remain but do not cancel them and skip to repack it",
 				 n_tuples);
 			ret = false;
 		}
