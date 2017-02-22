@@ -249,7 +249,7 @@ static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
-static bool				dont_kill_backend = false; /* abandon when timed-out */
+static bool				no_kill_backend = false; /* abandon when timed-out */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -275,7 +275,7 @@ static pgut_option options[] =
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
-	{ 'b', 'D', "dont-kill-backend", &dont_kill_backend },
+	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 0 },
 };
 
@@ -1486,7 +1486,7 @@ kill_ddl(PGconn *conn, Oid relid, bool terminate)
 		/* Competing backend is exsits, but if we do not want to calcel/terminate
 		 * any backend, do nothing.
 		 */
-		if (dont_kill_backend)
+		if (no_kill_backend)
 		{
 			elog(WARNING, "%d unsafe queries remain but do not cancel them",
 				 n_tuples);
@@ -1681,7 +1681,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		duration = time(NULL) - start;
 		if (duration > wait_timeout)
 		{
-			if (dont_kill_backend)
+			if (no_kill_backend)
 			{
 				elog(WARNING, "timed out, do not cancel conflicting backends");
 				ret = false;
@@ -2101,6 +2101,6 @@ pgut_help(bool details)
 	printf("  -i, --index=INDEX         move only the specified index\n");
 	printf("  -x, --only-indexes        move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
-	printf("  -D, --dont-kill-backend   do not kill other backends when timed out\n");
+	printf("  -D, --no-kill-backend     don't kill other backends when timed out\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 }

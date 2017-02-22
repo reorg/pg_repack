@@ -390,5 +390,5 @@ ERROR: cannot repack specific schema(s) in all databases
 --
 -- don't kill backend
 --
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster --dont-kill-backend
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-kill-backend
 INFO: repacking table "tbl_cluster"
