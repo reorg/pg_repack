@@ -381,3 +381,8 @@ ERROR: cannot repack specific table(s) in schema, use schema.table notation inst
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --all --schema=test_schema1
 ERROR: cannot repack specific schema(s) in all databases
+--
+-- don't kill backend
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-kill-backend
+INFO: repacking table "tbl_cluster"
