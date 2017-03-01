@@ -68,8 +68,8 @@ LANGUAGE sql STABLE STRICT;
 CREATE FUNCTION repack.get_create_trigger(relid oid, pkid oid)
   RETURNS text AS
 $$
-  SELECT 'CREATE TRIGGER z_repack_trigger' ||
-         ' BEFORE INSERT OR DELETE OR UPDATE ON ' || repack.oid2text($1) ||
+  SELECT 'CREATE TRIGGER repack_trigger' ||
+         ' AFTER INSERT OR DELETE OR UPDATE ON ' || repack.oid2text($1) ||
          ' FOR EACH ROW EXECUTE PROCEDURE repack.repack_trigger(' ||
          '''INSERT INTO repack.log_' || $1 || '(pk, row) VALUES(' ||
          ' CASE WHEN $1 IS NULL THEN NULL ELSE (ROW($1.' ||
@@ -82,7 +82,7 @@ CREATE FUNCTION repack.get_enable_trigger(relid oid)
   RETURNS text AS
 $$
   SELECT 'ALTER TABLE ' || repack.oid2text($1) ||
-    ' ENABLE ALWAYS TRIGGER z_repack_trigger';
+    ' ENABLE ALWAYS TRIGGER repack_trigger';
 $$
 LANGUAGE sql STABLE STRICT;
 
@@ -223,8 +223,7 @@ LANGUAGE C VOLATILE STRICT SECURITY DEFINER;
 CREATE FUNCTION repack.conflicted_triggers(oid) RETURNS SETOF name AS
 $$
 SELECT tgname FROM pg_trigger
- WHERE tgrelid = $1 AND tgname >= 'z_repack_trigger'
- AND (tgtype & 2) = 2      -- BEFORE trigger
+ WHERE tgrelid = $1 AND tgname = 'repack_trigger'
  ORDER BY tgname;
 $$
 LANGUAGE sql STABLE STRICT;

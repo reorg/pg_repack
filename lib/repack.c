@@ -151,7 +151,7 @@ repack_trigger(PG_FUNCTION_ARGS)
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
-		!TRIGGER_FIRED_BEFORE(trigdata->tg_event) ||
+		!TRIGGER_FIRED_AFTER(trigdata->tg_event) ||
 		!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event) ||
 		trigdata->tg_trigger->tgnargs != 1)
 		elog(ERROR, "repack_trigger: invalid trigger call");
@@ -921,7 +921,7 @@ repack_swap(PG_FUNCTION_ARGS)
 	/* drop repack trigger */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
+		"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
 		nspname, relname);
 
 	SPI_finish();
@@ -962,7 +962,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	 * To prevent concurrent lockers of the repack target table from causing
 	 * deadlocks, take an exclusive lock on it. Consider that the following
 	 * commands take exclusive lock on tables log_xxx and the target table
-	 * itself when deleting the z_repack_trigger on it, while concurrent
+	 * itself when deleting the repack_trigger on it, while concurrent
 	 * updaters require row exclusive lock on the target table and in
 	 * addition, on the log_xxx table, because of the trigger.
 	 *
@@ -1011,7 +1011,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
-			"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
+			"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
 			nspname, relname);
 		--numobj;
 	}
@@ -1306,7 +1306,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);
 	if (SPI_processed != 1)
-		elog(ERROR, "Could not find index 'index_%u', found %lu matches",
+		elog(ERROR, "Could not find index 'index_%u', found " UINT64_FORMAT " matches",
 			 orig_idx_oid, (uint64) SPI_processed);
 
 	tuptable = SPI_tuptable;

@@ -206,6 +206,7 @@ pg_repackもしくはpg_reorgの古いバージョンからのアップグレー
     -i, --index=INDEX         move only the specified index
     -x, --only-indexes        move only indexes of the specified table
     -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
+    -D, --no-kill-backend     don't kill other backends when timed out
     -Z, --no-analyze          don't analyze at end
   
   Connection options:
@@ -244,6 +245,7 @@ OPTIONには以下のものが指定できます。
   -i, --index=INDEX         指定したインデックスのみ再編成します
   -x, --only-indexes        指定したテーブルに付与されたインデックスだけを再編成します
   -T, --wait-timeout=SECS   ロック競合している他のトランザクションをキャンセルするまで待機する時間を指定します
+  -D, --no-kill-backend     タイムアウト時に他のバックエンドをキャンセルしません
   -Z, --no-analyze          再編成後にANALYZEを行いません
 
 接続オプション:
@@ -351,15 +353,22 @@ OPTIONには以下のものが指定できます。
 .. ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
-    wait to acquire this lock. If the lock cannot be taken after this duration,
-    pg_repack will forcibly cancel the conflicting queries. If you are using
-    PostgreSQL version 8.4 or newer, pg_repack will fall back to using
-    pg_terminate_backend() to disconnect any remaining backends after
-    twice this timeout has passed. The default is 60 seconds.
+    wait to acquire this lock. If the lock cannot be taken after this duration
+    and ``--no-kill-backend`` option is not specified, pg_repack will forcibly
+    cancel the conflicting queries. If you are using PostgreSQL version 8.4
+    or newer, pg_repack will fall back to using pg_terminate_backend() to
+    disconnect any remaining backends after twice this timeout has passed.
+    The default is 60 seconds.
 
 ``-T SECS``, ``--wait-timeout=SECS``
-    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
+    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できないかつ、`no-kill-backend`オプションが指定されていない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
 
+..  ``-D``, ``--no-kill-backend``
+    Skip to repack table if the lock cannot be taken for duration specified
+    ``--wait-timeout``, instead of cancelling conflicting queries. The default
+    is false.
+``-D``, ``--no-kill-backend``
+    ``--wait-timeout``オプションで指定された時間が経過してもロックが取得できない場合、競合するクエリをキャンセルする代わりに対象テーブルの再編成をスキップします。
 
 .. ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
@@ -651,7 +660,7 @@ ERROR: query failed: ERROR: column "col" does not exist
     対象のテーブルが  ``--order-by`` オプションで指定したカラムを持っていない場合に表示されます。
     存在しているカラムを指定してください。
 
-.. WARNING: the table "tbl" already has a trigger called z_repack_trigger
+.. WARNING: the table "tbl" already has a trigger called a_repack_trigger
     The trigger was probably installed during a previous attempt to run
     pg_repack on the table which was interrupted and for some reason failed
     to clean up the temporary objects.
@@ -661,37 +670,21 @@ ERROR: query failed: ERROR: column "col" does not exist
 
 .. class:: diag
 
-WARNING: the table "tbl" already has a trigger called z_repack_trigger
+WARNING: the table "tbl" already has a trigger called repack_trigger
     以前に実行したが何らかの理由で中断したか、あるいは失敗したpg_repackコマンドにより、
     対象テーブルにpg_repackが利用するトリガが残存している場合に表示されます。
     pg_repackを一度削除して、再度登録することで、こうした一時オブジェクトを削除できます。
     `インストール`_ を参照してください。
     
 .. WARNING: trigger "trg" conflicting on table "tbl"
-    The target table has a trigger whose name follows ``z_repack_trigger``
+    The target table has a trigger whose name follows ``repack_trigger``
     in alphabetical order.
   
-    The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
+    The ``repack_trigger`` should be the first AFTER trigger to fire.
     Please rename your trigger so that it sorts alphabetically before
     pg_repack's one; you can use::
   
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
-
-.. class:: diag
-
-WARNING: trigger "trg" conflicting on table "tbl"
-    対象のテーブルが、pg_repackが利用する ``z_repack_trigger`` という名前のトリガ
-    よりもアルファベット順で後ろになるような名前のトリガを持っている場合に表示されます。
-    ``z_repack_trigger`` トリガは最後に実行されるBEFOREトリガになる必要があります。
-    該当のトリガ名称を変更してください。::
-
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
-
-.. ERROR: Another pg_repack command may be running on the table. Please try again
-    later.
-  
-   There is a chance of deadlock when two concurrent pg_repack commands are run
-   on the same table. So, try to run the command after some time.
+        ALTER TRIGGER aaa_my_trigger ON sometable RENAME TO bbb_my_trigger;
 
 .. class:: diag
 
