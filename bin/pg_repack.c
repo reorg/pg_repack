@@ -277,7 +277,7 @@ static pgut_option options[] =
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
-  { 'b', 'k', "no-superuser-check", &no_superuser_check },
+	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 0 },
 };
 
