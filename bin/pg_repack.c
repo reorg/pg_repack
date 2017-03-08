@@ -250,6 +250,7 @@ static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
+static bool				no_superuser_check = false;
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -276,6 +277,7 @@ static pgut_option options[] =
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
+	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 0 },
 };
 
@@ -377,6 +379,9 @@ bool
 is_superuser(void)
 {
 	const char *val;
+
+	if (no_superuser_check)
+		return true;
 
 	if (!connection)
 		return false;
@@ -2094,4 +2099,5 @@ pgut_help(bool details)
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
 	printf("  -D, --no-kill-backend     don't kill other backends when timed out\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
+	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
 }

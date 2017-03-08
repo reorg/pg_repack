@@ -129,6 +129,7 @@ Options:
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
   -D, --no-kill-backend     don't kill other backends when timed out
   -Z, --no-analyze          don't analyze at end
+  -k, --no-superuser-check  skip superuser checks in client
 
 Connection options:
   -d, --dbname=DBNAME       database to connect
@@ -216,6 +217,10 @@ Reorg Options
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
     ANALYZE after the reorganization.
+
+``-k``, ``--no-superuser-check``
+    Skip the superuser checks in the client.  This setting is useful for using
+    pg_repack on platforms that support running it as non-superusers.
 
 
 Connection Options
