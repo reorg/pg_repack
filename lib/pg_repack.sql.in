@@ -254,3 +254,8 @@ LANGUAGE C VOLATILE STRICT;
 CREATE FUNCTION repack.repack_index_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_index_swap'
 LANGUAGE C STABLE STRICT;
+
+CREATE FUNCTION repack.get_table_and_inheritors(regclass) RETURNS regclass[] AS
+'MODULE_PATHNAME', 'repack_get_table_and_inheritors'
+LANGUAGE C STABLE STRICT;
+
