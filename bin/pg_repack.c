@@ -310,14 +310,14 @@ main(int argc, char *argv[])
 				errmsg("cannot specify --index (-i) and --table (-t)")));
 		if (r_index.head && parent_table_list.head)
 			ereport(ERROR, (errcode(EINVAL),
-				errmsg("cannot specify --index (-i) and --parent-table (-P)")));
+				errmsg("cannot specify --index (-i) and --parent-table (-I)")));
 		else if (r_index.head && only_indexes)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --only-indexes (-x)")));
 		else if (only_indexes && !(table_list.head || parent_table_list.head))
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack all indexes of database, specify the table(s)"
-					   "via --table (-t) or --parent-table (-P)")));
+					   "via --table (-t) or --parent-table (-I)")));
 		else if (alldb)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack specific index(es) in all databases")));
@@ -2032,7 +2032,7 @@ static bool
 repack_all_indexes(char *errbuf, size_t errsize)
 {
 	bool					ret = false;
-	PGresult		   		*res = NULL;
+	PGresult				*res = NULL;
 	StringInfoData			sql;
 	SimpleStringListCell	*cell = NULL;
 	const char				*params[1];
@@ -2055,15 +2055,46 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 		cell = r_index.head;
 	}
-
-	/* TODO: fix this also for parent_table_list */
-	else if (table_list.head)
+	else if (table_list.head || parent_table_list.head)
 	{
 		appendStringInfoString(&sql,
 			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
+
+		for (cell = parent_table_list.head; cell; cell = cell->next)
+		{
+			int nchildren, i;
+
+			params[0] = cell->val;
+
+			/* find children of this parent table */
+			res = execute_elevel("SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)"
+								 " FROM pg_class c JOIN pg_namespace n on n.oid = c.relnamespace"
+								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
+								 " ORDER BY n.nspname, c.relname", 1, params, DEBUG2);
+
+			if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			{
+				elog(WARNING, "%s", PQerrorMessage(connection));
+				continue;
+			}
+
+			nchildren = PQntuples(res);
+
+			if (nchildren == 0)
+			{
+				elog(WARNING, "relation \"%s\" does not exist", cell->val);
+				continue;
+			}
+
+			/* append new tables to 'table_list' */
+			for (i = 0; i < nchildren; i++)
+				simple_string_list_append(&table_list, getstr(res, i, 0));
+		}
+
+		CLEARPGRES(res);
 
 		cell = table_list.head;
 	}
@@ -2102,7 +2133,6 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	ret = true;
 
 cleanup:
-	CLEARPGRES(res);
 	disconnect();
 	termStringInfo(&sql);
 	return ret;
