@@ -232,7 +232,7 @@ Connection Options
 ^^^^^^^^^^^^^^^^^^
 
 Options to connect to servers. You cannot use ``--all`` and ``--dbname`` or
-``--table``/``--parent-table`` together.
+``--table`` or ``--parent-table`` together.
 
 ``-a``, ``--all``
     Reorganize all databases.
