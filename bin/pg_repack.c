@@ -251,7 +251,7 @@ static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
-static bool				include_extensions = false; /* repack tables of extensions */
+static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -279,7 +279,7 @@ static pgut_option options[] =
 	{ 'i', 'j', "jobs", &jobs },
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
-	{ 'b', 'C', "include-extensions", &include_extensions },
+	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
 	{ 0 },
 };
 
@@ -607,12 +607,14 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	size_t					num_tables;
 	size_t					num_schemas;
 	size_t					num_params;
+	size_t					num_excluded_extensions;
 
 	num_tables = simple_string_list_size(table_list);
 	num_schemas = simple_string_list_size(schema_list);
+	num_excluded_extensions = simple_string_list_size(exclude_extension_list);
 
 	/* 1st param is the user-specified tablespace */
-	num_params = num_tables + num_schemas + 1;
+	num_params = num_excluded_extensions + num_tables + num_schemas + 1;
 	params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
@@ -637,12 +639,6 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	params[iparam++] = tablespace;
 	if (num_tables)
 	{
-		/*
-		 * Tables have been explicitly specified,
-		 * no need to hide tables of extensions
-		 */
-		include_extensions = true;
-
 		appendStringInfoString(&sql, "(");
 		for (cell = table_list.head; cell; cell = cell->next)
 		{
@@ -673,12 +669,25 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	}
 
 	/* Exclude tables which belong to extensions */
-	if (!include_extensions)
+	if (exclude_extension_list.head)
 	{
 		appendStringInfoString(&sql, " AND t.relid NOT IN"
-									 " (SELECT objid FROM pg_depend"
-									 "  WHERE refclassid = 'pg_extension'::regclass"
-									 "  AND classid = 'pg_class'::regclass)");
+									 "  (SELECT d.objid::regclass"
+									 "   FROM pg_depend d JOIN pg_extension e"
+									 "   ON d.refobjid = e.oid"
+									 "   WHERE d.classid = 'pg_class'::regclass AND (");
+
+		/* List all excluded extensions */
+		for (cell = exclude_extension_list.head; cell; cell = cell->next)
+		{
+			appendStringInfo(&sql, "e.extname = $%d", iparam + 1);
+			params[iparam++] = cell->val;
+
+			appendStringInfoString(&sql, cell->next ? " OR " : ")");
+		}
+
+		/* Close subquery */
+		appendStringInfoString(&sql, ")");
 	}
 
 	/* Ensure the regression tests get a consistent ordering of tables */
@@ -2118,5 +2127,5 @@ pgut_help(bool details)
 	printf("  -D, --no-kill-backend     don't kill other backends when timed out\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
-	printf("  -C, --include-extensions  repack tables which belong to extensions\n");
+	printf("  -C, --exclude-extension   don't repack tables which belong to specific extension\n");
 }
