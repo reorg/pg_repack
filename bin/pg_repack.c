@@ -311,9 +311,15 @@ main(int argc, char *argv[])
 		else if (r_index.head && only_indexes)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --only-indexes (-x)")));
+		else if (r_index.head && exclude_extension_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --index (-i) and --exclude-extension (-C)")));
 		else if (only_indexes && !table_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack all indexes of database, specify the table(s) via --table (-t)")));
+		else if (only_indexes && exclude_extension_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --only-indexes (-x) and --exclude-extension (-C)")));
 		else if (alldb)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack specific index(es) in all databases")));
@@ -342,6 +348,11 @@ main(int argc, char *argv[])
 			ereport(ERROR,
 				(errcode(EINVAL),
 				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
+
+		if (exclude_extension_list.head && table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot specify --table (-t) and --exclude-extension (-C)")));
 
 		if (noorder)
 			orderby = "";
