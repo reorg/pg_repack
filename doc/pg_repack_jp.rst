@@ -363,14 +363,15 @@ OPTIONには以下のものが指定できます。
     The default is 60 seconds.
 
 ``-T SECS``, ``--wait-timeout=SECS``
-    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できないかつ、`no-kill-backend`オプションが指定されていない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
+    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できないかつ、``no-kill-backend``\オプションが指定されていない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
 
 ..  ``-D``, ``--no-kill-backend``
     Skip to repack table if the lock cannot be taken for duration specified
     ``--wait-timeout``, instead of cancelling conflicting queries. The default
     is false.
+
 ``-D``, ``--no-kill-backend``
-    ``--wait-timeout``オプションで指定された時間が経過してもロックが取得できない場合、競合するクエリをキャンセルする代わりに対象テーブルの再編成をスキップします。
+    ``--wait-timeout``\オプションで指定された時間が経過してもロックが取得できない場合、競合するクエリをキャンセルする代わりに対象テーブルの再編成をスキップします。
 
 .. ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
