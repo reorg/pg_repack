@@ -130,6 +130,7 @@ Options:
   -D, --no-kill-backend     don't kill other backends when timed out
   -Z, --no-analyze          don't analyze at end
   -k, --no-superuser-check  skip superuser checks in client
+  -C, --exclude-extension   don't repack tables which belong to specific extension
 
 Connection options:
   -d, --dbname=DBNAME       database to connect
@@ -222,6 +223,9 @@ Reorg Options
     Skip the superuser checks in the client.  This setting is useful for using
     pg_repack on platforms that support running it as non-superusers.
 
+``-C``, ``--exclude-extension``
+    Skip tables that belong to the specified extension(s). Some extensions
+    may heavily depend on such tables at planning time etc.
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
