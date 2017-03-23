@@ -1307,7 +1307,7 @@ pgut_malloc(size_t size)
 	if ((ret = malloc(size)) == NULL)
 		ereport(FATAL,
 			(errcode_errno(),
-			 errmsg("could not allocate memory (%lu bytes): ",
+			 errmsg("could not allocate memory (" UINT64_FORMAT " bytes): ",
 				(unsigned long) size)));
 	return ret;
 }
@@ -1320,7 +1320,7 @@ pgut_realloc(void *p, size_t size)
 	if ((ret = realloc(p, size)) == NULL)
 		ereport(FATAL,
 			(errcode_errno(),
-			 errmsg("could not re-allocate memory (%lu bytes): ",
+			 errmsg("could not re-allocate memory (" UINT64_FORMAT " bytes): ",
 				(unsigned long) size)));
 	return ret;
 }

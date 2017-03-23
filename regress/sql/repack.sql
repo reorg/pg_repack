@@ -197,17 +197,14 @@ CREATE FUNCTION trgtest() RETURNS trigger AS
 $$BEGIN RETURN NEW; END$$
 LANGUAGE plpgsql;
 CREATE TABLE trg1 (id integer PRIMARY KEY);
-CREATE TRIGGER z_repack_triggeq BEFORE UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER repack_trigger_1 AFTER UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg1
 CREATE TABLE trg2 (id integer PRIMARY KEY);
-CREATE TRIGGER z_repack_trigger BEFORE UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER repack_trigger AFTER UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg2
 CREATE TABLE trg3 (id integer PRIMARY KEY);
-CREATE TRIGGER z_repack_trigges BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+CREATE TRIGGER repack_trigger_1 BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg3
-CREATE TABLE trg4 (id integer PRIMARY KEY);
-CREATE TRIGGER zzzzzz AFTER UPDATE ON trg4 FOR EACH ROW EXECUTE PROCEDURE trgtest();
-\! pg_repack --dbname=contrib_regression --table=trg4
 
 --
 -- Dry run
@@ -230,3 +227,21 @@ CREATE TABLE test_schema2.tbl2 (id INTEGER PRIMARY KEY);
 \! pg_repack --dbname=contrib_regression --schema=test_schema1 --table=tbl1
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --all --schema=test_schema1
+
+--
+-- don't kill backend
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-kill-backend
+
+--
+-- no superuser check
+--
+DROP ROLE IF EXISTS nosuper;
+CREATE ROLE nosuper WITH LOGIN;
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-superuser-check
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
+DROP ROLE IF EXISTS nosuper;

@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5
+    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -127,7 +127,9 @@ Options:
   -i, --index=INDEX         move only the specified index
   -x, --only-indexes        move only indexes of the specified table
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
+  -D, --no-kill-backend     don't kill other backends when timed out
   -Z, --no-analyze          don't analyze at end
+  -k, --no-superuser-check  skip superuser checks in client
 
 Connection options:
   -d, --dbname=DBNAME       database to connect
@@ -200,15 +202,25 @@ Reorg Options
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
-    wait to acquire this lock. If the lock cannot be taken after this duration,
-    pg_repack will forcibly cancel the conflicting queries. If you are using
-    PostgreSQL version 8.4 or newer, pg_repack will fall back to using
-    pg_terminate_backend() to disconnect any remaining backends after
-    twice this timeout has passed. The default is 60 seconds.
+    wait to acquire this lock. If the lock cannot be taken after this duration
+    and ``--no-kill-backend`` option is not specified, pg_repack will forcibly
+    cancel the conflicting queries. If you are using PostgreSQL version 8.4
+    or newer, pg_repack will fall back to using pg_terminate_backend() to
+    disconnect any remaining backends after twice this timeout has passed.
+    The default is 60 seconds.
+
+``-D``, ``--no-kill-backend``
+    Skip to repack table if the lock cannot be taken for duration specified
+    ``--wait-timeout``, instead of cancelling conflicting queries. The default
+    is false.
 
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
     ANALYZE after the reorganization.
+
+``-k``, ``--no-superuser-check``
+    Skip the superuser checks in the client.  This setting is useful for using
+    pg_repack on platforms that support running it as non-superusers.
 
 
 Connection Options
@@ -362,23 +374,13 @@ ERROR: query failed: ERROR: column "col" does not exist
 
     Specify existing columns.
 
-WARNING: the table "tbl" already has a trigger called z_repack_trigger
+WARNING: the table "tbl" already has a trigger called repack_trigger
     The trigger was probably installed during a previous attempt to run
     pg_repack on the table which was interrupted and for some reason failed
     to clean up the temporary objects.
 
     You can remove all the temporary objects by dropping and re-creating the
     extension: see the installation_ section for the details.
-
-WARNING: trigger "trg" conflicting on table "tbl"
-    The target table has a trigger whose name follows ``z_repack_trigger``
-    in alphabetical order.
-
-    The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
-    Please rename your trigger so that it sorts alphabetically before
-    pg_repack's one; you can use::
-
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
 
 ERROR: Another pg_repack command may be running on the table. Please try again
     later.
