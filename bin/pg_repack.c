@@ -360,6 +360,11 @@ main(int argc, char *argv[])
 				(errcode(EINVAL),
 				 errmsg("cannot specify --table (-t) and --exclude-extension (-C)")));
 
+		if (exclude_extension_list.head && parent_table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot specify --parent-table (-I) and --exclude-extension (-C)")));
+
 		if (noorder)
 			orderby = "";
 
