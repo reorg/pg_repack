@@ -208,6 +208,7 @@ pg_repackもしくはpg_reorgの古いバージョンからのアップグレー
     -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
     -D, --no-kill-backend     don't kill other backends when timed out
     -Z, --no-analyze          don't analyze at end
+    -k, --no-superuser-check  skip superuser checks in client
   
   Connection options:
     -d, --dbname=DBNAME       database to connect
@@ -247,6 +248,7 @@ OPTIONには以下のものが指定できます。
   -T, --wait-timeout=SECS   ロック競合している他のトランザクションをキャンセルするまで待機する時間を指定します
   -D, --no-kill-backend     タイムアウト時に他のバックエンドをキャンセルしません
   -Z, --no-analyze          再編成後にANALYZEを行いません
+  -k, --no-superuser-check  接続ユーザがスーパーユーザかどうかのチェックを行いません
 
 接続オプション:
   -d, --dbname=DBNAME       接続する対象のデータベースを指定します
@@ -361,14 +363,15 @@ OPTIONには以下のものが指定できます。
     The default is 60 seconds.
 
 ``-T SECS``, ``--wait-timeout=SECS``
-    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できないかつ、`no-kill-backend`オプションが指定されていない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
+    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できないかつ、``no-kill-backend``\オプションが指定されていない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
 
 ..  ``-D``, ``--no-kill-backend``
     Skip to repack table if the lock cannot be taken for duration specified
     ``--wait-timeout``, instead of cancelling conflicting queries. The default
     is false.
+
 ``-D``, ``--no-kill-backend``
-    ``--wait-timeout``オプションで指定された時間が経過してもロックが取得できない場合、競合するクエリをキャンセルする代わりに対象テーブルの再編成をスキップします。
+    ``--wait-timeout``\オプションで指定された時間が経過してもロックが取得できない場合、競合するクエリをキャンセルする代わりに対象テーブルの再編成をスキップします。
 
 .. ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
@@ -376,6 +379,13 @@ OPTIONには以下のものが指定できます。
 
 ``-Z``, ``--no-analyze``
     再編成終了後にANALYZEを行うことを無効にします。デフォルトでは再編成完了後に統計情報を更新するためANALYZEを実行します。
+
+.. ``-k``, ``--no-superuser-check``
+    Skip the superuser checks in the client. This setting is useful for using
+    pg_repack on platforms that support running it as non-superusers.
+
+``-k``, ``--no-superuser-check``
+    接続ユーザがスーパーユーザかどうかのチェックを行いません。これは、非スーパーユーザのみが利用できる環境でpg_repackを使用するときに有用です。
 
 .. Connection Options
    ^^^^^^^^^^^^^^^^^^
@@ -845,6 +855,39 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 リリースノート
 ---------------
+
+.. * pg_repack 1.3.4
+..  * grab exclusive lock before dropping original table (#81)
+..  * do not attempt to repack unlogged table (#71)
+
+* pg_repack 1.3.4
+
+  * 元テーブルを削除する前に排他ロックを取得するようにしました(#81)
+  * Unlogged Tableを再編成対象から外すようにしました (#71)
+
+.. * pg_repack 1.3.3
+..  * Added support for PostgreSQL 9.5
+..  * Fixed possible deadlock when pg_repack command is interrupted (issue #55)
+..  * Fixed exit code for when pg_repack is invoked with ``--help`` and
+..    ``--version``
+..  * Added Japanese language user manual
+
+* pg_repack 1.3.3
+
+  * PostgreSQL 9.5をサポートしました
+  * pg_repackが中断されたときにデッドロックが発生する可能性を修正しました (issue #55)
+  * ``--help`` または ``--version`` オプションを指定した実行したときの終了コードを修正しました
+  * 日本語のユーザマニュアルを追加しました
+
+.. * pg_repack 1.3.2
+..  * Fixed to clean up temporary objects when pg_repack command is interrupted.
+..  * Fixed possible crash when pg_repack shared library is loaded a alongside
+..    pg_statsinfo (issue #43)
+
+* pg_repack 1.3.2
+
+  * pg_repackが中断されたときに一時オブジェクトを削除するようにしました
+  * pg_statsinfoと同時にロードされている時にクラッシュする可能性を修正しました
 
 .. * pg_repack 1.3.1
 ..  * Added support for PostgreSQL 9.4.

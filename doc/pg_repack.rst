@@ -131,6 +131,7 @@ Options:
   -D, --no-kill-backend     don't kill other backends when timed out
   -Z, --no-analyze          don't analyze at end
   -k, --no-superuser-check  skip superuser checks in client
+  -C, --exclude-extension   don't repack tables which belong to specific extension
 
 Connection options:
   -d, --dbname=DBNAME       database to connect
@@ -227,6 +228,9 @@ Reorg Options
     Skip the superuser checks in the client.  This setting is useful for using
     pg_repack on platforms that support running it as non-superusers.
 
+``-C``, ``--exclude-extension``
+    Skip tables that belong to the specified extension(s). Some extensions
+    may heavily depend on such tables at planning time etc.
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
@@ -387,21 +391,19 @@ WARNING: the table "tbl" already has a trigger called repack_trigger
     You can remove all the temporary objects by dropping and re-creating the
     extension: see the installation_ section for the details.
 
-ERROR: Another pg_repack command may be running on the table. Please try again
-    later.
-
-   There is a chance of deadlock when two concurrent pg_repack commands are run
-   on the same table. So, try to run the command after some time.
+ERROR: Another pg_repack command may be running on the table. Please try again later.
+    There is a chance of deadlock when two concurrent pg_repack commands are
+    run on the same table. So, try to run the command after some time.
 
 WARNING: Cannot create index  "schema"."index_xxxxx", already exists
-DETAIL: An invalid index may have been left behind by a previous pg_repack on
-the table which was interrupted. Please use DROP INDEX "schema"."index_xxxxx"
-to remove this index and try again.
+    DETAIL: An invalid index may have been left behind by a previous pg_repack
+    on the table which was interrupted. Please use DROP INDEX
+    "schema"."index_xxxxx" to remove this index and try again.
 
-   A temporary index apparently created by pg_repack has been left behind, and
-   we do not want to risk dropping this index ourselves. If the index was in
-   fact created by an old pg_repack job which didn't get cleaned up, you
-   should just use DROP INDEX and try the repack command again.
+    A temporary index apparently created by pg_repack has been left behind, and
+    we do not want to risk dropping this index ourselves. If the index was in
+    fact created by an old pg_repack job which didn't get cleaned up, you
+    should just use DROP INDEX and try the repack command again.
 
 
 Restrictions
@@ -473,10 +475,19 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.4
+
+  * added support for PostgreSQL 9.6
+  * use ``AFTER`` trigger to solve concurrency problems with ``INSERT
+    CONFLICT`` (issue #106)
+  * added ``--no-kill-backend`` option (issue #108)
+  * added ``--no-superuser-check`` option (issue #114)
+  * added ``--exclude-extension`` option (#97)
+
 * pg_repack 1.3.4
 
-  * grab exclusive lock before dropping original table (#81)
-  * do not attempt to repack unlogged tables (#71)
+  * grab exclusive lock before dropping original table (issue #81)
+  * do not attempt to repack unlogged tables (issue #71)
 
 * pg_repack 1.3.3
 

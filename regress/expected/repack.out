@@ -404,6 +404,26 @@ LINE 1: select repack.version(), repack.version_sql()
                ^
 DROP ROLE IF EXISTS nosuper;
 --
+-- exclude extension check
+--
+CREATE SCHEMA exclude_extension_schema;
+CREATE TABLE exclude_extension_schema.tbl(val integer primary key);
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=dummy_table --exclude-extension=dummy_extension
+ERROR: cannot specify --table (-t) and --exclude-extension (-C)
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=dummy_table --exclude-extension=dummy_extension -x
+ERROR: cannot specify --only-indexes (-x) and --exclude-extension (-C)
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --index=dummy_index --exclude-extension=dummy_extension
+ERROR: cannot specify --index (-i) and --exclude-extension (-C)
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension
+INFO: repacking table "exclude_extension_schema.tbl"
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension --exclude-extension=dummy_extension
+INFO: repacking table "exclude_extension_schema.tbl"
+--
 -- table inheritance check
 --
 CREATE TABLE parent_a(val integer primary key);

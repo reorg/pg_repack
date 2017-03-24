@@ -252,6 +252,7 @@ static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
+static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -280,6 +281,7 @@ static pgut_option options[] =
 	{ 'i', 'j', "jobs", &jobs },
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
+	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
 	{ 0 },
 };
 
@@ -314,10 +316,16 @@ main(int argc, char *argv[])
 		else if (r_index.head && only_indexes)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --only-indexes (-x)")));
+		else if (r_index.head && exclude_extension_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --index (-i) and --exclude-extension (-C)")));
 		else if (only_indexes && !(table_list.head || parent_table_list.head))
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack all indexes of database, specify the table(s)"
 					   "via --table (-t) or --parent-table (-I)")));
+		else if (only_indexes && exclude_extension_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --only-indexes (-x) and --exclude-extension (-C)")));
 		else if (alldb)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack specific index(es) in all databases")));
@@ -346,6 +354,11 @@ main(int argc, char *argv[])
 			ereport(ERROR,
 				(errcode(EINVAL),
 				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
+
+		if (exclude_extension_list.head && table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot specify --table (-t) and --exclude-extension (-C)")));
 
 		if (noorder)
 			orderby = "";
@@ -608,17 +621,22 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	SimpleStringListCell   *cell;
 	const char			  **params = NULL;
 	int						iparam = 0;
-	size_t					num_parent_tables;
-	size_t					num_tables;
-	size_t					num_schemas;
-	size_t					num_params;
+	size_t					num_parent_tables,
+							num_tables,
+							num_schemas,
+							num_params,
+							num_excluded_extensions;
 
 	num_parent_tables = simple_string_list_size(parent_table_list);
 	num_tables = simple_string_list_size(table_list);
 	num_schemas = simple_string_list_size(schema_list);
+	num_excluded_extensions = simple_string_list_size(exclude_extension_list);
 
 	/* 1st param is the user-specified tablespace */
-	num_params = num_parent_tables + num_tables + num_schemas + 1;
+	num_params = num_excluded_extensions +
+				 num_parent_tables +
+				 num_tables +
+				 num_schemas + 1;
 	params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
@@ -695,6 +713,29 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	{
 		appendStringInfoString(&sql, "pkid IS NOT NULL");
 	}
+
+	/* Exclude tables which belong to extensions */
+	if (exclude_extension_list.head)
+	{
+		appendStringInfoString(&sql, " AND t.relid NOT IN"
+									 "  (SELECT d.objid::regclass"
+									 "   FROM pg_depend d JOIN pg_extension e"
+									 "   ON d.refobjid = e.oid"
+									 "   WHERE d.classid = 'pg_class'::regclass AND (");
+
+		/* List all excluded extensions */
+		for (cell = exclude_extension_list.head; cell; cell = cell->next)
+		{
+			appendStringInfo(&sql, "e.extname = $%d", iparam + 1);
+			params[iparam++] = cell->val;
+
+			appendStringInfoString(&sql, cell->next ? " OR " : ")");
+		}
+
+		/* Close subquery */
+		appendStringInfoString(&sql, ")");
+	}
+
 	/* Ensure the regression tests get a consistent ordering of tables */
 	appendStringInfoString(&sql, " ORDER BY t.relname, t.schemaname");
 
@@ -2165,4 +2206,5 @@ pgut_help(bool details)
 	printf("  -D, --no-kill-backend     don't kill other backends when timed out\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
+	printf("  -C, --exclude-extension   don't repack tables which belong to specific extension\n");
 }

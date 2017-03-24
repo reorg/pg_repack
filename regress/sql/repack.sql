@@ -247,6 +247,22 @@ CREATE ROLE nosuper WITH LOGIN;
 DROP ROLE IF EXISTS nosuper;
 
 --
+-- exclude extension check
+--
+CREATE SCHEMA exclude_extension_schema;
+CREATE TABLE exclude_extension_schema.tbl(val integer primary key);
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=dummy_table --exclude-extension=dummy_extension
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=dummy_table --exclude-extension=dummy_extension -x
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --index=dummy_index --exclude-extension=dummy_extension
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension --exclude-extension=dummy_extension
+
+--
 -- table inheritance check
 --
 CREATE TABLE parent_a(val integer primary key);
@@ -271,4 +287,3 @@ CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
 \! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b --only-indexes
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes
-
