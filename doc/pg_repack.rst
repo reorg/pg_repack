@@ -477,6 +477,7 @@ Releases
     CONFLICT`` (issue #106)
   * added ``--no-kill-backend`` option (issue #108)
   * added ``--no-superuser-check`` option (issue #114)
+  * added ``--exclude-extension`` option (#97)
 
 * pg_repack 1.3.4
 
