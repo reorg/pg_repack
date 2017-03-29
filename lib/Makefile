@@ -25,13 +25,7 @@ REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
 
 PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
-# Support CREATE EXTENSION for PG >= 9.1 and a simple sql script for PG < 9.1
-ifeq ($(shell echo $$(($(INTVERSION) >= 901))),1)
 DATA_built = pg_repack--$(REPACK_VERSION).sql pg_repack.control
-else
-DATA_built = pg_repack.sql
-DATA = uninstall_pg_repack.sql
-endif
 
 USE_PGXS = 1
 PGXS := $(shell $(PG_CONFIG) --pgxs)
