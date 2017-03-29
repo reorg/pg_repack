@@ -9,6 +9,7 @@ env:
   - PGVER=9.4
   - PGVER=9.3
   - PGVER=9.2
+  - PGVER=9.1
 
 install:
   - source regress/travis_prepare.sh
