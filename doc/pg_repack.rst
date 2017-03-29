@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
+    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -472,7 +472,7 @@ Releases
 
 * pg_repack 1.4
 
-  * added support for PostgreSQL 9.6
+  * added support for PostgreSQL 9.6, dropped support for versions before 9.1
   * use ``AFTER`` trigger to solve concurrency problems with ``INSERT
     CONFLICT`` (issue #106)
   * added ``--no-kill-backend`` option (issue #108)
