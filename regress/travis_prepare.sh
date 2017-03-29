@@ -38,9 +38,16 @@ fi
 
 # Go somewhere else or sudo will fail
 cd /
+
 # Already started because of installing posgresql-$PGVER
 # sudo -u postgres "$PGBIN/pg_ctl" -w -l /dev/null -D "$CONFDIR" start
 sudo -u postgres mkdir -p /var/lib/postgresql/testts
 sudo -u postgres "$PGBIN/psql" \
     -c "create tablespace testts location '/var/lib/postgresql/testts'"
+
+if [ $PGVER -eq "10" ]; then
+    sudo -u postgres "$PGBIN/psql" -c "create user travis superuser"
+fi
+
+# Go back to the build dir
 cd -
