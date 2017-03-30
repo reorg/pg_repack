@@ -855,6 +855,22 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 リリースノート
 ---------------
+.. * pg_repack 1.4
+..   * added support for PostgreSQL 9.6
+..   * use ``AFTER`` trigger to solve concurrency problems with ``INSERT
+..     CONFLICT`` (issue #106)
+..   * added ``--no-kill-backend`` option (issue #108)
+..   * added ``--no-superuser-check`` option (issue #114)
+..   * added ``--exclude-extension`` option (#97)
+
+* pg_repack 1.4
+
+  * PostgreSQL 9.6をサポートしました
+  * ``INSERT CONFLICT`` を同時実行した際の問題を解決するために、
+    ``AFTER`` トリガを使うようにしました(issue #106)
+  * ``--no-kill-backend`` オプションを追加しました (issue #108)
+  * ``--no-superuser-check`` オプションを追加しました (issue #114)
+  * ``--exclude-extension`` オプションを追加しました (#97)
 
 .. * pg_repack 1.3.4
 ..  * grab exclusive lock before dropping original table (#81)
