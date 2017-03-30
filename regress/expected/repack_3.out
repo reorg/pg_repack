@@ -421,3 +421,62 @@ INFO: repacking table "exclude_extension_schema.tbl"
 -- => OK
 \! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension --exclude-extension=dummy_extension
 INFO: repacking table "exclude_extension_schema.tbl"
+--
+-- table inheritance check
+--
+CREATE TABLE parent_a(val integer primary key);
+CREATE TABLE child_a_1(val integer primary key) INHERITS(parent_a);
+CREATE TABLE child_a_2(val integer primary key) INHERITS(parent_a);
+CREATE TABLE parent_b(val integer primary key);
+CREATE TABLE child_b_1(val integer primary key) INHERITS(parent_b);
+CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table
+ERROR: pg_repack failed with error: ERROR:  relation "dummy_table" does not exist
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_index --index=dummy_index
+ERROR: cannot specify --index (-i) and --parent-table (-I)
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table --schema=dummy_schema
+ERROR: cannot repack specific table(s) in schema, use schema.table notation instead
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table --all
+ERROR: cannot repack specific table(s) in all databases
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b
+INFO: repacking table "parent_a"
+INFO: repacking table "parent_b"
+INFO: repacking table "child_b_1"
+INFO: repacking table "child_b_2"
+-- => OK
+\! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b
+INFO: repacking table "parent_a"
+INFO: repacking table "child_a_1"
+INFO: repacking table "child_a_2"
+INFO: repacking table "parent_b"
+INFO: repacking table "child_b_1"
+INFO: repacking table "child_b_2"
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b --only-indexes
+INFO: repacking indexes of "parent_a"
+INFO: repacking index "public"."parent_a_pkey"
+INFO: repacking indexes of "public.child_b_1"
+INFO: repacking index "public"."child_b_1_pkey"
+INFO: repacking indexes of "public.child_b_2"
+INFO: repacking index "public"."child_b_2_pkey"
+INFO: repacking indexes of "public.parent_b"
+INFO: repacking index "public"."parent_b_pkey"
+-- => OK
+\! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes
+INFO: repacking indexes of "public.child_a_1"
+INFO: repacking index "public"."child_a_1_pkey"
+INFO: repacking indexes of "public.child_a_2"
+INFO: repacking index "public"."child_a_2_pkey"
+INFO: repacking indexes of "public.parent_a"
+INFO: repacking index "public"."parent_a_pkey"
+INFO: repacking indexes of "public.child_b_1"
+INFO: repacking index "public"."child_b_1_pkey"
+INFO: repacking indexes of "public.child_b_2"
+INFO: repacking index "public"."child_b_2_pkey"
+INFO: repacking indexes of "public.parent_b"
+INFO: repacking index "public"."parent_b_pkey"
