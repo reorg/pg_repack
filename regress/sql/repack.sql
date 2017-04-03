@@ -69,6 +69,12 @@ CREATE INDEX idxopts_t ON tbl_idxopts (t DESC NULLS LAST) WHERE (t != 'aaa');
 -- Use this table to play with attribute options too
 ALTER TABLE tbl_idxopts ALTER i SET STATISTICS 1;
 ALTER TABLE tbl_idxopts ALTER t SET (n_distinct = -0.5);
+CREATE TABLE tbl_with_toast (
+      i integer PRIMARY KEY,
+      c text
+);
+ALTER TABLE tbl_with_toast SET (AUTOVACUUM_VACUUM_SCALE_FACTOR = 30, AUTOVACUUM_VACUUM_THRESHOLD = 300);
+ALTER TABLE tbl_with_toast SET (TOAST.AUTOVACUUM_VACUUM_SCALE_FACTOR = 40, TOAST.AUTOVACUUM_VACUUM_THRESHOLD = 400);
 
 --
 -- insert data
@@ -157,6 +163,14 @@ SELECT * FROM view_for_dropped_column;
 SELECT * FROM tbl_with_dropped_toast;
 RESET enable_seqscan;
 RESET enable_indexscan;
+-- check if storage option for both table and TOAST table didn't go away.
+SELECT CASE relkind
+       WHEN 'r' THEN relname
+       WHEN 't' THEN 'toast_table'
+       END as table,
+       reloptions
+FROM pg_class
+WHERE relname = 'tbl_with_toast' OR relname = 'pg_toast_' || 'tbl_with_toast'::regclass::oid;
 
 --
 -- check broken links or orphan toast relations
