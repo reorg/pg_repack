@@ -170,7 +170,8 @@ SELECT CASE relkind
        END as table,
        reloptions
 FROM pg_class
-WHERE relname = 'tbl_with_toast' OR relname = 'pg_toast_' || 'tbl_with_toast'::regclass::oid;
+WHERE relname = 'tbl_with_toast' OR relname = 'pg_toast_' || 'tbl_with_toast'::regclass::oid
+ORDER BY 1;
 
 --
 -- check broken links or orphan toast relations
