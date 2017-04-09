@@ -62,7 +62,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
   ------------
   
   PostgreSQL versions
-      PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
+      PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
   
   Disks
       Performing a full-table repack requires free disk space about twice as
@@ -75,7 +75,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
 ---------
 
 PostgreSQL バージョン
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4
+    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
 
 ディスク
     テーブル全体の再編成を行うには、対象となるテーブルと付属するインデックスのおよそ2倍のサイズのディスク空き容量が必要です。例えば、テーブルとインデックスを合わせたサイズが1GBの場合、2GBのディスク領域が必要となります。
