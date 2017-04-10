@@ -15,7 +15,7 @@ INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)
 EXTENSION = pg_repack
 MODULE_big = $(EXTENSION)
 
-OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
+OBJS = repack.o pgut/pgut-spi.o
 
 SHLIB_EXPORTS = exports.txt
 
