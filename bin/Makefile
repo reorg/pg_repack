@@ -26,7 +26,6 @@ endif
 PG_LIBS = $(libpq)
 
 USE_PGXS = 1	# use pgxs if not in contrib directory
-PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
