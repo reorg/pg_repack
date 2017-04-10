@@ -66,6 +66,10 @@ CREATE TABLE tbl_idxopts (
 );
 CREATE INDEX idxopts_t ON tbl_idxopts (t DESC NULLS LAST) WHERE (t != 'aaa');
 
+-- Use this table to play with attribute options too
+ALTER TABLE tbl_idxopts ALTER i SET STATISTICS 1;
+ALTER TABLE tbl_idxopts ALTER t SET (n_distinct = -0.5);
+
 --
 -- insert data
 --
@@ -167,6 +171,13 @@ SELECT oid, relname
  WHERE relkind = 'r'
    AND reltoastrelid <> 0
    AND reltoastrelid NOT IN (SELECT oid FROM pg_class WHERE relkind = 't');
+
+-- check columns options
+SELECT attname, attstattarget, attoptions
+FROM pg_attribute
+WHERE attrelid = 'tbl_idxopts'::regclass
+AND attnum > 0
+ORDER BY attnum;
 
 --
 -- NOT NULL UNIQUE
