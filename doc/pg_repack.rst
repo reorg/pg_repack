@@ -469,6 +469,7 @@ Releases
   * added ``--no-kill-backend`` option (issue #108)
   * added ``--no-superuser-check`` option (issue #114)
   * added ``--exclude-extension`` option (#97)
+  * restore TOAST storage parameters on repacked tables (issue #10)
 
 * pg_repack 1.3.4
 
