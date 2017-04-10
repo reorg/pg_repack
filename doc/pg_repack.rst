@@ -84,21 +84,12 @@ You can also use Microsoft Visual C++ 2010 to build the program on Windows.
 There are project files in the ``msvc`` folder.
 
 After installation, load the pg_repack extension in the database you want to
-process. On PostgreSQL 9.1 and following pg_repack is packaged as an
-extension, so you can execute::
+process. pg_repack is packaged as an extension, so you can execute::
 
     $ psql -c "CREATE EXTENSION pg_repack" -d your_database
 
-For previous PostgreSQL versions you should load the script
-``$SHAREDIR/contrib/pg_repack.sql`` in the database to process; you can
-get ``$SHAREDIR`` using ``pg_config --sharedir``, e.g. ::
-
-    $ psql -f "$(pg_config --sharedir)/contrib/pg_repack.sql" -d your_database
-
-You can remove pg_repack from a PostgreSQL 9.1 and following database using
-``DROP EXTENSION pg_repack``. For previous Postgresql versions load the
-``$SHAREDIR/contrib/uninstall_pg_repack.sql`` script or just drop the
-``repack`` schema.
+You can remove pg_repack using ``DROP EXTENSION pg_repack`` or just dropping
+the ``repack`` schema.
 
 If you are upgrading from a previous version of pg_repack or pg_reorg, just
 drop the old version from the database as explained above and install the new
@@ -472,7 +463,7 @@ Releases
 
 * pg_repack 1.4
 
-  * added support for PostgreSQL 9.6
+  * added support for PostgreSQL 9.6, dropped support for versions before 9.1
   * use ``AFTER`` trigger to solve concurrency problems with ``INSERT
     CONFLICT`` (issue #106)
   * added ``--no-kill-backend`` option (issue #108)

@@ -93,14 +93,6 @@ must_be_superuser(const char *func)
 }
 
 
-/* Include an implementation of RenameRelationInternal for old
- * versions which don't have one.
- */
-#if PG_VERSION_NUM < 80400
-static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId);
-#endif
-
-
 /* The API of RenameRelationInternal() was changed in 9.2.
  * Use the RENAME_REL macro for compatibility across versions.
  */
@@ -1016,19 +1008,6 @@ repack_drop(PG_FUNCTION_ARGS)
 		--numobj;
 	}
 
-#if PG_VERSION_NUM < 80400
-	/* delete autovacuum settings */
-	execute_with_format(
-		SPI_OK_DELETE,
-		"DELETE FROM pg_catalog.pg_autovacuum v"
-		" USING pg_class c, pg_namespace n"
-		" WHERE relname IN ('log_%u', 'table_%u')"
-		"   AND n.nspname = 'repack'"
-		"   AND c.relnamespace = n.oid"
-		"   AND v.vacrelid = c.oid",
-		oid, oid);
-#endif
-
 	/* drop temp table */
 	if (numobj > 0)
 	{
@@ -1052,17 +1031,10 @@ repack_disable_autovacuum(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	repack_init();
 
-#if PG_VERSION_NUM >= 80400
 	execute_with_format(
 		SPI_OK_UTILITY,
 		"ALTER TABLE %s SET (autovacuum_enabled = off)",
 		get_relation_name(oid));
-#else
-	execute_with_format(
-		SPI_OK_INSERT,
-		"INSERT INTO pg_catalog.pg_autovacuum VALUES (%u, false, -1, -1, -1, -1, -1, -1, -1, -1)",
-		oid);
-#endif
 
 	SPI_finish();
 
@@ -1317,28 +1289,3 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	SPI_finish();
 	PG_RETURN_VOID();
 }
-
-#if PG_VERSION_NUM < 80400
-
-/* XXX: You might need to add PGDLLIMPORT into your miscadmin.h. */
-extern PGDLLIMPORT bool allowSystemTableMods;
-
-static void
-RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId)
-{
-	bool	save_allowSystemTableMods = allowSystemTableMods;
-
-	allowSystemTableMods = true;
-	PG_TRY();
-	{
-		renamerel(myrelid, newrelname, OBJECT_TABLE);
-		allowSystemTableMods = save_allowSystemTableMods;
-	}
-	PG_CATCH();
-	{
-		allowSystemTableMods = save_allowSystemTableMods;
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
-}
-#endif

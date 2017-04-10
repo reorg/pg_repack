@@ -79,11 +79,9 @@ pgut_init(int argc, char **argv)
 		pthread_mutex_init(&pgut_conn_mutex, NULL);
 #endif
 
-#if PG_VERSION_NUM >= 90000
 		/* application_name for 9.0 or newer versions */
 		if (getenv("PGAPPNAME") == NULL)
 			pgut_putenv("PGAPPNAME", PROGRAM_NAME);
-#endif
 
 		init_cancel_handler();
 		atexit(on_cleanup);
