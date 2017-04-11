@@ -184,6 +184,8 @@ FROM (
     WHERE oid = $1
 
     ) as t
+$$
+LANGUAGE sql STABLE STRICT;
 
 -- GET a SQL text to set column storage option for the table.
 CREATE FUNCTION repack.get_alter_col_storage(oid)

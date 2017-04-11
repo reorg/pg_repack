@@ -314,6 +314,7 @@ ORDER BY 1;
  tbl_with_toast | {autovacuum_vacuum_scale_factor=30,autovacuum_vacuum_threshold=300}
  toast_table    | {autovacuum_vacuum_scale_factor=40,autovacuum_vacuum_threshold=400}
 (2 rows)
+
 SELECT pg_relation_size(reltoastrelid) = 0 as check_toast_rel_size FROM pg_class WHERE relname = 'tbl_with_mod_column_storage';
  check_toast_rel_size 
 ----------------------
