@@ -193,7 +193,9 @@ typedef struct repack_table
 	const char	   *create_log;		/* CREATE TABLE log */
 	const char	   *create_trigger;	/* CREATE TRIGGER repack_trigger */
 	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER repack_trigger */
-	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
+	const char	   *create_table;	/* CREATE TABLE table AS SELECT WITH NO DATA*/
+	const char	   *copy_data;		/* INSERT INTO */
+	const char	   *alter_col_storage;	/* ALTER TABLE ALTER COLUMN SET STORAGE */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
 	const char	   *lock_table;		/* LOCK TABLE table */
@@ -759,6 +761,8 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		create_table_1 = getstr(res, i, c++);
 		tablespace = getstr(res, i, c++);	/* to be clobbered */
 		create_table_2 = getstr(res, i, c++);
+		table.copy_data = getstr(res, i , c++);
+		table.alter_col_storage = getstr(res, i, c++);
 		table.drop_columns = getstr(res, i, c++);
 		table.delete_log = getstr(res, i, c++);
 		table.lock_table = getstr(res, i, c++);
@@ -781,26 +785,24 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 				/* CLUSTER mode */
 				appendStringInfoString(&sql, " ORDER BY ");
 				appendStringInfoString(&sql, ckey);
-				table.create_table = sql.data;
 			}
-			else
-			{
-				/* VACUUM FULL mode (non-clustered tables) */
-				table.create_table = sql.data;
-			}
+
+			/* else, VACUUM FULL mode (non-clustered tables) */
 		}
 		else if (!orderby[0])
 		{
-			/* VACUUM FULL mode (for clustered tables too) */
-			table.create_table = sql.data;
+			/* VACUUM FULL mode (for clustered tables too), do nothing */
 		}
 		else
 		{
 			/* User specified ORDER BY */
 			appendStringInfoString(&sql, " ORDER BY ");
 			appendStringInfoString(&sql, orderby);
-			table.create_table = sql.data;
 		}
+
+		/* Always append WITH NOT DATA */
+		appendStringInfoString(&sql, " WITH NO DATA");
+		table.create_table = sql.data;
 
 		repack_one_table(&table, orderby);
 	}
@@ -1086,25 +1088,28 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(INFO, "repacking table \"%s\"", table->target_name);
 
 	elog(DEBUG2, "---- repack_one_table ----");
-	elog(DEBUG2, "target_name    : %s", table->target_name);
-	elog(DEBUG2, "target_oid     : %u", table->target_oid);
-	elog(DEBUG2, "target_toast   : %u", table->target_toast);
-	elog(DEBUG2, "target_tidx    : %u", table->target_tidx);
-	elog(DEBUG2, "pkid           : %u", table->pkid);
-	elog(DEBUG2, "ckid           : %u", table->ckid);
-	elog(DEBUG2, "create_pktype  : %s", table->create_pktype);
-	elog(DEBUG2, "create_log     : %s", table->create_log);
-	elog(DEBUG2, "create_trigger : %s", table->create_trigger);
-	elog(DEBUG2, "enable_trigger : %s", table->enable_trigger);
-	elog(DEBUG2, "create_table   : %s", table->create_table);
-	elog(DEBUG2, "drop_columns   : %s", table->drop_columns ? table->drop_columns : "(skipped)");
-	elog(DEBUG2, "delete_log     : %s", table->delete_log);
-	elog(DEBUG2, "lock_table     : %s", table->lock_table);
-	elog(DEBUG2, "sql_peek       : %s", table->sql_peek);
-	elog(DEBUG2, "sql_insert     : %s", table->sql_insert);
-	elog(DEBUG2, "sql_delete     : %s", table->sql_delete);
-	elog(DEBUG2, "sql_update     : %s", table->sql_update);
-	elog(DEBUG2, "sql_pop        : %s", table->sql_pop);
+	elog(DEBUG2, "target_name       : %s", table->target_name);
+	elog(DEBUG2, "target_oid        : %u", table->target_oid);
+	elog(DEBUG2, "target_toast      : %u", table->target_toast);
+	elog(DEBUG2, "target_tidx       : %u", table->target_tidx);
+	elog(DEBUG2, "pkid              : %u", table->pkid);
+	elog(DEBUG2, "ckid              : %u", table->ckid);
+	elog(DEBUG2, "create_pktype     : %s", table->create_pktype);
+	elog(DEBUG2, "create_log        : %s", table->create_log);
+	elog(DEBUG2, "create_trigger    : %s", table->create_trigger);
+	elog(DEBUG2, "enable_trigger    : %s", table->enable_trigger);
+	elog(DEBUG2, "create_table      : %s", table->create_table);
+	elog(DEBUG2, "copy_data         : %s", table->copy_data);
+	elog(DEBUG2, "alter_col_storage : %s", table->alter_col_storage ?
+		 table->alter_col_storage : "(skipped)");
+	elog(DEBUG2, "drop_columns      : %s", table->drop_columns ? table->drop_columns : "(skipped)");
+	elog(DEBUG2, "delete_log        : %s", table->delete_log);
+	elog(DEBUG2, "lock_table        : %s", table->lock_table);
+	elog(DEBUG2, "sql_peek          : %s", table->sql_peek);
+	elog(DEBUG2, "sql_insert        : %s", table->sql_insert);
+	elog(DEBUG2, "sql_delete        : %s", table->sql_delete);
+	elog(DEBUG2, "sql_update        : %s", table->sql_update);
+	elog(DEBUG2, "sql_pop           : %s", table->sql_pop);
 
 	if (dryrun)
 		return;
@@ -1346,7 +1351,14 @@ repack_one_table(repack_table *table, const char *orderby)
 	if (!(lock_access_share(connection, table->target_oid, table->target_name)))
 		goto cleanup;
 
+	/*
+	 * Before copying data to the target table, we need to set the column storage
+	 * type if its storage type has been changed from the type default.
+	 */
 	command(table->create_table, 0, NULL);
+	if (table->alter_col_storage)
+		command(table->alter_col_storage, 0, NULL);
+	command(table->copy_data, 0, NULL);
 	temp_obj_num++;
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
 	if (table->drop_columns)
