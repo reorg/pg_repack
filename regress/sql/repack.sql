@@ -75,6 +75,11 @@ CREATE TABLE tbl_with_toast (
 );
 ALTER TABLE tbl_with_toast SET (AUTOVACUUM_VACUUM_SCALE_FACTOR = 30, AUTOVACUUM_VACUUM_THRESHOLD = 300);
 ALTER TABLE tbl_with_toast SET (TOAST.AUTOVACUUM_VACUUM_SCALE_FACTOR = 40, TOAST.AUTOVACUUM_VACUUM_THRESHOLD = 400);
+CREATE TABLE tbl_with_mod_column_storage (
+	id integer PRIMARY KEY,
+	c text
+);
+ALTER TABLE tbl_with_mod_column_storage ALTER c SET STORAGE MAIN;
 
 --
 -- insert data
@@ -111,6 +116,9 @@ ALTER TABLE tbl_with_dropped_toast DROP COLUMN t;
 INSERT INTO tbl_badindex VALUES(1, 10);
 INSERT INTO tbl_badindex VALUES(2, 10);
 
+-- insert data that is always stored into the toast table if column type is extended.
+INSERT INTO tbl_with_mod_column_storage SELECT 1, array_to_string(ARRAY(SELECT chr(code) FROM generate_series(33,3000) code), '');
+
 -- This will fail. Silence the message as it's different across PG versions.
 SET client_min_messages = fatal;
 CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
@@ -146,19 +154,19 @@ SELECT * FROM tbl_with_dropped_toast;
 \d tbl_with_dropped_toast
 \d tbl_idxopts
 
-SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster;
+SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster ORDER BY 1, 2;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;
 
 SET enable_seqscan = on;
 SET enable_indexscan = off;
-SELECT * FROM tbl_with_dropped_column;
-SELECT * FROM view_for_dropped_column;
+SELECT * FROM tbl_with_dropped_column ;
+SELECT * FROM view_for_dropped_column ORDER BY 1, 2;
 SELECT * FROM tbl_with_dropped_toast;
 SET enable_seqscan = off;
 SET enable_indexscan = on;
-SELECT * FROM tbl_with_dropped_column;
+SELECT * FROM tbl_with_dropped_column ORDER BY 1, 2;
 SELECT * FROM view_for_dropped_column;
 SELECT * FROM tbl_with_dropped_toast;
 RESET enable_seqscan;
@@ -172,6 +180,7 @@ SELECT CASE relkind
 FROM pg_class
 WHERE relname = 'tbl_with_toast' OR relname = 'pg_toast_' || 'tbl_with_toast'::regclass::oid
 ORDER BY 1;
+SELECT pg_relation_size(reltoastrelid) = 0 as check_toast_rel_size FROM pg_class WHERE relname = 'tbl_with_mod_column_storage';
 
 --
 -- check broken links or orphan toast relations

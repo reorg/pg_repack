@@ -470,6 +470,7 @@ Releases
   * added ``--no-superuser-check`` option (issue #114)
   * added ``--exclude-extension`` option (#97)
   * restore TOAST storage parameters on repacked tables (issue #10)
+  * restore columns storage types in repacked tables (issue #94)
 
 * pg_repack 1.3.4
 
