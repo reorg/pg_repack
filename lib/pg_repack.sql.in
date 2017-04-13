@@ -152,6 +152,41 @@ WHERE
 $$
 LANGUAGE sql STABLE STRICT;
 
+-- Get a comma-separated storage paramter for the table including
+-- paramters for the corresponding TOAST table.
+-- Note that since oid setting is always not NULL, this function
+-- never returns NULL
+CREATE FUNCTION repack.get_storage_param(oid)
+  RETURNS TEXT AS
+$$
+SELECT array_to_string(array_agg(param), ', ')
+FROM (
+    -- table storage parameter
+    SELECT unnest(reloptions) as param
+    FROM pg_class
+    WHERE oid = $1
+    UNION ALL
+    -- TOAST table storage parameter
+    SELECT ('toast.' || unnest(reloptions)) as param
+    FROM (
+        SELECT reltoastrelid from pg_class where oid = $1
+         ) as t,
+        pg_class as c
+    WHERE c.oid = t.reltoastrelid
+    UNION ALL
+    -- table oid
+    SELECT 'oids = ' ||
+        CASE WHEN relhasoids
+            THEN 'true'
+            ELSE 'false'
+        END
+    FROM pg_class
+    WHERE oid = $1
+
+    ) as t
+$$
+LANGUAGE sql STABLE STRICT;
+
 -- GET a SQL text to set column storage option for the table.
 CREATE FUNCTION repack.get_alter_col_storage(oid)
   RETURNS text AS
@@ -214,7 +249,7 @@ CREATE VIEW repack.tables AS
          'CREATE TABLE repack.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk repack.pk_' || R.oid || ', row ' || repack.oid2text(R.oid) || ')' AS create_log,
          repack.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
          repack.get_enable_trigger(R.oid) as enable_trigger,
-         'CREATE TABLE repack.table_' || R.oid || ' WITH (' || array_to_string(array_append(R.reloptions, 'oids=' || CASE WHEN R.relhasoids THEN 'true' ELSE 'false' END), ',') || ') TABLESPACE '  AS create_table_1,
+         'CREATE TABLE repack.table_' || R.oid || ' WITH (' || repack.get_storage_param(R.oid) || ') TABLESPACE '  AS create_table_1,
          coalesce(quote_ident(S.spcname), 'pg_default') as tablespace_orig,
          ' AS SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS create_table_2,
          'INSERT INTO repack.table_' || R.oid || ' SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS copy_data,

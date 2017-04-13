@@ -862,6 +862,7 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 ..   * added ``--no-kill-backend`` option (issue #108)
 ..   * added ``--no-superuser-check`` option (issue #114)
 ..   * added ``--exclude-extension`` option (#97)
+..   * restore TOAST storage parameters on repacked tables (issue #10)
 ..   * restore columns storage types in repacked tables (issue #94)
 
 * pg_repack 1.4
@@ -872,7 +873,8 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
   * ``--no-kill-backend`` オプションを追加しました (issue #108)
   * ``--no-superuser-check`` オプションを追加しました (issue #114)
   * ``--exclude-extension`` オプションを追加しました (#97)
-  * 列の格納タイプを再編成後のテーブルに再設定する様にしました (issue #94)
+  * TOASTテーブルの格納オプションを再編成後のテーブルに再設定するようにしました (issue #10)
+  * 列の格納タイプを再編成後のテーブルに再設定するようにしました (issue #94)
 
 .. * pg_repack 1.3.4
 ..  * grab exclusive lock before dropping original table (#81)

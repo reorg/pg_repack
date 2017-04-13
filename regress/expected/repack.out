@@ -58,6 +58,12 @@ CREATE INDEX idxopts_t ON tbl_idxopts (t DESC NULLS LAST) WHERE (t != 'aaa');
 -- Use this table to play with attribute options too
 ALTER TABLE tbl_idxopts ALTER i SET STATISTICS 1;
 ALTER TABLE tbl_idxopts ALTER t SET (n_distinct = -0.5);
+CREATE TABLE tbl_with_toast (
+      i integer PRIMARY KEY,
+      c text
+);
+ALTER TABLE tbl_with_toast SET (AUTOVACUUM_VACUUM_SCALE_FACTOR = 30, AUTOVACUUM_VACUUM_THRESHOLD = 300);
+ALTER TABLE tbl_with_toast SET (TOAST.AUTOVACUUM_VACUUM_SCALE_FACTOR = 40, TOAST.AUTOVACUUM_VACUUM_THRESHOLD = 400);
 CREATE TABLE tbl_with_mod_column_storage (
 	id integer PRIMARY KEY,
 	c text
@@ -138,6 +144,7 @@ INFO: repacking table "tbl_with_dropped_toast"
 INFO: repacking table "tbl_badindex"
 WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badindex USING btree (n)
 INFO: repacking table "tbl_idxopts"
+INFO: repacking table "tbl_with_toast"
 INFO: repacking table "tbl_with_mod_column_storage"
 --
 -- after
@@ -293,6 +300,21 @@ SELECT * FROM tbl_with_dropped_toast;
 
 RESET enable_seqscan;
 RESET enable_indexscan;
+-- check if storage option for both table and TOAST table didn't go away.
+SELECT CASE relkind
+       WHEN 'r' THEN relname
+       WHEN 't' THEN 'toast_table'
+       END as table,
+       reloptions
+FROM pg_class
+WHERE relname = 'tbl_with_toast' OR relname = 'pg_toast_' || 'tbl_with_toast'::regclass::oid
+ORDER BY 1;
+     table      |                             reloptions                              
+----------------+---------------------------------------------------------------------
+ tbl_with_toast | {autovacuum_vacuum_scale_factor=30,autovacuum_vacuum_threshold=300}
+ toast_table    | {autovacuum_vacuum_scale_factor=40,autovacuum_vacuum_threshold=400}
+(2 rows)
+
 SELECT pg_relation_size(reltoastrelid) = 0 as check_toast_rel_size FROM pg_class WHERE relname = 'tbl_with_mod_column_storage';
  check_toast_rel_size 
 ----------------------
