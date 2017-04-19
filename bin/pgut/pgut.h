@@ -24,6 +24,10 @@
 
 #define INFINITE_STR		"INFINITE"
 
+#ifdef _MSC_VER
+#define __attribute__(x)
+#endif
+
 typedef enum YesNo
 {
 	DEFAULT,
@@ -194,25 +198,6 @@ extern size_t simple_string_list_size(SimpleStringList list);
  */
 extern int wait_for_socket(int sock, struct timeval *timeout);
 extern int wait_for_sockets(int nfds, fd_set *fds, struct timeval *timeout);
-
-/*
- * import from postgres.h and catalog/genbki.h in 8.4
- */
-#if PG_VERSION_NUM < 80400
-
-typedef unsigned long Datum;
-typedef struct MemoryContextData *MemoryContext;
-
-#define CATALOG(name,oid)	typedef struct CppConcat(FormData_,name)
-#define BKI_BOOTSTRAP
-#define BKI_SHARED_RELATION
-#define BKI_WITHOUT_OIDS
-#define DATA(x)   extern int no_such_variable
-#define DESCR(x)  extern int no_such_variable
-#define SHDESCR(x) extern int no_such_variable
-typedef int aclitem;
-
-#endif
 
 #ifdef WIN32
 extern int sleep(unsigned int seconds);

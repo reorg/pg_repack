@@ -12,11 +12,8 @@
 
 #include "executor/spi.h"
 
-#if PG_VERSION_NUM < 80400
-
-extern int SPI_execute_with_args(const char *src, int nargs, Oid *argtypes,
-	Datum *values, const char *nulls, bool read_only, long tcount);
-
+#ifdef _MSC_VER
+#define __attribute__(x)
 #endif
 
 extern void execute(int expected, const char *sql);

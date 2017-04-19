@@ -24,8 +24,8 @@ INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)
 EXTVERSION = $(shell grep '"version":' META.json | head -1 \
 	| sed -e 's/[ 	]*"version":[ 	]*"\(.*\)",/\1/')
 
-ifeq ($(shell echo $$(($(INTVERSION) < 803))),1)
-$(error $(EXTENSION) requires PostgreSQL 8.3 or later. This is $(VERSION))
+ifeq ($(shell echo $$(($(INTVERSION) < 901))),1)
+$(error $(EXTENSION) requires PostgreSQL 9.1 or later. This is $(VERSION))
 endif
 
 SUBDIRS = bin lib regress

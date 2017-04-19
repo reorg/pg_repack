@@ -62,7 +62,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
   ------------
   
   PostgreSQL versions
-      PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
+      PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
   
   Disks
       Performing a full-table repack requires free disk space about twice as
@@ -75,7 +75,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
 ---------
 
 PostgreSQL バージョン
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4
+    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
 
 ディスク
     テーブル全体の再編成を行うには、対象となるテーブルと付属するインデックスのおよそ2倍のサイズのディスク空き容量が必要です。例えば、テーブルとインデックスを合わせたサイズが1GBの場合、2GBのディスク領域が必要となります。
@@ -862,6 +862,8 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 ..   * added ``--no-kill-backend`` option (issue #108)
 ..   * added ``--no-superuser-check`` option (issue #114)
 ..   * added ``--exclude-extension`` option (#97)
+..   * restore TOAST storage parameters on repacked tables (issue #10)
+..   * restore columns storage types in repacked tables (issue #94)
 
 * pg_repack 1.4
 
@@ -871,6 +873,8 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
   * ``--no-kill-backend`` オプションを追加しました (issue #108)
   * ``--no-superuser-check`` オプションを追加しました (issue #114)
   * ``--exclude-extension`` オプションを追加しました (#97)
+  * TOASTテーブルの格納オプションを再編成後のテーブルに再設定するようにしました (issue #10)
+  * 列の格納タイプを再編成後のテーブルに再設定するようにしました (issue #94)
 
 .. * pg_repack 1.3.4
 ..  * grab exclusive lock before dropping original table (#81)
