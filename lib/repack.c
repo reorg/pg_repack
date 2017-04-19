@@ -1294,6 +1294,15 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
+/**
+ * @fn      Datum get_table_and_inheritors(PG_FUNCTION_ARGS)
+ * @brief   Return array containing Oids of parent table and its children.
+ *
+ * get_table_and_inheritors(table)
+ *
+ * @param	table	parent table.
+ * @retval	regclass[]
+ */
 Datum
 repack_get_table_and_inheritors(PG_FUNCTION_ARGS)
 {
