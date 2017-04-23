@@ -32,6 +32,7 @@
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
 #include "miscadmin.h"
+#include "storage/lmgr.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
@@ -1314,7 +1315,14 @@ repack_get_table_and_inheritors(PG_FUNCTION_ARGS)
 	ListCell   *lc;
 	int			i;
 
-	relations = find_all_inheritors(parent, NoLock, NULL);
+	LockRelationOid(parent, AccessShareLock);
+
+	/* Check that parent table exists */
+	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(parent)))
+		PG_RETURN_ARRAYTYPE_P(construct_empty_array(OIDOID));
+
+	/* Also check that children exist */
+	relations = find_all_inheritors(parent, AccessShareLock, NULL);
 
 	relations_array_size = list_length(relations);
 	if (relations_array_size == 0)
