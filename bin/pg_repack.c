@@ -240,6 +240,7 @@ static bool sqlstate_equals(PGresult *res, const char *state)
 static bool				analyze = true;
 static bool				alldb = false;
 static bool				noorder = false;
+static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
@@ -268,6 +269,7 @@ static pgut_option options[] =
 {
 	{ 'b', 'a', "all", &alldb },
 	{ 'l', 't', "table", &table_list },
+	{ 'l', 'I', "parent-table", &parent_table_list },
 	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
@@ -310,15 +312,19 @@ main(int argc, char *argv[])
 		if (r_index.head && table_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --table (-t)")));
+		if (r_index.head && parent_table_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --index (-i) and --parent-table (-I)")));
 		else if (r_index.head && only_indexes)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --only-indexes (-x)")));
 		else if (r_index.head && exclude_extension_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --exclude-extension (-C)")));
-		else if (only_indexes && !table_list.head)
+		else if (only_indexes && !(table_list.head || parent_table_list.head))
 			ereport(ERROR, (errcode(EINVAL),
-				errmsg("cannot repack all indexes of database, specify the table(s) via --table (-t)")));
+				errmsg("cannot repack all indexes of database, specify the table(s)"
+					   "via --table (-t) or --parent-table (-I)")));
 		else if (only_indexes && exclude_extension_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --only-indexes (-x) and --exclude-extension (-C)")));
@@ -346,7 +352,7 @@ main(int argc, char *argv[])
 	}
 	else
 	{
-		if (schema_list.head && table_list.head)
+		if (schema_list.head && (table_list.head || parent_table_list.head))
 			ereport(ERROR,
 				(errcode(EINVAL),
 				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
@@ -356,12 +362,17 @@ main(int argc, char *argv[])
 				(errcode(EINVAL),
 				 errmsg("cannot specify --table (-t) and --exclude-extension (-C)")));
 
+		if (exclude_extension_list.head && parent_table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot specify --parent-table (-I) and --exclude-extension (-C)")));
+
 		if (noorder)
 			orderby = "";
 
 		if (alldb)
 		{
-			if (table_list.head)
+			if (table_list.head || parent_table_list.head)
 				ereport(ERROR,
 					(errcode(EINVAL),
 					 errmsg("cannot repack specific table(s) in all databases")));
@@ -617,17 +628,22 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	SimpleStringListCell   *cell;
 	const char			  **params = NULL;
 	int						iparam = 0;
-	size_t					num_tables;
-	size_t					num_schemas;
-	size_t					num_params;
-	size_t					num_excluded_extensions;
+	size_t					num_parent_tables,
+							num_tables,
+							num_schemas,
+							num_params,
+							num_excluded_extensions;
 
+	num_parent_tables = simple_string_list_size(parent_table_list);
 	num_tables = simple_string_list_size(table_list);
 	num_schemas = simple_string_list_size(schema_list);
 	num_excluded_extensions = simple_string_list_size(exclude_extension_list);
 
 	/* 1st param is the user-specified tablespace */
-	num_params = num_excluded_extensions + num_tables + num_schemas + 1;
+	num_params = num_excluded_extensions +
+				 num_parent_tables +
+				 num_tables +
+				 num_schemas + 1;
 	params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
@@ -650,18 +666,42 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		" WHERE ");
 
 	params[iparam++] = tablespace;
-	if (num_tables)
+	if (num_tables || num_parent_tables)
 	{
-		appendStringInfoString(&sql, "(");
-		for (cell = table_list.head; cell; cell = cell->next)
+		/* standalone tables */
+		if (num_tables)
 		{
-			/* Construct table name placeholders to be used by PQexecParams */
-			appendStringInfo(&sql, "relid = $%d::regclass", iparam + 1);
-			params[iparam++] = cell->val;
-			if (cell->next)
-				appendStringInfoString(&sql, " OR ");
+			appendStringInfoString(&sql, "(");
+			for (cell = table_list.head; cell; cell = cell->next)
+			{
+				/* Construct table name placeholders to be used by PQexecParams */
+				appendStringInfo(&sql, "relid = $%d::regclass", iparam + 1);
+				params[iparam++] = cell->val;
+				if (cell->next)
+					appendStringInfoString(&sql, " OR ");
+			}
+			appendStringInfoString(&sql, ")");
 		}
-		appendStringInfoString(&sql, ")");
+
+		if (num_tables && num_parent_tables)
+			appendStringInfoString(&sql, " OR ");
+
+		/* parent tables + inherited children */
+		if (num_parent_tables)
+		{
+			appendStringInfoString(&sql, "(");
+			for (cell = parent_table_list.head; cell; cell = cell->next)
+			{
+				/* Construct table name placeholders to be used by PQexecParams */
+				appendStringInfo(&sql,
+								 "relid = ANY(repack.get_table_and_inheritors($%d::regclass))",
+								 iparam + 1);
+				params[iparam++] = cell->val;
+				if (cell->next)
+					appendStringInfoString(&sql, " OR ");
+			}
+			appendStringInfoString(&sql, ")");
+		}
 	}
 	else if (num_schemas)
 	{
@@ -2050,7 +2090,7 @@ static bool
 repack_all_indexes(char *errbuf, size_t errsize)
 {
 	bool					ret = false;
-	PGresult		   		*res = NULL;
+	PGresult				*res = NULL;
 	StringInfoData			sql;
 	SimpleStringListCell	*cell = NULL;
 	const char				*params[1];
@@ -2058,7 +2098,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	initStringInfo(&sql);
 	reconnect(ERROR);
 
-	assert(r_index.head || table_list.head);
+	assert(r_index.head || table_list.head || parent_table_list.head);
 
 	if (!preliminary_checks(errbuf, errsize))
 		goto cleanup;
@@ -2073,13 +2113,46 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 		cell = r_index.head;
 	}
-	else if (table_list.head)
+	else if (table_list.head || parent_table_list.head)
 	{
 		appendStringInfoString(&sql,
 			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
+
+		for (cell = parent_table_list.head; cell; cell = cell->next)
+		{
+			int nchildren, i;
+
+			params[0] = cell->val;
+
+			/* find children of this parent table */
+			res = execute_elevel("SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)"
+								 " FROM pg_class c JOIN pg_namespace n on n.oid = c.relnamespace"
+								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
+								 " ORDER BY n.nspname, c.relname", 1, params, DEBUG2);
+
+			if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			{
+				elog(WARNING, "%s", PQerrorMessage(connection));
+				continue;
+			}
+
+			nchildren = PQntuples(res);
+
+			if (nchildren == 0)
+			{
+				elog(WARNING, "relation \"%s\" does not exist", cell->val);
+				continue;
+			}
+
+			/* append new tables to 'table_list' */
+			for (i = 0; i < nchildren; i++)
+				simple_string_list_append(&table_list, getstr(res, i, 0));
+		}
+
+		CLEARPGRES(res);
 
 		cell = table_list.head;
 	}
@@ -2118,7 +2191,6 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	ret = true;
 
 cleanup:
-	CLEARPGRES(res);
 	disconnect();
 	termStringInfo(&sql);
 	return ret;
@@ -2137,6 +2209,7 @@ pgut_help(bool details)
 	printf("Options:\n");
 	printf("  -a, --all                 repack all databases\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
+	printf("  -I, --parent-table=TABLE  repack specific parent table and its inheritors\n");
 	printf("  -c, --schema=SCHEMA       repack tables in specific schema only\n");
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");

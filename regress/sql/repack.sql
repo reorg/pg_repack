@@ -296,3 +296,29 @@ CREATE TABLE exclude_extension_schema.tbl(val integer primary key);
 \! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension
 -- => OK
 \! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension --exclude-extension=dummy_extension
+
+--
+-- table inheritance check
+--
+CREATE TABLE parent_a(val integer primary key);
+CREATE TABLE child_a_1(val integer primary key) INHERITS(parent_a);
+CREATE TABLE child_a_2(val integer primary key) INHERITS(parent_a);
+CREATE TABLE parent_b(val integer primary key);
+CREATE TABLE child_b_1(val integer primary key) INHERITS(parent_b);
+CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_index --index=dummy_index
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table --schema=dummy_schema
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table --all
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b
+-- => OK
+\! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b --only-indexes
+-- => OK
+\! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes

@@ -108,6 +108,7 @@ The following options can be specified in ``OPTIONS``.
 Options:
   -a, --all                 repack all databases
   -t, --table=TABLE         repack specific table only
+  -I, --parent-table=TABLE  repack specific parent table and its inheritors
   -c, --schema=SCHEMA       repack tables in specific schema only
   -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
   -S, --moveidx             move repacked indexes to *TBLSPC* too
@@ -150,6 +151,10 @@ Reorg Options
     reorganized by writing multiple ``-t`` switches. By default, all eligible
     tables in the target databases are reorganized.
 
+``-I TABLE``, ``--parent-table=TABLE``
+    Reorganize both the specified table(s) and its inheritors. Multiple
+    table hierarchies may be reorganized by writing multiple ``-I`` switches.
+
 ``-c``, ``--schema``
     Repack the tables in the specified schema(s) only. Multiple schemas may
     be repacked by writing multiple ``-c`` switches. May be used in
@@ -189,7 +194,7 @@ Reorg Options
 
 ``-x``, ``--only-indexes``
     Repack only the indexes of the specified table(s), which must be specified
-    with the ``--table`` option.
+    with the ``--table`` or ``--parent-table`` options.
 
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
@@ -222,7 +227,7 @@ Connection Options
 ^^^^^^^^^^^^^^^^^^
 
 Options to connect to servers. You cannot use ``--all`` and ``--dbname`` or
-``--table`` together.
+``--table`` or ``--parent-table`` together.
 
 ``-a``, ``--all``
     Reorganize all databases.

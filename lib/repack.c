@@ -25,12 +25,15 @@
 #include "catalog/pg_am.h"
 #endif
 
+#include "catalog/pg_inherits_fn.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
 #include "miscadmin.h"
+#include "storage/lmgr.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
@@ -61,6 +64,7 @@ extern Datum PGUT_EXPORT repack_swap(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_drop(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_disable_autovacuum(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_index_swap(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_get_table_and_inheritors(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(repack_version);
 PG_FUNCTION_INFO_V1(repack_trigger);
@@ -71,6 +75,7 @@ PG_FUNCTION_INFO_V1(repack_swap);
 PG_FUNCTION_INFO_V1(repack_drop);
 PG_FUNCTION_INFO_V1(repack_disable_autovacuum);
 PG_FUNCTION_INFO_V1(repack_index_swap);
+PG_FUNCTION_INFO_V1(repack_get_table_and_inheritors);
 
 static void	repack_init(void);
 static SPIPlanPtr repack_prepare(const char *src, int nargs, Oid *argtypes);
@@ -304,9 +309,9 @@ repack_apply(PG_FUNCTION_ARGS)
 			 * can delete all the rows we have processed at-once.
 			 */
 			if (i == 0)
-			    appendStringInfoString(&sql_pop, pkid);
+				appendStringInfoString(&sql_pop, pkid);
 			else
-			    appendStringInfo(&sql_pop, ",%s", pkid);
+				appendStringInfo(&sql_pop, ",%s", pkid);
 			pfree(pkid);
 		}
 		/* i must be > 0 (and hence we must have some rows to delete)
@@ -1288,4 +1293,54 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	swap_heap_or_index_files(orig_idx_oid, repacked_idx_oid);
 	SPI_finish();
 	PG_RETURN_VOID();
+}
+
+/**
+ * @fn      Datum get_table_and_inheritors(PG_FUNCTION_ARGS)
+ * @brief   Return array containing Oids of parent table and its children.
+ *          Note that this function does not release relation locks.
+ *
+ * get_table_and_inheritors(table)
+ *
+ * @param	table	parent table.
+ * @retval	regclass[]
+ */
+Datum
+repack_get_table_and_inheritors(PG_FUNCTION_ARGS)
+{
+	Oid			parent = PG_GETARG_OID(0);
+	List	   *relations;
+	Datum	   *relations_array;
+	int			relations_array_size;
+	ArrayType  *result;
+	ListCell   *lc;
+	int			i;
+
+	LockRelationOid(parent, AccessShareLock);
+
+	/* Check that parent table exists */
+	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(parent)))
+		PG_RETURN_ARRAYTYPE_P(construct_empty_array(OIDOID));
+
+	/* Also check that children exist */
+	relations = find_all_inheritors(parent, AccessShareLock, NULL);
+
+	relations_array_size = list_length(relations);
+	if (relations_array_size == 0)
+		PG_RETURN_ARRAYTYPE_P(construct_empty_array(OIDOID));
+
+	relations_array = palloc(relations_array_size * sizeof(Datum));
+
+	i = 0;
+	foreach (lc, relations)
+		relations_array[i++] = ObjectIdGetDatum(lfirst_oid(lc));
+
+	result = construct_array(relations_array,
+							 relations_array_size,
+							 OIDOID, sizeof(Oid),
+							 true, 'i');
+
+	pfree(relations_array);
+
+	PG_RETURN_ARRAYTYPE_P(result);
 }
