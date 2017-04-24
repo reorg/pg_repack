@@ -1298,6 +1298,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 /**
  * @fn      Datum get_table_and_inheritors(PG_FUNCTION_ARGS)
  * @brief   Return array containing Oids of parent table and its children.
+ *          Note that this function does not release relation locks.
  *
  * get_table_and_inheritors(table)
  *
