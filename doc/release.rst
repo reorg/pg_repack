@@ -14,9 +14,6 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
   places).
 - Set the right release_status in ``META.json``: ``testing`` or ``stable``.
 - Commit the above metadata changes.
-- Create a tag, signed if possible::
-
-    git tag -a -s ver_$VER
 
 - Create a package running ``make package``. The package will be called
   ``dist/pg_repack-$VER.zip``.
@@ -32,25 +29,31 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
 
   .. __: http://pgxnclient.projects.pgfoundry.org/
 
-- Push the code changes and tags on github::
+- Push the code changes on github::
 
     git push
-    git push --tags
 
 - Upload the package on http://manager.pgxn.org/.
 
-- Check the uploaded package works as expected::
+- Check the uploaded package works as expected; if not fix and push more::
 
     pgxn install --sudo -- pg_repack
     pgxn check pg_repack
 
+- Create a tag, signed if possible::
+
+    git tag -a -s ver_$VER
+
+- Push the new tag on github::
+
+    git push --tags
+
 - Upload the docs by pushing in the repos at
   http://reorg.github.io/pg_repack/. The operations are roughly::
 
-    git clone git@github.com:reorg/reorg.github.com.git
+    git clone --recursive git@github.com:reorg/reorg.github.com.git
     cd reorg.github.com.git
-    git submodule init
-    git submodule update
+    make sm
     make
     git commit -a -m "Docs upload for release $VER"
     git push
