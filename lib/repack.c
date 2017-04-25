@@ -1156,14 +1156,25 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 		relform2->reltuples = swap_tuples;
 	}
 
+	indstate = CatalogOpenIndexes(relRelation);
+
+#if PG_VERSION_NUM < 100000
+
 	/* Update the tuples in pg_class */
 	simple_heap_update(relRelation, &reltup1->t_self, reltup1);
 	simple_heap_update(relRelation, &reltup2->t_self, reltup2);
 
 	/* Keep system catalogs current */
-	indstate = CatalogOpenIndexes(relRelation);
 	CatalogIndexInsert(indstate, reltup1);
 	CatalogIndexInsert(indstate, reltup2);
+
+#else
+
+	CatalogTupleUpdateWithInfo(relRelation, &reltup1->t_self, reltup1, indstate);
+	CatalogTupleUpdateWithInfo(relRelation, &reltup2->t_self, reltup2, indstate);
+
+#endif
+
 	CatalogCloseIndexes(indstate);
 
 	/*
