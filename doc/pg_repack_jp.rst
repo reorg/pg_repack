@@ -289,6 +289,7 @@ OPTIONには以下のものが指定できます。
 .. ``-I TABLE``, ``--parent-table=TABLE``
     Reorganize both the specified table(s) and its inheritors. Multiple
     table hierarchies may be reorganized by writing multiple ``-I`` switches.
+
 ``-I TABLE``, ``--parent-table=TABLE``
     指定したテーブルとその子テーブルのみを再編成します。 ``-I`` オプションを複数同時に使用することで、複数の親テーブルを指定することができます。
 
