@@ -870,6 +870,7 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 ..   * added ``--no-kill-backend`` option (issue #108)
 ..   * added ``--no-superuser-check`` option (issue #114)
 ..   * added ``--exclude-extension`` option (#97)
+..   * added ``--parent-table`` option (#117)
 ..   * restore TOAST storage parameters on repacked tables (issue #10)
 ..   * restore columns storage types in repacked tables (issue #94)
 
@@ -881,6 +882,7 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
   * ``--no-kill-backend`` オプションを追加しました (issue #108)
   * ``--no-superuser-check`` オプションを追加しました (issue #114)
   * ``--exclude-extension`` オプションを追加しました (#97)
+  * ``--parent-table`` オプションを追加しました(#117)
   * TOASTテーブルの格納オプションを再編成後のテーブルに再設定するようにしました (issue #10)
   * 列の格納タイプを再編成後のテーブルに再設定するようにしました (issue #94)
 

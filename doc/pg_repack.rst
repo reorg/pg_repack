@@ -474,6 +474,7 @@ Releases
   * added ``--no-kill-backend`` option (issue #108)
   * added ``--no-superuser-check`` option (issue #114)
   * added ``--exclude-extension`` option (#97)
+  * added ``--parent-table`` optoin (#117)
   * restore TOAST storage parameters on repacked tables (issue #10)
   * restore columns storage types in repacked tables (issue #94)
 
