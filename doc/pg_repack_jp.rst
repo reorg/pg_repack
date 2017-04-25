@@ -196,6 +196,7 @@ pg_repackもしくはpg_reorgの古いバージョンからのアップグレー
   Options:
     -a, --all                 repack all databases
     -t, --table=TABLE         repack specific table only
+    -I, --parent-table=TABLE  repack specific parent table and its inheritors
     -c, --schema=SCHEMA       repack tables in specific schema only
     -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
     -S, --moveidx             move repacked indexes to *TBLSPC* too
@@ -236,6 +237,7 @@ OPTIONには以下のものが指定できます。
 固有オプション:
   -a, --all                 すべてのデータベースに対して実行します
   -t, --table=TABLE         指定したテーブルに対して実行します
+  -I, --parent-table=TABLE  指定したテーブルとそれを継承する全ての子テーブルに対して実行します
   -c, --schema=SCHEMA       指定したスキーマに存在するテーブル全てに対して実行します
   -s, --tablespace=TBLSPC   指定したテーブル空間に再編成後のテーブルを配置します
   -S, --moveidx             -s/--tablespaceで指定したテーブル空間に再編成対象のテーブルに付与されたインデックスも配置します
@@ -283,6 +285,12 @@ OPTIONには以下のものが指定できます。
 
 ``-t TABLE``, ``--table=TABLE``
     指定したテーブルのみを再編成します。 ``-t`` オプションを複数同時に使用することで、複数のテーブルを指定することができます。このオプションを指定しない限り、対象のデータベースに存在するすべてのテーブルを再編成します。
+
+.. ``-I TABLE``, ``--parent-table=TABLE``
+    Reorganize both the specified table(s) and its inheritors. Multiple
+    table hierarchies may be reorganized by writing multiple ``-I`` switches.
+``-I TABLE``, ``--parent-table=TABLE``
+    指定したテーブルとその子テーブルのみを再編成します。 ``-I`` オプションを複数同時に使用することで、複数の親テーブルを指定することができます。
 
 .. ``-c``, ``--schema``
     Repack the tables in the specified schema(s) only. Multiple schemas may
@@ -347,10 +355,10 @@ OPTIONには以下のものが指定できます。
 
 .. ``-x``, ``--only-indexes``
     Repack only the indexes of the specified table(s), which must be specified
-    with the ``--table`` option.
+    with the ``--table`` or ``--parent-table`` option.
 
 ``-x``, ``--only-indexes``
-    ``--table`` オプションと併用することで、指定したテーブルのインデックスのみを再編成します。
+    ``--table`` または ``--parent-table`` オプションと併用することで、指定したテーブルのインデックスのみを再編成します。
 
 .. ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
@@ -390,13 +398,13 @@ OPTIONには以下のものが指定できます。
 .. Connection Options
    ^^^^^^^^^^^^^^^^^^
   Options to connect to servers. You cannot use ``--all`` and ``--dbname`` or
-  ``--table`` together.
+  ``--table`` or ``--parent-table`` together.
 
 接続オプション
 ---------------
 
 PostgreSQLサーバに接続するためのオプションです。
-``--all`` オプションと同時に ``--dbname`` や ``--table`` を利用することはできません。
+``--all`` オプションと同時に ``--dbname`` 、 ``--table`` や ``--parent-table`` を利用することはできません。
 
 
 .. ``-a``, ``--all``
