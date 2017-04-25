@@ -5,6 +5,7 @@ sudo: required
 
 env:
   - PGVER=10
+    PGTESTING=1
   - PGVER=9.6
   - PGVER=9.5
   - PGVER=9.4
