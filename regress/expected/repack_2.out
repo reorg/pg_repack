@@ -1,3 +1,18 @@
+-- Test output file identifier.
+SELECT CASE
+	WHEN split_part(version(), ' ', 2) ~ '^(10)'
+		THEN 'repack_2.out'
+	WHEN split_part(version(), ' ', 2) ~ '^(9\.6|9\.5)'
+		THEN 'repack.out'
+	WHEN split_part(version(), ' ', 2) ~ '^(9\.4|9\.3|9\.2|9\.1)'
+		THEN 'repack_1.out'
+	ELSE version()
+END AS testfile;
+   testfile   
+--------------
+ repack_2.out
+(1 row)
+
 SET client_min_messages = warning;
 --
 -- create table.
