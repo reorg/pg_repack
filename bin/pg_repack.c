@@ -1771,6 +1771,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 			{
 				elog(WARNING, "timed out, do not cancel conflicting backends");
 				ret = false;
+				pgut_rollback(conn);
 				break;
 			}
 			else
