@@ -852,6 +852,7 @@ cleanup:
 	CLEARPGRES(res);
 	disconnect();
 	termStringInfo(&sql);
+	free(params);
 	return ret;
 }
 
