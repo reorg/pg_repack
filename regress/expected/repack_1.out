@@ -496,8 +496,6 @@ ERROR: pg_repack failed with error: You must be a superuser to use pg_repack
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
 ERROR: pg_repack failed with error: ERROR:  permission denied for schema repack
-LINE 1: select repack.version(), repack.version_sql()
-               ^
 DROP ROLE IF EXISTS nosuper;
 --
 -- exclude extension check
