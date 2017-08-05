@@ -821,7 +821,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		appendStringInfoString(&sql, tablespace);
 		appendStringInfoString(&sql, create_table_2);
 
-		/* Always append WITH NOT DATA to CREATE TABLE SQL*/
+		/* Always append WITH NO DATA to CREATE TABLE SQL*/
 		appendStringInfoString(&sql, " WITH NO DATA");
 		table.create_table = sql.data;
 
