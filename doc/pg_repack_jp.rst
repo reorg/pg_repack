@@ -864,6 +864,12 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 リリースノート
 ---------------
+.. * pg_repack 1.4.1
+..   * fixed broken ``--order-by`` option (issue #138)
+
+* pg_repack 1.4.1
+     * 壊れていた ``--order-by`` オプションを修正しました (issue #138)
+
 .. * pg_repack 1.4
 ..   * added support for PostgreSQL 9.6
 ..   * use ``AFTER`` trigger to solve concurrency problems with ``INSERT
