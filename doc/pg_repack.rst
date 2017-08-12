@@ -468,7 +468,7 @@ Releases
 
 * pg_repack 1.4.1
 
-  * fixed broken ``--ordery-by`` option (issue #138)
+  * fixed broken ``--order-by`` option (issue #138)
 
 * pg_repack 1.4
 
