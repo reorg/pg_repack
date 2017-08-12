@@ -466,6 +466,10 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.4.1
+
+  * fixed broken ``--ordery-by`` option (issue #138)
+
 * pg_repack 1.4
 
   * added support for PostgreSQL 9.6, dropped support for versions before 9.1
