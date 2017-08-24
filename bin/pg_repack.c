@@ -1780,6 +1780,12 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 			{
 				elog(WARNING, "timed out, do not cancel conflicting backends");
 				ret = false;
+
+				/* Before exit the loop reset the transaction */
+				if (start_xact)
+					pgut_rollback(conn);
+				else
+					pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
 				break;
 			}
 			else
