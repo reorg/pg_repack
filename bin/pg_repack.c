@@ -48,11 +48,6 @@ const char *PROGRAM_VERSION = "unknown";
  */
 #define APPLY_COUNT		1000
 
-/* Once we get down to seeing fewer than this many tuples in the
- * log table, we'll say that we're ready to perform the switch.
- */
-#define MIN_TUPLES_BEFORE_SWITCH	20
-
 /* poll() or select() timeout, in seconds */
 #define POLL_TIMEOUT    3
 
@@ -254,6 +249,7 @@ static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
+static unsigned int		max_tuples_before_switch = 20;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 
 /* buffer should have at least 11 bytes */
@@ -284,6 +280,7 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
+	{ 'u', 'm', "max-swap-tuples", &max_tuples_before_switch },
 	{ 0 },
 };
 
@@ -1436,12 +1433,12 @@ repack_one_table(repack_table *table, const char *orderby)
 		/* We'll keep applying tuples from the log table in batches
 		 * of APPLY_COUNT, until applying a batch of tuples
 		 * (via LIMIT) results in our having applied
-		 * MIN_TUPLES_BEFORE_SWITCH or fewer tuples. We don't want to
+		 * max_tuples_before_switch or fewer tuples. We don't want to
 		 * get stuck repetitively applying some small number of tuples
 		 * from the log table as inserts/updates/deletes may be
 		 * constantly coming into the original table.
 		 */
-		if (num > MIN_TUPLES_BEFORE_SWITCH)
+		if (num > max_tuples_before_switch)
 			continue;	/* there might be still some tuples, repeat. */
 
 		/* old transactions still alive ? */
@@ -2222,21 +2219,22 @@ pgut_help(bool details)
 		return;
 
 	printf("Options:\n");
-	printf("  -a, --all                 repack all databases\n");
-	printf("  -t, --table=TABLE         repack specific table only\n");
-	printf("  -I, --parent-table=TABLE  repack specific parent table and its inheritors\n");
-	printf("  -c, --schema=SCHEMA       repack tables in specific schema only\n");
-	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
-	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
-	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
-	printf("  -n, --no-order            do vacuum full instead of cluster\n");
-	printf("  -N, --dry-run             print what would have been repacked\n");
-	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
-	printf("  -i, --index=INDEX         move only the specified index\n");
-	printf("  -x, --only-indexes        move only indexes of the specified table\n");
-	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
-	printf("  -D, --no-kill-backend     don't kill other backends when timed out\n");
-	printf("  -Z, --no-analyze          don't analyze at end\n");
-	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
-	printf("  -C, --exclude-extension   don't repack tables which belong to specific extension\n");
+	printf("  -a, --all                   repack all databases\n");
+	printf("  -t, --table=TABLE           repack specific table only\n");
+	printf("  -I, --parent-table=TABLE    repack specific parent table and its inheritors\n");
+	printf("  -c, --schema=SCHEMA         repack tables in specific schema only\n");
+	printf("  -s, --tablespace=TBLSPC     move repacked tables to a new tablespace\n");
+	printf("  -S, --moveidx               move repacked indexes to TBLSPC too\n");
+	printf("  -o, --order-by=COLUMNS      order by columns instead of cluster keys\n");
+	printf("  -n, --no-order              do vacuum full instead of cluster\n");
+	printf("  -N, --dry-run               print what would have been repacked\n");
+	printf("  -j, --jobs=NUM              Use this many parallel jobs for each table\n");
+	printf("  -i, --index=INDEX           move only the specified index\n");
+	printf("  -x, --only-indexes          move only indexes of the specified table\n");
+	printf("  -T, --wait-timeout=SECS     timeout to cancel other backends on conflict\n");
+	printf("  -D, --no-kill-backend       don't kill other backends when timed out\n");
+	printf("  -Z, --no-analyze            don't analyze at end\n");
+	printf("  -k, --no-superuser-check    skip superuser checks in client\n");
+	printf("  -C, --exclude-extension     don't repack tables which belong to specific extension\n");
+	printf("  -m, --max-swap-tuples=NUM   max tuples allowed in replay log at table swap\n");
 }
