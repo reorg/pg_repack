@@ -449,7 +449,7 @@ prompt_for_password(void)
 		ereport(FATAL,
 			(errcode_errno(),
 			 errmsg("could not allocate memory (" UINT64_FORMAT " bytes): ",
-				(unsigned long) BUFSIZE)));
+				(uint64) BUFSIZE)));
 
 	return buf;
 
@@ -1325,7 +1325,7 @@ pgut_malloc(size_t size)
 		ereport(FATAL,
 			(errcode_errno(),
 			 errmsg("could not allocate memory (" UINT64_FORMAT " bytes): ",
-				(unsigned long) size)));
+				(uint64) size)));
 	return ret;
 }
 
@@ -1338,7 +1338,7 @@ pgut_realloc(void *p, size_t size)
 		ereport(FATAL,
 			(errcode_errno(),
 			 errmsg("could not re-allocate memory (" UINT64_FORMAT " bytes): ",
-				(unsigned long) size)));
+				(uint64) size)));
 	return ret;
 }
 
