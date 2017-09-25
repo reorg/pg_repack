@@ -92,6 +92,7 @@ CREATE TABLE tbl_with_mod_column_storage (
 );
 ALTER TABLE tbl_with_mod_column_storage ALTER c SET STORAGE MAIN;
 
+CREATE TABLE tbl_order (c int primary key);
 --
 -- insert data
 --
@@ -137,6 +138,10 @@ SET client_min_messages = warning;
 
 INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
 
+-- Insert no-ordered data
+INSERT INTO tbl_order SELECT generate_series(100, 51, -1);
+CLUSTER tbl_order USING tbl_order_pkey;
+INSERT INTO tbl_order SELECT generate_series(50, 1, -1);
 --
 -- before
 --
@@ -251,6 +256,19 @@ CREATE TRIGGER repack_trigger AFTER UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDUR
 CREATE TABLE trg3 (id integer PRIMARY KEY);
 CREATE TRIGGER repack_trigger_1 BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg3
+
+--
+-- Table re-organization using specific column
+--
+
+-- reorganize table using cluster key. Sort in ascending order.
+\! pg_repack --dbname=contrib_regression --table=tbl_order
+SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
+
+-- reorganize table using specific column order. Sort in descending order.
+\! pg_repack --dbname=contrib_regression --table=tbl_order -o "c DESC"
+SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
+
 
 --
 -- Dry run

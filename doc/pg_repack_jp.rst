@@ -289,6 +289,7 @@ OPTIONには以下のものが指定できます。
 .. ``-I TABLE``, ``--parent-table=TABLE``
     Reorganize both the specified table(s) and its inheritors. Multiple
     table hierarchies may be reorganized by writing multiple ``-I`` switches.
+
 ``-I TABLE``, ``--parent-table=TABLE``
     指定したテーブルとその子テーブルのみを再編成します。 ``-I`` オプションを複数同時に使用することで、複数の親テーブルを指定することができます。
 
@@ -863,6 +864,12 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 リリースノート
 ---------------
+.. * pg_repack 1.4.1
+..   * fixed broken ``--order-by`` option (issue #138)
+
+* pg_repack 1.4.1
+     * 壊れていた ``--order-by`` オプションを修正しました (issue #138)
+
 .. * pg_repack 1.4
 ..   * added support for PostgreSQL 9.6
 ..   * use ``AFTER`` trigger to solve concurrency problems with ``INSERT

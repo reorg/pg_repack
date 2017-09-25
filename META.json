@@ -2,11 +2,12 @@
    "name": "pg_repack",
    "abstract": "PostgreSQL module for data reorganization",
    "description": "Reorganize tables in PostgreSQL databases with minimal locks",
-   "version": "1.4",
+   "version": "1.4.1",
    "maintainer": [
+       "Beena Emerson <memissemerson@gmail.com>",
        "Josh Kupershmidt <schmiddy@gmail.com>",
-       "Daniele Varrazzo <daniele.varrazzo@gmail.com>",
-       "Beena Emerson <memissemerson@gmail.com>"
+       "Masahiko Sawada <sawada.mshk@gmail.com>",
+       "Daniele Varrazzo <daniele.varrazzo@gmail.com>"
     ],
    "tags": [ "bloat", "maintenance", "vacuum", "cluster" ],
    "release_status": "stable",
@@ -14,14 +15,14 @@
    "provides": {
       "pg_repack": {
          "file": "lib/pg_repack.sql",
-         "version": "1.4",
+         "version": "1.4.1",
          "abstract": "Reorganize tables in PostgreSQL databases with minimal locks"
       }
    },
    "prereqs": {
       "runtime": {
          "requires": {
-            "PostgreSQL": "8.3.0"
+            "PostgreSQL": "9.1.0"
          }
       }
    },
