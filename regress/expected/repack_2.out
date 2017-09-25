@@ -84,6 +84,7 @@ CREATE TABLE tbl_with_mod_column_storage (
 	c text
 );
 ALTER TABLE tbl_with_mod_column_storage ALTER c SET STORAGE MAIN;
+CREATE TABLE tbl_order (c int primary key);
 --
 -- insert data
 --
@@ -118,6 +119,10 @@ SET client_min_messages = fatal;
 CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
 SET client_min_messages = warning;
 INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
+-- Insert no-ordered data
+INSERT INTO tbl_order SELECT generate_series(100, 51, -1);
+CLUSTER tbl_order USING tbl_order_pkey;
+INSERT INTO tbl_order SELECT generate_series(50, 1, -1);
 --
 -- before
 --
@@ -161,6 +166,7 @@ WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badin
 INFO: repacking table "tbl_idxopts"
 INFO: repacking table "tbl_with_toast"
 INFO: repacking table "tbl_with_mod_column_storage"
+INFO: repacking table "tbl_order"
 --
 -- after
 --
@@ -272,8 +278,8 @@ SET enable_indexscan = off;
 SELECT * FROM tbl_with_dropped_column ;
  c1 | id | c2 | c3 
 ----+----+----+----
- c1 |  2 | c2 | 
  c1 |  1 | c2 | 
+ c1 |  2 | c2 | 
 (2 rows)
 
 SELECT * FROM view_for_dropped_column ORDER BY 1, 2;
@@ -302,8 +308,8 @@ SELECT * FROM tbl_with_dropped_column ORDER BY 1, 2;
 SELECT * FROM view_for_dropped_column;
  c1 | id | c2 | c3 
 ----+----+----+----
- c1 |  2 | c2 | 
  c1 |  1 | c2 | 
+ c1 |  2 | c2 | 
 (2 rows)
 
 SELECT * FROM tbl_with_dropped_toast;
@@ -417,6 +423,45 @@ CREATE TABLE trg3 (id integer PRIMARY KEY);
 CREATE TRIGGER repack_trigger_1 BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg3
 INFO: repacking table "trg3"
+--
+-- Table re-organization using specific column
+--
+-- reorganize table using cluster key. Sort in ascending order.
+\! pg_repack --dbname=contrib_regression --table=tbl_order
+INFO: repacking table "tbl_order"
+SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
+  ctid  | c  
+--------+----
+ (0,1)  |  1
+ (0,2)  |  2
+ (0,3)  |  3
+ (0,4)  |  4
+ (0,5)  |  5
+ (0,6)  |  6
+ (0,7)  |  7
+ (0,8)  |  8
+ (0,9)  |  9
+ (0,10) | 10
+(10 rows)
+
+-- reorganize table using specific column order. Sort in descending order.
+\! pg_repack --dbname=contrib_regression --table=tbl_order -o "c DESC"
+INFO: repacking table "tbl_order"
+SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
+  ctid  |  c  
+--------+-----
+ (0,1)  | 100
+ (0,2)  |  99
+ (0,3)  |  98
+ (0,4)  |  97
+ (0,5)  |  96
+ (0,6)  |  95
+ (0,7)  |  94
+ (0,8)  |  93
+ (0,9)  |  92
+ (0,10) |  91
+(10 rows)
+
 --
 -- Dry run
 --
