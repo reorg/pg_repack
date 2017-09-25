@@ -9,8 +9,8 @@
 PG_CONFIG ?= pg_config
 
 # version as a number, e.g. 9.1.4 -> 901
-VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
-INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)\.\([[:digit:]]\{1,\}\).*/\1*100+\2/'))))
+VERSION := $(shell $(PG_CONFIG) --version | sed 's/.* \([[:digit:].]\{1,\}\).*/\1/')
+INTVERSION := $(shell echo $$(($$(echo $(VERSION).0 | sed 's/\([[:digit:]]\{1,\}\)\.\([[:digit:]]\{1,\}\).*/\1*100+\2/'))))
 
 EXTENSION = pg_repack
 MODULE_big = $(EXTENSION)
