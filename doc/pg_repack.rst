@@ -410,7 +410,7 @@ pg_repack cannot reorganize temp tables.
 GiST indexes
 ^^^^^^^^^^^^
 
-pg_repack cannot reorganize tables using GiST indexes.
+pg_repack cannot cluster tables by GiST indexes.
 
 DDL commands
 ^^^^^^^^^^^^
