@@ -871,8 +871,7 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 * pg_repack 1.4.2
   * PostgreSQL 10をサポートしました (issue #120)
-  * エラー「DROP INDEX CONCURRENTLY cannot run inside a transaction block」が発生する事象を
-    修正しました (issue #129)
+  * エラー「DROP INDEX CONCURRENTLY cannot run inside a transaction block」が発生する事象を修正しました (issue #129)
 
 .. * pg_repack 1.4.1
 ..   * fixed broken ``--order-by`` option (issue #138)
