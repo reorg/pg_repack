@@ -879,7 +879,7 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 * pg_repack 1.4.1
 
-     * 壊れていた ``--order-by`` オプションを修正しました (issue #138)
+  * 壊れていた ``--order-by`` オプションを修正しました (issue #138)
 
 .. * pg_repack 1.4
 ..   * added support for PostgreSQL 9.6
