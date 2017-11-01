@@ -1092,6 +1092,7 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	Form_pg_class relform1,
 				relform2;
 	Oid			swaptemp;
+	TransactionId swaptempxid;
 	CatalogIndexState indstate;
 
 	/* We need writable copies of both pg_class tuples. */
@@ -1128,15 +1129,18 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	relform1->reltoastrelid = relform2->reltoastrelid;
 	relform2->reltoastrelid = swaptemp;
 
-	/* set rel1's frozen Xid to larger one */
-	if (TransactionIdIsNormal(relform1->relfrozenxid))
-	{
-		if (TransactionIdFollows(relform1->relfrozenxid,
-								 relform2->relfrozenxid))
-			relform1->relfrozenxid = relform2->relfrozenxid;
-		else
-			relform2->relfrozenxid = relform1->relfrozenxid;
-	}
+	/*
+	 * Swap relfrozenxid and relminmxid, as they must be consistent with the data
+	 */
+	swaptemp = relform1->relfrozenxid;
+	relform1->relfrozenxid = relform2->relfrozenxid;
+	relform2->relfrozenxid = swaptempxid;
+
+#if PG_VERSION_NUM >= 90300
+	swaptemp = relform1->relminmxid;
+	relform1->relminmxid = relform2->relminmxid;
+	relform2->relminmxid = swaptempxid;
+#endif
 
 	/* swap size statistics too, since new rel has freshly-updated stats */
 	{
@@ -1154,6 +1158,12 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 		swap_tuples = relform1->reltuples;
 		relform1->reltuples = relform2->reltuples;
 		relform2->reltuples = swap_tuples;
+
+#if PG_VERSION_NUM >= 90200
+		swap_pages = relform1->relallvisible;
+		relform1->relallvisible = relform2->relallvisible;
+		relform2->relallvisible = swap_pages;
+#endif
 	}
 
 	indstate = CatalogOpenIndexes(relRelation);
