@@ -2266,7 +2266,7 @@ pgut_help(bool details)
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
-        printf("  -m, --migrate=SQLSTMT     possibly migrate one or more columns\n");
+        printf("  -m, --migrate=SQLSTMT     run SQLSTMT after CREATE TABLE\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -N, --dry-run             print what would have been repacked\n");
 	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
