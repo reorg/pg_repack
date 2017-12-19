@@ -115,6 +115,7 @@ Options:
   -o, --order-by=COLUMNS    order by columns instead of cluster keys
   -n, --no-order            do vacuum full instead of cluster
   -N, --dry-run             print what would have been repacked and exit
+  -m, --migrate=SQLSTMT     SQL migration statement (post-CREATE, pre-COPY)
   -j, --jobs=NUM            Use this many parallel jobs for each table
   -i, --index=INDEX         move only the specified index
   -x, --only-indexes        move only indexes of the specified table
@@ -162,6 +163,11 @@ Reorg Options
 
 ``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
     Perform an online CLUSTER ordered by the specified columns.
+
+``-m``, ``-migrate=SQLSTMT``
+    Apply SQLSTMT after the replacement table is created but before the data
+    from the target table is copied.  If SQLSTMT does not begin with ``ALTER
+    TABLE``, then ``ALTER TABLE repack.NNNNN`` is prefixed.
 
 ``-n``, ``--no-order``
     Perform an online VACUUM FULL.  Since version 1.2 this is the default for
@@ -318,6 +324,11 @@ Move all indexes of table ``foo`` to tablespace ``tbs``::
 Move the specified index to tablespace ``tbs``::
 
     $ pg_repack -d test --index idx --tablespace tbs
+
+Repack a table and migrate its primary key from integer to bigint::
+
+    $ pg_repack -t big_table -m "ALTER COLUMN id TYPE BIGINT"
+
 
 
 Diagnostics

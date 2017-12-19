@@ -194,6 +194,7 @@ typedef struct repack_table
 	const char	   *create_trigger;	/* CREATE TRIGGER repack_trigger */
 	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER repack_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT WITH NO DATA*/
+        const char         *migration_stmt;     /* optional ALTER TABLE .... stmt */
 	const char	   *copy_data;		/* INSERT INTO */
 	const char	   *alter_col_storage;	/* ALTER TABLE ALTER COLUMN SET STORAGE */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
@@ -228,6 +229,8 @@ static bool lock_exclusive(PGconn *conn, const char *relid, const char *lock_que
 static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
 
+static char *temp_target_table_name(const repack_table *table);
+
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_UNDEFINED_FUNCTION		"42883"
 #define SQLSTATE_QUERY_CANCELED			"57014"
@@ -256,6 +259,8 @@ static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 
+static char                            *migration_stmt = NULL; /* optional statement */
+
 /* buffer should have at least 11 bytes */
 static char *
 utoa(unsigned int value, char *buffer)
@@ -276,6 +281,7 @@ static pgut_option options[] =
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
+        { 's', 'm', "migrate", &migration_stmt },
 	{ 'l', 'i', "index", &r_index },
 	{ 'b', 'x', "only-indexes", &only_indexes },
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
@@ -773,6 +779,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	{
 		repack_table	table;
 		StringInfoData	copy_sql;
+                StringInfoData  migrate_sql;
 		const char *create_table_1;
 		const char *create_table_2;
 		const char *tablespace;
@@ -824,6 +831,20 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		/* Always append WITH NO DATA to CREATE TABLE SQL*/
 		appendStringInfoString(&sql, " WITH NO DATA");
 		table.create_table = sql.data;
+
+                /* create migration sql if needed */
+                table.migration_stmt = NULL;
+                if (migration_stmt) {
+                  initStringInfo(&migrate_sql);
+                  /* if ALTER TABLE is not present, insert it automatically */
+                  if (!(strstr(migration_stmt, "ALTER TABLE") || strstr(migration_stmt, "alter table"))) {
+                      appendStringInfoString(&migrate_sql, "ALTER TABLE ");
+                      appendStringInfoString(&migrate_sql, temp_target_table_name(&table));
+                      appendStringInfoString(&migrate_sql, " ");
+                  }
+                  appendStringInfoString(&migrate_sql, migration_stmt);
+                  table.migration_stmt = migrate_sql.data;
+                }
 
 		/* Craft Copy SQL */
 		initStringInfo(&copy_sql);
@@ -1148,6 +1169,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "create_trigger    : %s", table->create_trigger);
 	elog(DEBUG2, "enable_trigger    : %s", table->enable_trigger);
 	elog(DEBUG2, "create_table      : %s", table->create_table);
+        elog(DEBUG2, "migration_stmt    : %s", table->migration_stmt);
 	elog(DEBUG2, "copy_data         : %s", table->copy_data);
 	elog(DEBUG2, "alter_col_storage : %s", table->alter_col_storage ?
 		 table->alter_col_storage : "(skipped)");
@@ -1407,9 +1429,16 @@ repack_one_table(repack_table *table, const char *orderby)
 	command(table->create_table, 0, NULL);
 	if (table->alter_col_storage)
 		command(table->alter_col_storage, 0, NULL);
+
+        /* before copying the old data, see if the user wishes
+         * to do a migration, like change the column type of any columns
+         */
+        if (table->migration_stmt)
+                command(table->migration_stmt, 0, NULL);
+
 	command(table->copy_data, 0, NULL);
 	temp_obj_num++;
-	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
+        printfStringInfo(&sql, "SELECT repack.disable_autovacuum('%s')", temp_target_table_name(table));
 	if (table->drop_columns)
 		command(table->drop_columns, 0, NULL);
 	command(sql.data, 0, NULL);
@@ -1552,6 +1581,14 @@ cleanup:
 	 */
 	if ((!ret) && table_init)
 		repack_cleanup(false, table);
+}
+
+static char*
+temp_target_table_name(const repack_table *table)
+{
+    static char buf[40];
+    snprintf(buf, sizeof(buf), "repack.table_%u", table->target_oid);
+    return(buf);
 }
 
 /* Kill off any concurrent DDL (or any transaction attempting to take
@@ -2229,6 +2266,7 @@ pgut_help(bool details)
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
 	printf("  -o, --order-by=COLUMNS    order by columns instead of cluster keys\n");
+        printf("  -m, --migrate=SQLSTMT     possibly migrate one or more columns\n");
 	printf("  -n, --no-order            do vacuum full instead of cluster\n");
 	printf("  -N, --dry-run             print what would have been repacked\n");
 	printf("  -j, --jobs=NUM            Use this many parallel jobs for each table\n");
