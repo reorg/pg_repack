@@ -971,11 +971,21 @@ repack_drop(PG_FUNCTION_ARGS)
 	 * which in turn, is waiting for lock on log_%u table.
 	 *
 	 * Fixes deadlock mentioned in the Github issue #55.
+	 *
+	 * Skip the lock if we are not going to do anything.
+	 * Otherwise, if repack gets accidentally run twice for the same table
+	 * at the same time, the second repack, in order to perform
+	 * a pointless cleanup, has to wait until the first one completes.
+	 * This adds an ACCESS EXCLUSIVE lock request into the queue
+	 * making the table effectively inaccessible for any other backend.
 	 */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE",
-		nspname, relname);
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE",
+			nspname, relname);
+	}
 
 	/* drop log table: must be done before dropping the pk type,
 	 * since the log table is dependent on the pk type. (That's
