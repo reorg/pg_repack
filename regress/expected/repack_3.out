@@ -15,7 +15,7 @@ select filename from (values
 where min <= repack.pg_version() and repack.pg_version() < max;
    filename   
 --------------
- repack_2.out
+ repack_3.out
 (1 row)
 
 SET client_min_messages = warning;
@@ -164,7 +164,7 @@ SELECT * FROM tbl_with_dropped_toast;
 INFO: repacking table "tbl_cluster"
 \! pg_repack --dbname=contrib_regression --table=tbl_badindex
 INFO: repacking table "tbl_badindex"
-WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badindex USING btree (n)
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
 \! pg_repack --dbname=contrib_regression
 INFO: repacking table "tbl_cluster"
 INFO: repacking table "tbl_only_pkey"
@@ -172,7 +172,7 @@ INFO: repacking table "tbl_gistkey"
 INFO: repacking table "tbl_with_dropped_column"
 INFO: repacking table "tbl_with_dropped_toast"
 INFO: repacking table "tbl_badindex"
-WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badindex USING btree (n)
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
 INFO: repacking table "tbl_idxopts"
 INFO: repacking table "tbl_with_toast"
 INFO: repacking table "tbl_with_mod_column_storage"

@@ -16,6 +16,30 @@ CREATE FUNCTION repack.version_sql() RETURNS text AS
 $$SELECT 'pg_repack REPACK_VERSION'::text$$
 LANGUAGE SQL IMMUTABLE STRICT;
 
+CREATE FUNCTION repack.pg_version(version_str text DEFAULT NULL) RETURNS integer
+AS $$
+    -- Return the server version number in a format similar to PG_VERSION_NUM.
+    -- Call with no argument for the server version, pass an argument for testing
+    select (case
+        when array_length(tokens, 1) = 2 then
+            to_char(tokens[1], 'FM00') ||
+            '00' || to_char(tokens[2], 'FM00')
+        when array_length(tokens, 1) = 3 then
+            to_char(tokens[1], 'FM00') ||
+            to_char(tokens[2], 'FM00') ||
+            to_char(tokens[3], 'FM00')
+        else
+            -- This will raise an error which we can read
+            'unexpected version string: ' || coalesce($1, version())
+    end)::int
+    from (
+        select string_to_array(substring(
+            split_part(coalesce($1, version()), ' ', 2)
+            from '\d+\.\d+(?:\.\d+)?'), '.')::int[]
+    ) as x (tokens);
+$$
+LANGUAGE SQL IMMUTABLE;
+
 CREATE AGGREGATE repack.array_accum (
     sfunc = array_append,
     basetype = anyelement,
