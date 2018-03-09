@@ -12,9 +12,11 @@ CREATE FUNCTION repack.version() RETURNS text AS
 'MODULE_PATHNAME', 'repack_version'
 LANGUAGE C IMMUTABLE STRICT;
 
+
 CREATE FUNCTION repack.version_sql() RETURNS text AS
 $$SELECT 'pg_repack REPACK_VERSION'::text$$
 LANGUAGE SQL IMMUTABLE STRICT;
+
 
 CREATE FUNCTION repack.pg_version(version_str text DEFAULT NULL) RETURNS integer
 AS $$
@@ -38,20 +40,24 @@ AS $$
             from '\d+\.\d+(?:\.\d+)?'), '.')::int[]
     ) as x (tokens);
 $$
-LANGUAGE SQL IMMUTABLE;
+LANGUAGE SQL IMMUTABLE
+SET search_path to '';
+
 
 CREATE AGGREGATE repack.array_accum (
-    sfunc = array_append,
-    basetype = anyelement,
-    stype = anyarray,
+    sfunc = pg_catalog.array_append,
+    basetype = pg_catalog.anyelement,
+    stype = pg_catalog.anyarray,
     initcond = '{}'
 );
 
+
 CREATE FUNCTION repack.oid2text(oid) RETURNS text AS
 $$
-	SELECT textin(regclassout($1));
+    SELECT pg_catalog.textin(pg_catalog.regclassout($1));
 $$
 LANGUAGE sql STABLE STRICT;
+
 
 CREATE FUNCTION repack.get_index_columns(oid, text) RETURNS text AS
 $$
@@ -66,7 +72,9 @@ $$
    WHERE attrelid = indrelid
      AND attnum = indkey[i];
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 CREATE FUNCTION repack.get_order_by(oid, oid) RETURNS text AS
 'MODULE_PATHNAME', 'repack_get_order_by'
@@ -87,7 +95,9 @@ $$
    WHERE attrelid = indrelid
      AND attnum = indkey[i];
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 CREATE FUNCTION repack.get_create_trigger(relid oid, pkid oid)
   RETURNS text AS
@@ -100,7 +110,9 @@ $$
          repack.get_index_columns($2, ', $1.') || ')::repack.pk_' ||
          $1 || ') END, $2)'')';
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 CREATE FUNCTION repack.get_enable_trigger(relid oid)
   RETURNS text AS
@@ -108,7 +120,9 @@ $$
   SELECT 'ALTER TABLE ' || repack.oid2text($1) ||
     ' ENABLE ALWAYS TRIGGER repack_trigger';
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 CREATE FUNCTION repack.get_assign(oid, text) RETURNS text AS
 $$
@@ -119,7 +133,9 @@ $$
            WHERE attrelid = $1 AND attnum > 0 AND NOT attisdropped
            ORDER BY attnum) tmp;
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 CREATE FUNCTION repack.get_compare_pkey(oid, text)
   RETURNS text AS
@@ -137,7 +153,9 @@ $$
    WHERE attrelid = indrelid
      AND attnum = indkey[i];
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 -- Get a column list for SELECT all columns including dropped ones.
 -- We use NULLs of integer types for dropped columns (types are not important).
@@ -145,15 +163,17 @@ CREATE FUNCTION repack.get_columns_for_create_as(oid)
   RETURNS text AS
 $$
 SELECT array_to_string(repack.array_accum(c), ',') FROM (SELECT
-	CASE WHEN attisdropped
-		THEN 'NULL::integer AS ' || quote_ident(attname)
-		ELSE quote_ident(attname)
-	END AS c
+    CASE WHEN attisdropped
+        THEN 'NULL::integer AS ' || quote_ident(attname)
+        ELSE quote_ident(attname)
+    END AS c
 FROM pg_attribute
 WHERE attrelid = $1 AND attnum > 0 ORDER BY attnum
 ) AS COL
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 -- Get a SQL text to DROP dropped columns for the table,
 -- or NULL if it has no dropped columns.
@@ -161,20 +181,22 @@ CREATE FUNCTION repack.get_drop_columns(oid, text)
   RETURNS text AS
 $$
 SELECT
-	'ALTER TABLE ' || $2 || ' ' || array_to_string(dropped_columns, ', ')
+    'ALTER TABLE ' || $2 || ' ' || array_to_string(dropped_columns, ', ')
 FROM (
-	SELECT
-		repack.array_accum('DROP COLUMN ' || quote_ident(attname)) AS dropped_columns
-	FROM (
-		SELECT * FROM pg_attribute
-		WHERE attrelid = $1 AND attnum > 0 AND attisdropped
-		ORDER BY attnum
-	) T
+    SELECT
+        repack.array_accum('DROP COLUMN ' || quote_ident(attname)) AS dropped_columns
+    FROM (
+        SELECT * FROM pg_attribute
+        WHERE attrelid = $1 AND attnum > 0 AND attisdropped
+        ORDER BY attnum
+    ) T
 ) T
 WHERE
-	array_upper(dropped_columns, 1) > 0
+    array_upper(dropped_columns, 1) > 0
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 -- Get a comma-separated storage paramter for the table including
 -- paramters for the corresponding TOAST table.
@@ -209,7 +231,9 @@ FROM (
 
     ) as t
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 -- GET a SQL text to set column storage option for the table.
 CREATE FUNCTION repack.get_alter_col_storage(oid)
@@ -236,11 +260,13 @@ $$
                  AND attnum > 0
                  AND NOT attisdropped
            ORDER BY attnum
-	   ) T
+       ) T
       ) T
 WHERE array_upper(column_storage , 1) > 0
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path to '';
+
 
 -- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
 CREATE VIEW repack.primary_keys AS
@@ -257,6 +283,7 @@ CREATE VIEW repack.primary_keys AS
               AND NOT attnotnull)
    ORDER BY indrelid, indisprimary DESC, indnatts, indkey) tmp
    GROUP BY indrelid;
+
 
 CREATE VIEW repack.tables AS
   SELECT R.oid::regclass AS relname,
@@ -304,13 +331,16 @@ CREATE VIEW repack.tables AS
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
      AND N.nspname NOT LIKE E'pg\\_temp\\_%';
 
+
 CREATE FUNCTION repack.repack_indexdef(oid, oid, name, bool) RETURNS text AS
 'MODULE_PATHNAME', 'repack_indexdef'
 LANGUAGE C STABLE;
 
+
 CREATE FUNCTION repack.repack_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'repack_trigger'
 LANGUAGE C VOLATILE STRICT SECURITY DEFINER;
+
 
 CREATE FUNCTION repack.conflicted_triggers(oid) RETURNS SETOF name AS
 $$
@@ -320,9 +350,11 @@ SELECT tgname FROM pg_trigger
 $$
 LANGUAGE sql STABLE STRICT;
 
+
 CREATE FUNCTION repack.disable_autovacuum(regclass) RETURNS void AS
 'MODULE_PATHNAME', 'repack_disable_autovacuum'
 LANGUAGE C VOLATILE STRICT;
+
 
 CREATE FUNCTION repack.repack_apply(
   sql_peek      cstring,
@@ -335,17 +367,21 @@ RETURNS integer AS
 'MODULE_PATHNAME', 'repack_apply'
 LANGUAGE C VOLATILE;
 
+
 CREATE FUNCTION repack.repack_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_swap'
 LANGUAGE C VOLATILE STRICT;
+
 
 CREATE FUNCTION repack.repack_drop(oid, int) RETURNS void AS
 'MODULE_PATHNAME', 'repack_drop'
 LANGUAGE C VOLATILE STRICT;
 
+
 CREATE FUNCTION repack.repack_index_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_index_swap'
 LANGUAGE C STABLE STRICT;
+
 
 CREATE FUNCTION repack.get_table_and_inheritors(regclass) RETURNS regclass[] AS
 'MODULE_PATHNAME', 'repack_get_table_and_inheritors'
