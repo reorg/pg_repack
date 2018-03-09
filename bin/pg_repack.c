@@ -82,12 +82,12 @@ const char *PROGRAM_VERSION = "unknown";
 	"  LEFT JOIN pg_database AS d " \
 	"    ON a.datid = d.oid " \
 	"  WHERE l.locktype = 'virtualxid' " \
-	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
+	"  AND l.pid NOT IN (pg_catalog.pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
 	"  AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
 	"  AND a.query !~ E'^autovacuum: ' " \
-	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
+	"  AND ((d.datname IS NULL OR d.datname = pg_catalog.current_database()) OR l.database = 0)"
 
 #define SQL_XID_SNAPSHOT_90000 \
 	"SELECT repack.array_accum(l.virtualtransaction) " \
@@ -97,12 +97,12 @@ const char *PROGRAM_VERSION = "unknown";
 	"  LEFT JOIN pg_database AS d " \
 	"    ON a.datid = d.oid " \
 	"  WHERE l.locktype = 'virtualxid' " \
-	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
+	"  AND l.pid NOT IN (pg_catalog.pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
 	"  AND a.current_query !~* E'^\\\\s*vacuum\\\\s+' " \
 	"  AND a.current_query !~ E'^autovacuum: ' " \
-	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
+	"  AND ((d.datname IS NULL OR d.datname = pg_catalog.current_database()) OR l.database = 0)"
 
 /* application_name is not available before 9.0. The last clause of
  * the WHERE clause is just to eat the $2 parameter (application name).
@@ -114,11 +114,12 @@ const char *PROGRAM_VERSION = "unknown";
 	"    ON l.pid = a.procpid " \
 	"  LEFT JOIN pg_database AS d " \
 	"    ON a.datid = d.oid " \
-	" WHERE l.locktype = 'virtualxid' AND l.pid NOT IN (pg_backend_pid(), $1)" \
+	" WHERE l.locktype = 'virtualxid' AND l.pid  " \
+	"   NOT IN (pg_catalog.pg_backend_pid(), $1)" \
 	" AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	" AND a.current_query !~* E'^\\\\s*vacuum\\\\s+' " \
 	" AND a.current_query !~ E'^autovacuum: ' " \
-	" AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)" \
+	" AND ((d.datname IS NULL OR d.datname = pg_catalog.current_database()) OR l.database = 0)" \
 	" AND ($2::text IS NOT NULL)"
 
 #define SQL_XID_SNAPSHOT \
@@ -132,7 +133,7 @@ const char *PROGRAM_VERSION = "unknown";
  */
 #define SQL_XID_ALIVE \
 	"SELECT pid FROM pg_locks WHERE locktype = 'virtualxid'"\
-	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1)"
+	" AND pid <> pg_catalog.pg_backend_pid() AND virtualtransaction = ANY($1)"
 
 /* To be run while our main connection holds an AccessExclusive lock on the
  * target table, and our secondary conn is attempting to grab an AccessShare
@@ -142,20 +143,20 @@ const char *PROGRAM_VERSION = "unknown";
  * trying to kill off disallowed DDL commands, e.g. ALTER TABLE or TRUNCATE.
  */
 #define CANCEL_COMPETING_LOCKS \
-	"SELECT pg_cancel_backend(pid) FROM pg_locks WHERE locktype = 'relation'"\
+	"SELECT pg_catalog.pg_cancel_backend(pid) FROM pg_locks WHERE locktype = 'relation'"\
 	" AND granted = false AND relation = %u"\
-	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_catalog.pg_backend_pid()"
 
 #define KILL_COMPETING_LOCKS \
-	"SELECT pg_terminate_backend(pid) "\
+	"SELECT pg_catalog.pg_terminate_backend(pid) "\
 	"FROM pg_locks WHERE locktype = 'relation'"\
 	" AND granted = false AND relation = %u"\
-	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_catalog.pg_backend_pid()"
 
 #define COUNT_COMPETING_LOCKS \
 	"SELECT pid FROM pg_locks WHERE locktype = 'relation'" \
 	" AND granted = false AND relation = %u" \
-	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_catalog.pg_backend_pid()"
 
 /* Will be used as a unique prefix for advisory locks. */
 #define REPACK_LOCK_PREFIX_STR "16185446"
@@ -662,7 +663,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		"SELECT t.*,"
 		" coalesce(v.tablespace, t.tablespace_orig) as tablespace_dest"
 		" FROM repack.tables t, "
-		" (VALUES (quote_ident($1::text))) as v (tablespace)"
+		" (VALUES (pg_catalog.quote_ident($1::text))) as v (tablespace)"
 		" WHERE ");
 
 	params[iparam++] = tablespace;
@@ -1197,7 +1198,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	 * which may be on the table (mostly to match the behavior of 1.1.8).
 	 */
 	indexres = execute(
-		"SELECT pg_get_indexdef(indexrelid)"
+		"SELECT pg_catalog.pg_get_indexdef(indexrelid)"
 		" FROM pg_index WHERE indrelid = $1 AND NOT indisvalid",
 		1, indexparams);
 
@@ -1278,7 +1279,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	/* grab the backend PID of conn2; we'll need this when querying
 	 * pg_locks momentarily.
 	 */
-	res = pgut_execute(conn2, "SELECT pg_backend_pid()", 0, NULL);
+	res = pgut_execute(conn2, "SELECT pg_catalog.pg_backend_pid()", 0, NULL);
 	buffer[0] = '\0';
 	strncat(buffer, PQgetvalue(res, 0, 0), sizeof(buffer) - 1);
 	CLEARPGRES(res);
@@ -1365,7 +1366,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
 	/* SET work_mem = maintenance_work_mem */
-	command("SELECT set_config('work_mem', current_setting('maintenance_work_mem'), true)", 0, NULL);
+	command("SELECT pg_catalog.set_config('work_mem', "
+	"pg_catalog.current_setting('maintenance_work_mem'), true)", 0, NULL);
 	if (orderby && !orderby[0])
 		command("SET LOCAL synchronize_seqscans = off", 0, NULL);
 
@@ -1533,7 +1535,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	params[0] = REPACK_LOCK_PREFIX_STR;
 	params[1] = utoa(table->target_oid, buffer);
 
-	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1, CAST(-2147483648 + $2::bigint AS integer))",
+	res = pgut_execute(connection, "SELECT pg_catalog.pg_advisory_unlock($1, CAST(-2147483648 + $2::bigint AS integer))",
 			   2, params);
 	ret = true;
 
@@ -1796,17 +1798,17 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 				{
 					elog(WARNING, "terminating conflicted backends");
 					cancel_query =
-						"SELECT pg_terminate_backend(pid) FROM pg_locks"
+						"SELECT pg_catalog.pg_terminate_backend(pid) FROM pg_locks"
 						" WHERE locktype = 'relation'"
-						"   AND relation = $1 AND pid <> pg_backend_pid()";
+						"   AND relation = $1 AND pid <> pg_catalog.pg_backend_pid()";
 				}
 				else
 				{
 					elog(WARNING, "canceling conflicted backends");
 					cancel_query =
-						"SELECT pg_cancel_backend(pid) FROM pg_locks"
+						"SELECT pg_catalog.pg_cancel_backend(pid) FROM pg_locks"
 						" WHERE locktype = 'relation'"
-						"   AND relation = $1 AND pid <> pg_backend_pid()";
+						"   AND relation = $1 AND pid <> pg_catalog.pg_backend_pid()";
 				}
 
 				pgut_command(conn, cancel_query, 1, &relid);
@@ -2143,7 +2145,8 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			params[0] = cell->val;
 
 			/* find children of this parent table */
-			res = execute_elevel("SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)"
+			res = execute_elevel("SELECT pg_catalog.quote_ident(n.nspname) || "
+								 "'.' || pg_catalog.quote_ident(c.relname)"
 								 " FROM pg_class c JOIN pg_namespace n on n.oid = c.relnamespace"
 								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
 								 " ORDER BY n.nspname, c.relname", 1, params, DEBUG2);
