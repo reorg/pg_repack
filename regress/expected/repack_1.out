@@ -1,68 +1,19 @@
--- Setup function to get version number.
--- This function returns a value same as PG_VERSION_NUM.
-CREATE OR REPLACE FUNCTION version_num() RETURNS int AS
-$$
-DECLARE
-	version_int int[];
-	version_str text;
-BEGIN
-	SELECT string_to_array(split_part(version(), ' ', 2), '.')::int[] INTO version_int;
-	IF array_length(version_int, 1) = 2 THEN -- version 10 or higher
-	   SELECT to_char(version_int[1], 'FM00') || '00' || to_char(version_int[2], 'FM00') INTO version_str;
-        ELSIF array_length(version_int, 1) = 3 THEN --version 9.6 or lower
-           SELECT to_char(version_int[1], 'FM00') || to_char(version_int[2], 'FM00') || to_char(version_int[3], 'FM00') INTO version_str;
-        ELSE
-           RAISE 'invalid version';
-        END IF;
-        RETURN version_str::int;
-END;
-$$
-LANGUAGE plpgsql IMMUTABLE STRICT;
 -- Test output file identifier.
-SELECT
-    CASE
-        WHEN version_num >= 100000 THEN  -- PostgreSQL 10
-	    CASE
-		WHEN version_num >= 100003 THEN
-		     'repack_3.out'
-		ELSE
-		    'repack_2.out'
-            END
-        WHEN version_num >= 90600 THEN -- PostgrSQL 9.6
-	    CASE
-		WHEN version_num >= 90608 THEN
-		     'repack_4.out'
-		ELSE
-		    'repack.out'
-            END
-        WHEN version_num >= 90500 THEN -- PostgreSQL 9.5
-	    CASE
-		WHEN version_num >= 90512 THEN
-		     'repack_4.out'
-		ELSE
-		    'repack.out'
-            END
-        WHEN version_num >= 90400 THEN -- PostgreSQL 9.4
-	    CASE
-		WHEN version_num >= 90417 THEN
-		     'repack_5.out'
-		ELSE
-		    'repack_1.out'
-            END
-        WHEN version_num >= 90300 THEN -- PostgreSQL 9.3
-	    CASE
-		WHEN version_num >= 90322 THEN
-		     'repack_5.out'
-		ELSE
-		    'repack_6.out'
-            END
-        WHEN version_num >= 90200 THEN -- PostgreSQL 9.2
-	    'repack_1.out'
-        WHEN version_num >= 90100 THEN -- PostgreSQL 9.1
-	    'repack_1.out'
-    END
-FROM version_num() as version_num;
-     case     
+select filename from (values
+    ( 90100,  90300, 'repack_1.out'),
+    ( 90300,  90322, 'repack_6.out'),
+    ( 90322,  90400, 'repack_5.out'),
+    ( 90400,  90417, 'repack_1.out'),
+    ( 90417,  90500, 'repack_5.out'),
+    ( 90500,  90512, 'repack.out'),
+    ( 90512,  90600, 'repack_4.out'),
+    ( 90600,  90608, 'repack.out'),
+    ( 90608, 100000, 'repack_4.out'),
+    (100000, 100003, 'repack_2.out'),
+    (100003, 110000, 'repack_3.out')
+) as x (min, max, filename)
+where min <= repack.pg_version() and repack.pg_version() < max;
+   filename   
 --------------
  repack_1.out
 (1 row)
