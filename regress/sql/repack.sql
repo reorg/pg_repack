@@ -1,13 +1,18 @@
 -- Test output file identifier.
-SELECT CASE
-	WHEN split_part(version(), ' ', 2) ~ '^(10)'
-		THEN 'repack_2.out'
-	WHEN split_part(version(), ' ', 2) ~ '^(9\.6|9\.5)'
-		THEN 'repack.out'
-	WHEN split_part(version(), ' ', 2) ~ '^(9\.4|9\.3|9\.2|9\.1)'
-		THEN 'repack_1.out'
-	ELSE version()
-END AS testfile;
+select filename from (values
+    ( 90100,  90300, 'repack_1.out'),
+    ( 90300,  90322, 'repack_6.out'),
+    ( 90322,  90400, 'repack_5.out'),
+    ( 90400,  90417, 'repack_1.out'),
+    ( 90417,  90500, 'repack_5.out'),
+    ( 90500,  90512, 'repack.out'),
+    ( 90512,  90600, 'repack_4.out'),
+    ( 90600,  90608, 'repack.out'),
+    ( 90608, 100000, 'repack_4.out'),
+    (100000, 100003, 'repack_2.out'),
+    (100003, 110000, 'repack_3.out')
+) as x (min, max, filename)
+where min <= repack.pg_version() and repack.pg_version() < max;
 
 SET client_min_messages = warning;
 --
