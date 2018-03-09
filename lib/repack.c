@@ -354,11 +354,27 @@ get_relation_name(Oid relid)
 	Oid		nsp = get_rel_namespace(relid);
 	char   *nspname;
 
+	/*
+	 * Relation names given by PostgreSQL core are always
+	 * qualified since some minor releases.
+	 */
+#if ((PG_VERSION_NUM >= 100000 && PG_VERSION_NUM < 100003) || \
+	 (PG_VERSION_NUM >= 90600 && PG_VERSION_NUM < 90608) || \
+	 (PG_VERSION_NUM >= 90500 && PG_VERSION_NUM < 90512) || \
+	 (PG_VERSION_NUM >= 90400 && PG_VERSION_NUM < 90417) || \
+	 (PG_VERSION_NUM >= 90300 && PG_VERSION_NUM < 90322))
 	/* Qualify the name if not visible in search path */
 	if (RelationIsVisible(relid))
 		nspname = NULL;
 	else
 		nspname = get_namespace_name(nsp);
+#else
+	/* Qualify the name */
+	if (OidIsValid(nsp))
+		nspname = get_namespace_name(nsp);
+	else
+		nspname = NULL;
+#endif
 
 	return quote_qualified_identifier(nspname, get_rel_name(relid));
 }
