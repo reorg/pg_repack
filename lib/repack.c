@@ -356,13 +356,16 @@ get_relation_name(Oid relid)
 
 	/*
 	 * Relation names given by PostgreSQL core are always
-	 * qualified since some minor releases.
+	 * qualified since some minor releases. Note that this change
+	 * doesn't introduce to PostgreSQL 9.2 and 9.1 releases.
 	 */
 #if ((PG_VERSION_NUM >= 100000 && PG_VERSION_NUM < 100003) || \
 	 (PG_VERSION_NUM >= 90600 && PG_VERSION_NUM < 90608) || \
 	 (PG_VERSION_NUM >= 90500 && PG_VERSION_NUM < 90512) || \
 	 (PG_VERSION_NUM >= 90400 && PG_VERSION_NUM < 90417) || \
-	 (PG_VERSION_NUM >= 90300 && PG_VERSION_NUM < 90322))
+	 (PG_VERSION_NUM >= 90300 && PG_VERSION_NUM < 90322) || \
+	 (PG_VERSION_NUM >= 90200 && PG_VERSION_NUM < 90300) || \
+	 (PG_VERSION_NUM >= 90100 && PG_VERSION_NUM < 90200))
 	/* Qualify the name if not visible in search path */
 	if (RelationIsVisible(relid))
 		nspname = NULL;

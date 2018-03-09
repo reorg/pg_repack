@@ -64,7 +64,7 @@ SELECT
 FROM version_num() as version_num;
      case     
 --------------
- repack_2.out
+ repack_5.out
 (1 row)
 
 SET client_min_messages = warning;
@@ -213,7 +213,7 @@ SELECT * FROM tbl_with_dropped_toast;
 INFO: repacking table "tbl_cluster"
 \! pg_repack --dbname=contrib_regression --table=tbl_badindex
 INFO: repacking table "tbl_badindex"
-WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badindex USING btree (n)
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
 \! pg_repack --dbname=contrib_regression
 INFO: repacking table "tbl_cluster"
 INFO: repacking table "tbl_only_pkey"
@@ -221,7 +221,7 @@ INFO: repacking table "tbl_gistkey"
 INFO: repacking table "tbl_with_dropped_column"
 INFO: repacking table "tbl_with_dropped_toast"
 INFO: repacking table "tbl_badindex"
-WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badindex USING btree (n)
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
 INFO: repacking table "tbl_idxopts"
 INFO: repacking table "tbl_with_toast"
 INFO: repacking table "tbl_with_mod_column_storage"
@@ -230,73 +230,73 @@ INFO: repacking table "tbl_order"
 -- after
 --
 \d tbl_cluster
-                      Table "public.tbl_cluster"
- Column |            Type             | Collation | Nullable | Default 
---------+-----------------------------+-----------+----------+---------
- col1   | integer                     |           | not null | 
- time   | timestamp without time zone |           |          | 
- ,")    | text                        |           | not null | 
+            Table "public.tbl_cluster"
+ Column |            Type             | Modifiers 
+--------+-----------------------------+-----------
+ col1   | integer                     | not null
+ time   | timestamp without time zone | 
+ ,")    | text                        | not null
 Indexes:
     "tbl_cluster_pkey" PRIMARY KEY, btree (","")", col1) WITH (fillfactor='75')
     ",") cluster" btree ("time", length(","")"), ","")" text_pattern_ops) WITH (fillfactor='75') CLUSTER
 
 \d tbl_gistkey
-            Table "public.tbl_gistkey"
- Column |  Type   | Collation | Nullable | Default 
---------+---------+-----------+----------+---------
- id     | integer |           | not null | 
- c      | circle  |           |          | 
+  Table "public.tbl_gistkey"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ id     | integer | not null
+ c      | circle  | 
 Indexes:
     "tbl_gistkey_pkey" PRIMARY KEY, btree (id)
     "cidx_circle" gist (c) CLUSTER
 
 \d tbl_only_ckey
-                     Table "public.tbl_only_ckey"
- Column |            Type             | Collation | Nullable | Default 
---------+-----------------------------+-----------+----------+---------
- col1   | integer                     |           |          | 
- col2   | timestamp without time zone |           |          | 
- ,")    | text                        |           |          | 
+           Table "public.tbl_only_ckey"
+ Column |            Type             | Modifiers 
+--------+-----------------------------+-----------
+ col1   | integer                     | 
+ col2   | timestamp without time zone | 
+ ,")    | text                        | 
 Indexes:
     "cidx_only_ckey" btree (col2, ","")") CLUSTER
 
 \d tbl_only_pkey
-           Table "public.tbl_only_pkey"
- Column |  Type   | Collation | Nullable | Default 
---------+---------+-----------+----------+---------
- col1   | integer |           | not null | 
- ,")    | text    |           |          | 
+ Table "public.tbl_only_pkey"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ col1   | integer | not null
+ ,")    | text    | 
 Indexes:
     "tbl_only_pkey_pkey" PRIMARY KEY, btree (col1)
 
 \d tbl_with_dropped_column
-      Table "public.tbl_with_dropped_column"
- Column |  Type   | Collation | Nullable | Default 
---------+---------+-----------+----------+---------
- c1     | text    |           |          | 
- id     | integer |           | not null | 
- c2     | text    |           |          | 
- c3     | text    |           |          | 
+Table "public.tbl_with_dropped_column"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ c1     | text    | 
+ id     | integer | not null
+ c2     | text    | 
+ c3     | text    | 
 Indexes:
     "tbl_with_dropped_column_pkey" PRIMARY KEY, btree (id) WITH (fillfactor='75') CLUSTER
     "idx_c1c2" btree (c1, c2) WITH (fillfactor='75')
     "idx_c2c1" btree (c2, c1)
 
 \d tbl_with_dropped_toast
-       Table "public.tbl_with_dropped_toast"
- Column |  Type   | Collation | Nullable | Default 
---------+---------+-----------+----------+---------
- i      | integer |           | not null | 
- j      | integer |           | not null | 
+Table "public.tbl_with_dropped_toast"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ i      | integer | not null
+ j      | integer | not null
 Indexes:
     "tbl_with_dropped_toast_pkey" PRIMARY KEY, btree (i, j) CLUSTER
 
 \d tbl_idxopts
-            Table "public.tbl_idxopts"
- Column |  Type   | Collation | Nullable | Default 
---------+---------+-----------+----------+---------
- i      | integer |           | not null | 
- t      | text    |           |          | 
+  Table "public.tbl_idxopts"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ i      | integer | not null
+ t      | text    | 
 Indexes:
     "tbl_idxopts_pkey" PRIMARY KEY, btree (i)
     "idxopts_t" btree (t DESC NULLS LAST) WHERE t <> 'aaa'::text
@@ -570,8 +570,6 @@ ERROR: pg_repack failed with error: You must be a superuser to use pg_repack
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
 ERROR: pg_repack failed with error: ERROR:  permission denied for schema repack
-LINE 1: select repack.version(), repack.version_sql()
-               ^
 DROP ROLE IF EXISTS nosuper;
 --
 -- exclude extension check
