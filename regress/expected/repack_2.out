@@ -12,7 +12,7 @@ select filename from (values
     (100000, 100003, 'repack_2.out'),
     (100003, 110000, 'repack_3.out')
 ) as x (min, max, filename)
-where min <= repack.pg_version() and repack.pg_version() < max;
+where current_setting('server_version_num')::int between min and max - 1;
    filename   
 --------------
  repack_2.out
