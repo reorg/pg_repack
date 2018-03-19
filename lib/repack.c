@@ -35,6 +35,7 @@
 #include "storage/lmgr.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/relcache.h"
@@ -353,31 +354,47 @@ get_relation_name(Oid relid)
 {
 	Oid		nsp = get_rel_namespace(relid);
 	char   *nspname;
+	char   *strver;
+	int ver;
+
+	/* Get the version of the running server (PG_VERSION_NUM would return
+	 * the version we compiled the extension with) */
+	strver = GetConfigOptionByName("server_version_num", NULL
+#if PG_VERSION_NUM >= 90600
+		, false	    /* missing_ok */
+#endif
+	);
+
+	ver = atoi(strver);
+	pfree(strver);
 
 	/*
 	 * Relation names given by PostgreSQL core are always
 	 * qualified since some minor releases. Note that this change
-	 * doesn't introduce to PostgreSQL 9.2 and 9.1 releases.
+	 * wasn't introduced in PostgreSQL 9.2 and 9.1 releases.
 	 */
-#if ((PG_VERSION_NUM >= 100000 && PG_VERSION_NUM < 100003) || \
-	 (PG_VERSION_NUM >= 90600 && PG_VERSION_NUM < 90608) || \
-	 (PG_VERSION_NUM >= 90500 && PG_VERSION_NUM < 90512) || \
-	 (PG_VERSION_NUM >= 90400 && PG_VERSION_NUM < 90417) || \
-	 (PG_VERSION_NUM >= 90300 && PG_VERSION_NUM < 90322) || \
-	 (PG_VERSION_NUM >= 90200 && PG_VERSION_NUM < 90300) || \
-	 (PG_VERSION_NUM >= 90100 && PG_VERSION_NUM < 90200))
-	/* Qualify the name if not visible in search path */
-	if (RelationIsVisible(relid))
-		nspname = NULL;
+	if ((ver >= 100000 && ver < 100003) ||
+		(ver >= 90600 && ver < 90608) ||
+		(ver >= 90500 && ver < 90512) ||
+		(ver >= 90400 && ver < 90417) ||
+		(ver >= 90300 && ver < 90322) ||
+		(ver >= 90200 && ver < 90300) ||
+		(ver >= 90100 && ver < 90200))
+	{
+		/* Qualify the name if not visible in search path */
+		if (RelationIsVisible(relid))
+			nspname = NULL;
+		else
+			nspname = get_namespace_name(nsp);
+	}
 	else
-		nspname = get_namespace_name(nsp);
-#else
-	/* Qualify the name */
-	if (OidIsValid(nsp))
-		nspname = get_namespace_name(nsp);
-	else
-		nspname = NULL;
-#endif
+	{
+		/* Always qualify the name */
+		if (OidIsValid(nsp))
+			nspname = get_namespace_name(nsp);
+		else
+			nspname = NULL;
+	}
 
 	return quote_qualified_identifier(nspname, get_rel_name(relid));
 }
