@@ -1,15 +1,15 @@
 -- Test output file identifier.
 select filename from (values
     ( 90100,  90300, 'repack_1.out'),
-    ( 90300,  90322, 'repack_6.out'),
+    ( 90300,  90322, 'repack_1.out'),
     ( 90322,  90400, 'repack_5.out'),
     ( 90400,  90417, 'repack_1.out'),
     ( 90417,  90500, 'repack_5.out'),
     ( 90500,  90512, 'repack.out'),
-    ( 90512,  90600, 'repack_4.out'),
+    ( 90512,  90600, 'repack_3.out'),
     ( 90600,  90608, 'repack.out'),
-    ( 90608, 100000, 'repack_4.out'),
-    (100000, 100003, 'repack_2.out'),
+    ( 90608, 100000, 'repack_3.out'),
+    (100000, 100003, 'repack.out'),
     (100003, 110000, 'repack_3.out')
 ) as x (min, max, filename)
 where current_setting('server_version_num')::int between min and max - 1;
