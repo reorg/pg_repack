@@ -292,19 +292,6 @@ CREATE TABLE test_schema2.tbl2 (id INTEGER PRIMARY KEY);
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-kill-backend
 
 --
--- no superuser check
---
-DROP ROLE IF EXISTS nosuper;
-CREATE ROLE nosuper WITH LOGIN;
--- => OK
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-superuser-check
--- => ERROR
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper
--- => ERROR
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
-DROP ROLE IF EXISTS nosuper;
-
---
 -- exclude extension check
 --
 CREATE SCHEMA exclude_extension_schema;
