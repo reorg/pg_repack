@@ -1,10 +1,10 @@
 -- Test output file identifier.
 select filename from (values
-    ( 90100,  90300, 'repack_1.out'),
-    ( 90300,  90322, 'repack_1.out'),
-    ( 90322,  90400, 'repack_5.out'),
-    ( 90400,  90417, 'repack_1.out'),
-    ( 90417,  90500, 'repack_5.out'),
+    ( 90100,  90300, 'repack.out'),
+    ( 90300,  90322, 'repack.out'),
+    ( 90322,  90400, 'repack_3.out'),
+    ( 90400,  90417, 'repack.out'),
+    ( 90417,  90500, 'repack_3.out'),
     ( 90500,  90512, 'repack.out'),
     ( 90512,  90600, 'repack_3.out'),
     ( 90600,  90608, 'repack.out'),
