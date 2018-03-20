@@ -147,6 +147,7 @@ INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
 INSERT INTO tbl_order SELECT generate_series(100, 51, -1);
 CLUSTER tbl_order USING tbl_order_pkey;
 INSERT INTO tbl_order SELECT generate_series(50, 1, -1);
+
 --
 -- before
 --
@@ -162,18 +163,6 @@ SELECT * FROM tbl_with_dropped_toast;
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster
 \! pg_repack --dbname=contrib_regression --table=tbl_badindex
 \! pg_repack --dbname=contrib_regression
-
---
--- after
---
-
-\d tbl_cluster
-\d tbl_gistkey
-\d tbl_only_ckey
-\d tbl_only_pkey
-\d tbl_with_dropped_column
-\d tbl_with_dropped_toast
-\d tbl_idxopts
 
 SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster ORDER BY 1, 2;
 SELECT * FROM tbl_only_ckey ORDER BY 1;

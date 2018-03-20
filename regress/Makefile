@@ -17,7 +17,7 @@ INTVERSION := $(shell echo $$(($$(echo $(VERSION).0 | sed 's/\([[:digit:]]\{1,\}
 # Test suite
 #
 
-REGRESS := init-extension repack tablespace issue3
+REGRESS := init-extension repack after-schema tablespace issue3
 
 USE_PGXS = 1	# use pgxs if not in contrib directory
 PGXS := $(shell $(PG_CONFIG) --pgxs)
