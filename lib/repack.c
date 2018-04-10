@@ -770,7 +770,7 @@ repack_indexdef(PG_FUNCTION_ARGS)
 
 	/* specify the new tablespace or the original one if any */
 	if (tablespace || stmt.tablespace)
-		appendStringInfo(&str, " TABLESPACE %s",
+		appendStringInfo(&str, " TABLESPACE \"%s\"",
 			(tablespace ? NameStr(*tablespace) : stmt.tablespace));
 
 	if (stmt.where)
