@@ -25,6 +25,10 @@ endif
 
 PG_LIBS = $(libpq)
 
+# libs pgport, pgcommon moved somewhere else in some ubuntu version
+# see ticket #179
+PG_LIBS += -L$(shell $(PG_CONFIG) --pkglibdir)
+
 USE_PGXS = 1	# use pgxs if not in contrib directory
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
