@@ -1926,6 +1926,7 @@ repack_table_indexes(PGresult *index_details)
 	params[1] = utoa(table, buffer[1]);
 	params[2] = tablespace;
 	schema_name = getstr(index_details, 0, 5);
+	/* table_name is schema-qualified */
 	table_name = getstr(index_details, 0, 4);
 
 	/* Keep track of which of the table's indexes we have successfully
@@ -1958,7 +1959,7 @@ repack_table_indexes(PGresult *index_details)
 							 "WHERE pgc.relname = 'index_%u' "
 							 "AND nsp.nspname = $1", index);
 			params[0] = schema_name;
-			elog(INFO, "repacking index \"%s\".\"%s\"", schema_name, idx_name);
+			elog(INFO, "repacking index \"%s\"", idx_name);
 			res = execute(sql.data, 1, params);
 			if (PQresultStatus(res) != PGRES_TUPLES_OK)
 			{
@@ -1990,8 +1991,8 @@ repack_table_indexes(PGresult *index_details)
 			if (PQntuples(res) < 1)
 			{
 				elog(WARNING,
-					"unable to generate SQL to CREATE work index for %s.%s",
-					schema_name, getstr(index_details, i, 0));
+					"unable to generate SQL to CREATE work index for %s",
+					getstr(index_details, i, 0));
 				continue;
 			}
 
@@ -2121,7 +2122,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	if (r_index.head)
 	{
 		appendStringInfoString(&sql,
-			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, idx.indrelid::regclass, n.nspname"
+			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, repack.oid2text(idx.indrelid), n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indexrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
@@ -2131,7 +2132,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	else if (table_list.head || parent_table_list.head)
 	{
 		appendStringInfoString(&sql,
-			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
+			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");

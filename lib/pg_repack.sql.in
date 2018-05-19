@@ -23,11 +23,13 @@ CREATE AGGREGATE repack.array_accum (
     initcond = '{}'
 );
 
+-- Always specify search_path to 'pg_catalog' so that we
+-- always can get schema-qualified relation name
 CREATE FUNCTION repack.oid2text(oid) RETURNS text AS
 $$
 	SELECT textin(regclassout($1));
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT SET search_path to 'pg_catalog';
 
 CREATE FUNCTION repack.get_index_columns(oid, text) RETURNS text AS
 $$
@@ -235,7 +237,7 @@ CREATE VIEW repack.primary_keys AS
    GROUP BY indrelid;
 
 CREATE VIEW repack.tables AS
-  SELECT R.oid::regclass AS relname,
+  SELECT repack.oid2text(R.oid) AS relname,
          R.oid AS relid,
          R.reltoastrelid AS reltoastrelid,
          CASE WHEN R.reltoastrelid = 0 THEN 0 ELSE (

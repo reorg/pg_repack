@@ -141,24 +141,24 @@ CREATE TABLE tbl_pk_uk (col1 int NOT NULL, col2 int NOT NULL, PRIMARY KEY(col1, 
 CREATE TABLE tbl_nn_puk (col1 int NOT NULL, col2 int NOT NULL);
 CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
 \! pg_repack --dbname=contrib_regression --table=tbl_nn
-WARNING: relation "tbl_nn" must have a primary key or not-null unique keys
+WARNING: relation "public.tbl_nn" must have a primary key or not-null unique keys
 -- => WARNING
 \! pg_repack --dbname=contrib_regression --table=tbl_uk
-WARNING: relation "tbl_uk" must have a primary key or not-null unique keys
+WARNING: relation "public.tbl_uk" must have a primary key or not-null unique keys
 -- => WARNING
 \! pg_repack --dbname=contrib_regression --table=tbl_nn_uk
-INFO: repacking table "tbl_nn_uk"
+INFO: repacking table "public.tbl_nn_uk"
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_pk_uk
-INFO: repacking table "tbl_pk_uk"
+INFO: repacking table "public.tbl_pk_uk"
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_pk_uk --only-indexes
 INFO: repacking indexes of "tbl_pk_uk"
-INFO: repacking index "public"."tbl_pk_uk_col2_col1_key"
-INFO: repacking index "public"."tbl_pk_uk_pkey"
+INFO: repacking index "public.tbl_pk_uk_col2_col1_key"
+INFO: repacking index "public.tbl_pk_uk_pkey"
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_nn_puk
-WARNING: relation "tbl_nn_puk" must have a primary key or not-null unique keys
+WARNING: relation "public.tbl_nn_puk" must have a primary key or not-null unique keys
 -- => WARNING
 --
 -- Triggers handling
@@ -169,23 +169,23 @@ LANGUAGE plpgsql;
 CREATE TABLE trg1 (id integer PRIMARY KEY);
 CREATE TRIGGER repack_trigger_1 AFTER UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg1
-INFO: repacking table "trg1"
+INFO: repacking table "public.trg1"
 CREATE TABLE trg2 (id integer PRIMARY KEY);
 CREATE TRIGGER repack_trigger AFTER UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg2
-INFO: repacking table "trg2"
-WARNING: the table "trg2" already has a trigger called "repack_trigger"
+INFO: repacking table "public.trg2"
+WARNING: the table "public.trg2" already has a trigger called "repack_trigger"
 DETAIL: The trigger was probably installed during a previous attempt to run pg_repack on the table which was interrupted and for some reason failed to clean up the temporary objects.  Please drop the trigger or drop and recreate the pg_repack extension altogether to remove all the temporary objects left over.
 CREATE TABLE trg3 (id integer PRIMARY KEY);
 CREATE TRIGGER repack_trigger_1 BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
 \! pg_repack --dbname=contrib_regression --table=trg3
-INFO: repacking table "trg3"
+INFO: repacking table "public.trg3"
 --
 -- Table re-organization using specific column
 --
 -- reorganize table using cluster key. Sort in ascending order.
 \! pg_repack --dbname=contrib_regression --table=tbl_order
-INFO: repacking table "tbl_order"
+INFO: repacking table "public.tbl_order"
 SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
   ctid  | c  
 --------+----
@@ -203,7 +203,7 @@ SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
 
 -- reorganize table using specific column order. Sort in descending order.
 \! pg_repack --dbname=contrib_regression --table=tbl_order -o "c DESC"
-INFO: repacking table "tbl_order"
+INFO: repacking table "public.tbl_order"
 SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
   ctid  |  c  
 --------+-----
@@ -224,7 +224,7 @@ SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
 --
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --dry-run
 INFO: Dry run enabled, not executing repack
-INFO: repacking table "tbl_cluster"
+INFO: repacking table "public.tbl_cluster"
 -- Test --schema
 --
 CREATE SCHEMA test_schema1;
@@ -253,7 +253,7 @@ ERROR: cannot repack specific schema(s) in all databases
 -- don't kill backend
 --
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-kill-backend
-INFO: repacking table "tbl_cluster"
+INFO: repacking table "public.tbl_cluster"
 --
 -- exclude extension check
 --
@@ -297,39 +297,39 @@ ERROR: cannot repack specific table(s) in schema, use schema.table notation inst
 ERROR: cannot repack specific table(s) in all databases
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b
-INFO: repacking table "parent_a"
-INFO: repacking table "parent_b"
-INFO: repacking table "child_b_1"
-INFO: repacking table "child_b_2"
+INFO: repacking table "public.child_b_1"
+INFO: repacking table "public.child_b_2"
+INFO: repacking table "public.parent_a"
+INFO: repacking table "public.parent_b"
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b
-INFO: repacking table "parent_a"
-INFO: repacking table "child_a_1"
-INFO: repacking table "child_a_2"
-INFO: repacking table "parent_b"
-INFO: repacking table "child_b_1"
-INFO: repacking table "child_b_2"
+INFO: repacking table "public.child_a_1"
+INFO: repacking table "public.child_a_2"
+INFO: repacking table "public.child_b_1"
+INFO: repacking table "public.child_b_2"
+INFO: repacking table "public.parent_a"
+INFO: repacking table "public.parent_b"
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b --only-indexes
 INFO: repacking indexes of "parent_a"
-INFO: repacking index "public"."parent_a_pkey"
+INFO: repacking index "public.parent_a_pkey"
 INFO: repacking indexes of "public.child_b_1"
-INFO: repacking index "public"."child_b_1_pkey"
+INFO: repacking index "public.child_b_1_pkey"
 INFO: repacking indexes of "public.child_b_2"
-INFO: repacking index "public"."child_b_2_pkey"
+INFO: repacking index "public.child_b_2_pkey"
 INFO: repacking indexes of "public.parent_b"
-INFO: repacking index "public"."parent_b_pkey"
+INFO: repacking index "public.parent_b_pkey"
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes
 INFO: repacking indexes of "public.child_a_1"
-INFO: repacking index "public"."child_a_1_pkey"
+INFO: repacking index "public.child_a_1_pkey"
 INFO: repacking indexes of "public.child_a_2"
-INFO: repacking index "public"."child_a_2_pkey"
+INFO: repacking index "public.child_a_2_pkey"
 INFO: repacking indexes of "public.parent_a"
-INFO: repacking index "public"."parent_a_pkey"
+INFO: repacking index "public.parent_a_pkey"
 INFO: repacking indexes of "public.child_b_1"
-INFO: repacking index "public"."child_b_1_pkey"
+INFO: repacking index "public.child_b_1_pkey"
 INFO: repacking indexes of "public.child_b_2"
-INFO: repacking index "public"."child_b_2_pkey"
+INFO: repacking index "public.child_b_2_pkey"
 INFO: repacking indexes of "public.parent_b"
-INFO: repacking index "public"."parent_b_pkey"
+INFO: repacking index "public.parent_b_pkey"
