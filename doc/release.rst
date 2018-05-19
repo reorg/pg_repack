@@ -24,8 +24,8 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
     pgxn check dist/pg_repack-$VER.zip
 
   (note that ``check`` may require the Postgres bin directory to be added to
-  the path; check the ``install`` log to see where ``pg_repack`` executable
-  was installed).
+  the path, e.g. ``PATH=$(pg_config --bindir):$PATH``; check the ``install``
+  log to see where ``pg_repack`` executable was installed).
 
   .. __: http://pgxnclient.projects.pgfoundry.org/
 
