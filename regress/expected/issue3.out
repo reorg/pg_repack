@@ -10,7 +10,7 @@ SELECT repack.get_order_by('issue3_1_idx'::regclass::oid, 'issue3_1'::regclass::
 (1 row)
 
 \! pg_repack --dbname=contrib_regression --table=issue3_1
-INFO: repacking table "issue3_1"
+INFO: repacking table "public.issue3_1"
 CREATE TABLE issue3_2 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_2_idx ON issue3_2 (col1 DESC, col2 text_pattern_ops);
 SELECT repack.get_order_by('issue3_2_idx'::regclass::oid, 'issue3_2'::regclass::oid);
@@ -20,7 +20,7 @@ SELECT repack.get_order_by('issue3_2_idx'::regclass::oid, 'issue3_2'::regclass::
 (1 row)
 
 \! pg_repack --dbname=contrib_regression --table=issue3_2
-INFO: repacking table "issue3_2"
+INFO: repacking table "public.issue3_2"
 CREATE TABLE issue3_3 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_3_idx ON issue3_3 (col1 DESC, col2 DESC);
 SELECT repack.get_order_by('issue3_3_idx'::regclass::oid, 'issue3_3'::regclass::oid);
@@ -30,7 +30,7 @@ SELECT repack.get_order_by('issue3_3_idx'::regclass::oid, 'issue3_3'::regclass::
 (1 row)
 
 \! pg_repack --dbname=contrib_regression --table=issue3_3
-INFO: repacking table "issue3_3"
+INFO: repacking table "public.issue3_3"
 CREATE TABLE issue3_4 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_4_idx ON issue3_4 (col1 NULLS FIRST, col2 text_pattern_ops DESC NULLS LAST);
 SELECT repack.get_order_by('issue3_4_idx'::regclass::oid, 'issue3_4'::regclass::oid);
@@ -40,7 +40,7 @@ SELECT repack.get_order_by('issue3_4_idx'::regclass::oid, 'issue3_4'::regclass::
 (1 row)
 
 \! pg_repack --dbname=contrib_regression --table=issue3_4
-INFO: repacking table "issue3_4"
+INFO: repacking table "public.issue3_4"
 CREATE TABLE issue3_5 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_5_idx ON issue3_5 (col1 DESC NULLS FIRST, col2 COLLATE "POSIX" DESC);
 SELECT repack.get_order_by('issue3_5_idx'::regclass::oid, 'issue3_5'::regclass::oid);
@@ -50,4 +50,4 @@ SELECT repack.get_order_by('issue3_5_idx'::regclass::oid, 'issue3_5'::regclass::
 (1 row)
 
 \! pg_repack --dbname=contrib_regression --table=issue3_5
-INFO: repacking table "issue3_5"
+INFO: repacking table "public.issue3_5"
