@@ -865,6 +865,18 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 リリースノート
 ---------------
 
+.. * pg_repack 1.4.3
+..  * Fixed possible CVE-2018-1058 attack paths (issue #168)
+..  * Fixed "unexpected index definition" after CVE-2018-1058 changes in
+..    PostgreSQL (issue #169)
+..  * Fixed build with recent Ubuntu packages (issue #179)
+
+* pg_repack 1.4.3
+
+  * CVE-2018-1058を利用した攻撃の可能性を修正しました (issue #168)
+  * PostgreSQLでのCVE-2018-1058の修正により"unexpected index definition"エラーが発生する事象を修正しました (issue #169)
+  * 最近のUbuntuパッケージでビルドが失敗する事象を修正しました (issue #179)
+
 .. * pg_repack 1.4.2
 ..  * added PostgreSQL 10 support (issue #120)
 ..  * fixed error DROP INDEX CONCURRENTLY cannot run inside a transaction block (issue #129)
