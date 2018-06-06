@@ -256,6 +256,7 @@ static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
+static int				lock_wait_max = 1; /* Max lock statement timeout, in seconds */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -285,6 +286,7 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
+	{ 'i', 'L', "lock-wait-max", &lock_wait_max },
 	{ 0 },
 };
 
@@ -307,6 +309,12 @@ main(int argc, char *argv[])
 
 	if (dryrun)
 		elog(INFO, "Dry run enabled, not executing repack");
+
+	if (wait_timeout < lock_wait_max)
+	{
+		ereport(ERROR, (errcode(EINVAL),
+			errmsg("wait-timeout needs to be >= lock-wait-max")));
+	}
 
 	if (r_index.head || only_indexes)
 	{
@@ -1789,7 +1797,7 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 			break;
 
 		/* wait for a while to lock the table. */
-		wait_msec = Min(1000, i * 100);
+		wait_msec = Min(lock_wait_max * 1000, Max(lock_wait_max * 1000 * i / 10, 100));
 		printfStringInfo(&sql, "SET LOCAL statement_timeout = %d", wait_msec);
 		pgut_command(conn, sql.data, 0, NULL);
 
@@ -1930,7 +1938,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		}
 
 		/* wait for a while to lock the table. */
-		wait_msec = Min(1000, i * 100);
+		wait_msec = Min(lock_wait_max * 1000, Max(lock_wait_max * 1000 * i / 10, 100));
 		snprintf(sql, lengthof(sql), "SET LOCAL statement_timeout = %d", wait_msec);
 		pgut_command(conn, sql, 0, NULL);
 
@@ -2351,6 +2359,7 @@ pgut_help(bool details)
 	printf("  -i, --index=INDEX         move only the specified index\n");
 	printf("  -x, --only-indexes        move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
+	printf("  -L, --lock-wait-max=SECS  lock statement max wait time\n");
 	printf("  -D, --no-kill-backend     don't kill other backends when timed out\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 	printf("  -k, --no-superuser-check  skip superuser checks in client\n");

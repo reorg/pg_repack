@@ -119,6 +119,7 @@ Options:
   -i, --index=INDEX         move only the specified index
   -x, --only-indexes        move only indexes of the specified table
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
+  -L, --lock-wait-max=SECS  lock statement max wait time
   -D, --no-kill-backend     don't kill other backends when timed out
   -Z, --no-analyze          don't analyze at end
   -k, --no-superuser-check  skip superuser checks in client
@@ -206,6 +207,13 @@ Reorg Options
     back to using pg_terminate_backend() to disconnect any remaining
     backends after twice this timeout has passed.
     The default is 60 seconds.
+
+``-L SECS``, ``--lock-wait-max=SECS``
+    When pg_repack needs to take table locks (shared or exclusive) it'll wait
+    up to this many seconds before canceling the lock request and trying again.
+    This is done to allow concurrent queries to make progress and not get
+    queued up behind the pg_repack lock request. Consider increasing this
+    timeout if pg_repack fails to acquire table locks. The default is 1 second.
 
 ``-D``, ``--no-kill-backend``
     Skip to repack table if the lock cannot be taken for duration specified
