@@ -452,8 +452,15 @@ prompt_for_password(void)
 	}
 #else
 	buf = (char *)malloc(BUFSIZE);
-	if (buf != NULL)
-		simple_prompt("Password: ", buf, BUFSIZE, false);
+	if (already_passwd_done) {
+		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
+	} else {
+		if (buf != NULL)
+			simple_prompt("Password: ", buf, BUFSIZE, false);
+		already_passwd_done = true;
+		passwdbuf = (char *)malloc(BUFSIZE);
+		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
+	}
 #endif
 
 	if (buf == NULL)
