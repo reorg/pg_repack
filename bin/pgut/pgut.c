@@ -435,10 +435,21 @@ static char *
 prompt_for_password(void)
 {
 	char *buf;
+	static char *passwdbuf;
+	static bool already_passwd_done = false;
+
 #define BUFSIZE 100
 
 #if PG_VERSION_NUM < 100000
-	buf = simple_prompt("Password: ", BUFSIZE, false);
+	if (already_passwd_done) {
+		buf = (char *)malloc(BUFSIZE);
+		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
+	} else {
+		buf = simple_prompt("Password: ", BUFSIZE, false);
+		already_passwd_done = true;
+		passwdbuf = (char *)malloc(BUFSIZE);
+		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
+	}
 #else
 	buf = (char *)malloc(BUFSIZE);
 	if (buf != NULL)
