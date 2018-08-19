@@ -436,29 +436,29 @@ prompt_for_password(void)
 {
 	char *buf;
 	static char *passwdbuf;
-	static bool already_passwd_done = false;
+	static bool have_passwd = false;
 
 #define BUFSIZE 100
 
 #if PG_VERSION_NUM < 100000
-	if (already_passwd_done) {
-		buf = (char *)malloc(BUFSIZE);
+	if (have_passwd) {
+		buf = pgut_malloc(BUFSIZE);
 		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
 	} else {
 		buf = simple_prompt("Password: ", BUFSIZE, false);
-		already_passwd_done = true;
-		passwdbuf = (char *)malloc(BUFSIZE);
+		have_passwd = true;
+		passwdbuf = pgut_malloc(BUFSIZE);
 		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
 	}
 #else
-	buf = (char *)malloc(BUFSIZE);
-	if (already_passwd_done) {
+	buf = pgut_malloc(BUFSIZE);
+	if (have_passwd) {
 		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
 	} else {
 		if (buf != NULL)
 			simple_prompt("Password: ", buf, BUFSIZE, false);
-		already_passwd_done = true;
-		passwdbuf = (char *)malloc(BUFSIZE);
+		have_passwd = true;
+		passwdbuf = pgut_malloc(BUFSIZE);
 		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
 	}
 #endif
