@@ -197,8 +197,8 @@ Reorg Options
     with the ``--table`` or ``--parent-table`` options.
 
 ``-T SECS``, ``--wait-timeout=SECS``
-    pg_repack needs to take an exclusive lock at the end of the
-    reorganization.  This setting controls how many seconds pg_repack will
+    pg_repack needs to take an exclusive lock at the beginning and at the end of 
+    the reorganization.  This setting controls how many seconds pg_repack will
     wait to acquire this lock. If the lock cannot be taken after this duration
     and ``--no-kill-backend`` option is not specified, pg_repack will forcibly
     cancel the conflicting queries. If you are using PostgreSQL version 8.4
