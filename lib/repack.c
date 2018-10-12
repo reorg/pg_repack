@@ -225,7 +225,7 @@ repack_apply(PG_FUNCTION_ARGS)
 	uint32			n, i;
 	Oid				argtypes_peek[1] = { INT4OID };
 	Datum			values_peek[1];
-	bool			nulls_peek[1] = { 0 };
+	const char			nulls_peek[1] = { 0 };
 	StringInfoData		sql_pop;
 
 	initStringInfo(&sql_pop);
@@ -287,21 +287,21 @@ repack_apply(PG_FUNCTION_ARGS)
 				/* INSERT */
 				if (plan_insert == NULL)
 					plan_insert = repack_prepare(sql_insert, 1, &argtypes[2]);
-				execute_plan(SPI_OK_INSERT, plan_insert, &values[2], &nulls[2]);
+				execute_plan(SPI_OK_INSERT, plan_insert, &values[2], (nulls[2] ? "n" : " "));
 			}
 			else if (nulls[2])
 			{
 				/* DELETE */
 				if (plan_delete == NULL)
 					plan_delete = repack_prepare(sql_delete, 1, &argtypes[1]);
-				execute_plan(SPI_OK_DELETE, plan_delete, &values[1], &nulls[1]);
+				execute_plan(SPI_OK_DELETE, plan_delete, &values[1], (nulls[1] ? "n" : " "));
 			}
 			else
 			{
 				/* UPDATE */
 				if (plan_update == NULL)
 					plan_update = repack_prepare(sql_update, 2, &argtypes[1]);
-				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], &nulls[1]);
+				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], (nulls[1] ? "n" : " "));
 			}
 
 			/* Add the primary key ID of each row from the log
@@ -704,7 +704,7 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 				if (indexRel == NULL)
 					indexRel = index_open(index, NoLock);
 
-				opcintype = RelationGetDescr(indexRel)->attrs[nattr]->atttypid;
+				opcintype = TupleDescAttr(RelationGetDescr(indexRel), nattr)->atttypid;
 			}
 
 			oprid = get_opfamily_member(opfamily, opcintype, opcintype, strategy);
