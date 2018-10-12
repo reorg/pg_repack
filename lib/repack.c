@@ -704,7 +704,11 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 				if (indexRel == NULL)
 					indexRel = index_open(index, NoLock);
 
+#if PG_VERSION_NUM >= 110000
 				opcintype = TupleDescAttr(RelationGetDescr(indexRel), nattr)->atttypid;
+#else
+				opcintype = RelationGetDescr(indexRel)->attrs[nattr]->atttypid;
+#endif
 			}
 
 			oprid = get_opfamily_member(opfamily, opcintype, opcintype, strategy);
