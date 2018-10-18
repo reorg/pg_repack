@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10
+    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10, 11
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -468,6 +468,7 @@ Releases
 
 * pg_repack 1.4.4
 
+  * Added support for PostgreSQL 11 (issue #181)
   * Remove duplicate password prompt (issue #184)
 
 * pg_repack 1.4.3
