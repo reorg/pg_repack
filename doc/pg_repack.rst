@@ -466,6 +466,10 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.4.4
+
+  * Remove duplicate password prompt (issue #184)
+
 * pg_repack 1.4.3
 
   * Fixed possible CVE-2018-1058 attack paths (issue #168)
