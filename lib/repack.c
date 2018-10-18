@@ -24,8 +24,14 @@
 #if PG_VERSION_NUM >= 90600
 #include "catalog/pg_am.h"
 #endif
-
+/*
+ * catalog/pg_foo_fn.h headers was merged back into pg_foo.h headers
+ */
+#if PG_VERSION_NUM >= 110000
+#include "catalog/pg_inherits.h"
+#else
 #include "catalog/pg_inherits_fn.h"
+#endif
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
