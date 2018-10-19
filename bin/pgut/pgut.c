@@ -523,7 +523,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			free(passwd);
 
 			/* Hardcode a search path to avoid injections into public or pg_temp */
-			pgut_command(conn, "SET search_path TO pg_catalog, pg_temp", 0, NULL);
+			pgut_command(conn, "SET search_path TO pg_catalog, pg_temp, public", 0, NULL);
 
 			return conn;
 		}
