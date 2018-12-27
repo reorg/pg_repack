@@ -487,11 +487,12 @@ preliminary_checks(char *errbuf, size_t errsize){
 	}
 
 	/* Query the extension version. Exit if no match */
-	res = execute_elevel("select repack.version(), repack.version_sql()",
+	res = execute_elevel("select repack.version(), repack.version_sql(), current_setting('server_version_num')::int >= 90600",
 		0, NULL, DEBUG2);
 	if (PQresultStatus(res) == PGRES_TUPLES_OK)
 	{
 		const char	   *libver;
+		const char	   *has_iitst;
 		char			buf[64];
 
 		/* the string is something like "pg_repack 1.1.7" */
@@ -517,6 +518,13 @@ preliminary_checks(char *errbuf, size_t errsize){
 					"extension '%s' required, found extension '%s'",
 					buf, libver);
 			goto cleanup;
+		}
+		
+		/* If Postgres version is 9.6 or newer, disable idle-in-transaction timeout */
+		has_iitst = getstr(res, 0, 2);
+		if (0 == strcmp("t", has_iitst))
+		{
+			command("SET idle_in_transaction_session_timeout = 0", 0, NULL);
 		}
 	}
 	else
@@ -1703,6 +1711,10 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 
 	termStringInfo(&sql);
 	pgut_command(conn, "RESET statement_timeout", 0, NULL);
+	if (PQserverVersion(conn) >= 90600)
+	{
+		pgut_command(conn, "RESET idle_in_transaction_session_timeout", 0, NULL);
+	}
 	return ret;
 }
 
