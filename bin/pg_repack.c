@@ -487,7 +487,7 @@ preliminary_checks(char *errbuf, size_t errsize){
 	}
 
 	/* Query the extension version. Exit if no match */
-	res = execute_elevel("select repack.version(), repack.version_sql()",
+	res = execute_elevel("select repack.version(), repack.version_sql() ",
 		0, NULL, DEBUG2);
 	if (PQresultStatus(res) == PGRES_TUPLES_OK)
 	{
