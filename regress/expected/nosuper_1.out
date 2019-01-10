@@ -5,6 +5,7 @@ SET client_min_messages = error;
 DROP ROLE IF EXISTS nosuper;
 SET client_min_messages = warning;
 CREATE ROLE nosuper WITH LOGIN;
+GRANT USAGE ON SCHEMA repack TO nosuper;
 -- => OK
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-superuser-check
 INFO: repacking table "public.tbl_cluster"
