@@ -104,10 +104,9 @@ SELECT setseed(0); INSERT INTO tbl_with_mod_column_storage SELECT 1, array_to_st
  
 (1 row)
 
--- This will fail. Silence the message as it's different across PG versions.
-SET client_min_messages = fatal;
+\set VERBOSITY terse
 CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
-SET client_min_messages = warning;
+ERROR:  could not create unique index "idx_badindex_n"
 INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
 -- Insert no-ordered data
 INSERT INTO tbl_order SELECT generate_series(100, 51, -1);

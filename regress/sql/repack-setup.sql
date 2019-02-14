@@ -122,10 +122,8 @@ INSERT INTO tbl_badindex VALUES(2, 10);
 -- insert data that is always stored into the toast table if column type is extended.
 SELECT setseed(0); INSERT INTO tbl_with_mod_column_storage SELECT 1, array_to_string(ARRAY(SELECT chr((random() * (127 - 32) + 32)::int) FROM generate_series(1, 3 * 1024) code), '');
 
--- This will fail. Silence the message as it's different across PG versions.
-SET client_min_messages = fatal;
+\set VERBOSITY terse
 CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
-SET client_min_messages = warning;
 
 INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
 
