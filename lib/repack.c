@@ -18,6 +18,14 @@
 #include "catalog/namespace.h"
 
 /*
+ * heap_open/heap_close was moved to table_open/table_close in 12.0
+ * table.h has macros mapping the old names to the new ones
+ */
+#if PG_VERSION_NUM >= 120000
+#include "access/table.h"
+#endif
+
+/*
  * utils/rel.h no longer includes pg_am.h as of 9.6, so need to include
  * it explicitly.
  */
@@ -112,8 +120,18 @@ must_be_superuser(const char *func)
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
 #elif PG_VERSION_NUM < 90300
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
-#else
+#elif PG_VERSION_NUM < 120000
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true);
+#else
+#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true, false);
+#endif
+/*
+ * is_index flag was added in 12.0, prefer separate macro for relation and index
+ */
+#if PG_VERSION_NUM < 120000
+#define RENAME_INDEX(relid, newrelname) RENAME_REL(relid, newrelname);
+#else
+#define RENAME_INDEX(relid, newrelname) RenameRelationInternal(relid, newrelname, true, false);
 #endif
 
 #ifdef REPACK_VERSION
@@ -931,7 +949,7 @@ repack_swap(PG_FUNCTION_ARGS)
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
 		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_INDEX(reltoastidxid1, name);
 		CommandCounterIncrement();
 	}
 	else if (reltoastrelid1 != InvalidOid)
@@ -943,21 +961,21 @@ repack_swap(PG_FUNCTION_ARGS)
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d", pid);
 		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d_index", pid);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_INDEX(reltoastidxid1, name);
 		CommandCounterIncrement();
 
 		/* rename Y to X */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid);
 		RENAME_REL(reltoastrelid2, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid);
-		RENAME_REL(reltoastidxid2, name);
+		RENAME_INDEX(reltoastidxid2, name);
 		CommandCounterIncrement();
 
 		/* rename TEMP to Y */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
 		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_INDEX(reltoastidxid1, name);
 		CommandCounterIncrement();
 	}
 
