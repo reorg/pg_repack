@@ -154,6 +154,10 @@ WHERE
 $$
 LANGUAGE sql STABLE STRICT;
 
+CREATE FUNCTION repack.get_relhasoids(oid)
+  RETURNS BOOL AS 'MODULE_PATHNAME', 'repack_get_relhasoids'
+LANGUAGE C STABLE STRICT;
+
 -- Get a comma-separated storage paramter for the table including
 -- paramters for the corresponding TOAST table.
 -- Note that since oid setting is always not NULL, this function
@@ -178,12 +182,10 @@ FROM (
     UNION ALL
     -- table oid
     SELECT 'oids = ' ||
-        CASE WHEN relhasoids
+        CASE WHEN repack.get_relhasoids($1)
             THEN 'true'
             ELSE 'false'
         END
-    FROM pg_class
-    WHERE oid = $1
 
     ) as t
 $$
