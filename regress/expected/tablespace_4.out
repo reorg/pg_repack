@@ -1,0 +1,234 @@
+SET client_min_messages = warning;
+--
+-- Tablespace features tests
+--
+-- Note: in order to pass this test you must create a tablespace called 'testts'
+--
+SELECT spcname FROM pg_tablespace WHERE spcname = 'testts';
+ spcname 
+---------
+ testts
+(1 row)
+
+-- If the query above failed you must create the 'testts' tablespace;
+CREATE TABLE testts1 (id serial primary key, data text);
+CREATE INDEX testts1_partial_idx on testts1 (id) where (id > 0);
+CREATE INDEX testts1_with_idx on testts1 (id) with (fillfactor=80);
+INSERT INTO testts1 (data) values ('a');
+INSERT INTO testts1 (data) values ('b');
+INSERT INTO testts1 (data) values ('c');
+-- check the indexes definitions
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, NULL, false),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+                                   regexp_replace                                   
+------------------------------------------------------------------------------------
+ CREATE INDEX index_OID ON repack.table_OID USING btree (id) WHERE (id > 0)
+ CREATE UNIQUE INDEX index_OID ON repack.table_OID USING btree (id)
+ CREATE INDEX index_OID ON repack.table_OID USING btree (id) WITH (fillfactor='80')
+(3 rows)
+
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, 'foo', false),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+                                          regexp_replace                                           
+---------------------------------------------------------------------------------------------------
+ CREATE INDEX index_OID ON repack.table_OID USING btree (id) TABLESPACE foo WHERE (id > 0)
+ CREATE UNIQUE INDEX index_OID ON repack.table_OID USING btree (id) TABLESPACE foo
+ CREATE INDEX index_OID ON repack.table_OID USING btree (id) WITH (fillfactor='80') TABLESPACE foo
+(3 rows)
+
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, NULL, true),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+                                        regexp_replace                                         
+-----------------------------------------------------------------------------------------------
+ CREATE INDEX CONCURRENTLY index_OID ON public.testts1 USING btree (id) WHERE (id > 0)
+ CREATE UNIQUE INDEX CONCURRENTLY index_OID ON public.testts1 USING btree (id)
+ CREATE INDEX CONCURRENTLY index_OID ON public.testts1 USING btree (id) WITH (fillfactor='80')
+(3 rows)
+
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, 'foo', true),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+                                                regexp_replace                                                
+--------------------------------------------------------------------------------------------------------------
+ CREATE INDEX CONCURRENTLY index_OID ON public.testts1 USING btree (id) TABLESPACE foo WHERE (id > 0)
+ CREATE UNIQUE INDEX CONCURRENTLY index_OID ON public.testts1 USING btree (id) TABLESPACE foo
+ CREATE INDEX CONCURRENTLY index_OID ON public.testts1 USING btree (id) WITH (fillfactor='80') TABLESPACE foo
+(3 rows)
+
+-- can move the tablespace from default
+\! pg_repack --dbname=contrib_regression --no-order --table=testts1 --tablespace testts
+INFO: repacking table "public.testts1"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+ relname | spcname 
+---------+---------
+ testts1 | testts
+(1 row)
+
+SELECT * from testts1 order by id;
+ id | data 
+----+------
+  1 | a
+  2 | b
+  3 | c
+(3 rows)
+
+-- tablespace stays where it is
+\! pg_repack --dbname=contrib_regression --no-order --table=testts1
+INFO: repacking table "public.testts1"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+ relname | spcname 
+---------+---------
+ testts1 | testts
+(1 row)
+
+-- can move the ts back to default
+\! pg_repack --dbname=contrib_regression --no-order --table=testts1 -s pg_default
+INFO: repacking table "public.testts1"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+ relname | spcname 
+---------+---------
+(0 rows)
+
+-- can move the table together with the indexes
+\! pg_repack --dbname=contrib_regression --no-order --table=testts1 --tablespace testts --moveidx
+INFO: repacking table "public.testts1"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+       relname       | spcname 
+---------------------+---------
+ testts1             | testts
+ testts1_partial_idx | testts
+ testts1_pkey        | testts
+ testts1_with_idx    | testts
+(4 rows)
+
+-- can't specify --moveidx without --tablespace
+\! pg_repack --dbname=contrib_regression --no-order --table=testts1 --moveidx
+ERROR: cannot specify --moveidx (-S) without --tablespace (-s)
+\! pg_repack --dbname=contrib_regression --no-order --table=testts1 -S
+ERROR: cannot specify --moveidx (-S) without --tablespace (-s)
+-- not broken with order
+\! pg_repack --dbname=contrib_regression -o id --table=testts1 --tablespace pg_default --moveidx
+INFO: repacking table "public.testts1"
+--move all indexes of the table to a tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --tablespace=testts
+INFO: repacking indexes of "testts1"
+INFO: repacking index "public.testts1_partial_idx"
+INFO: repacking index "public.testts1_pkey"
+INFO: repacking index "public.testts1_with_idx"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+       relname       | spcname 
+---------------------+---------
+ testts1_partial_idx | testts
+ testts1_pkey        | testts
+ testts1_with_idx    | testts
+(3 rows)
+
+--all indexes of tablespace remain in same tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes
+INFO: repacking indexes of "testts1"
+INFO: repacking index "public.testts1_partial_idx"
+INFO: repacking index "public.testts1_pkey"
+INFO: repacking index "public.testts1_with_idx"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+       relname       | spcname 
+---------------------+---------
+ testts1_partial_idx | testts
+ testts1_pkey        | testts
+ testts1_with_idx    | testts
+(3 rows)
+
+--move all indexes of the table to pg_default
+\! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --tablespace=pg_default
+INFO: repacking indexes of "testts1"
+INFO: repacking index "public.testts1_partial_idx"
+INFO: repacking index "public.testts1_pkey"
+INFO: repacking index "public.testts1_with_idx"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+ relname | spcname 
+---------+---------
+(0 rows)
+
+--move one index to a tablespace
+\! pg_repack --dbname=contrib_regression --index=testts1_pkey --tablespace=testts
+INFO: repacking index "public.testts1_pkey"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+   relname    | spcname 
+--------------+---------
+ testts1_pkey | testts
+(1 row)
+
+--index tablespace stays as is
+\! pg_repack --dbname=contrib_regression --index=testts1_pkey
+INFO: repacking index "public.testts1_pkey"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+   relname    | spcname 
+--------------+---------
+ testts1_pkey | testts
+(1 row)
+
+--move index to pg_default
+\! pg_repack --dbname=contrib_regression --index=testts1_pkey --tablespace=pg_default
+INFO: repacking index "public.testts1_pkey"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+ relname | spcname 
+---------+---------
+(0 rows)
+
+--using multiple --index option
+\! pg_repack --dbname=contrib_regression --index=testts1_pkey --index=testts1_with_idx --tablespace=testts
+INFO: repacking index "public.testts1_pkey"
+INFO: repacking index "public.testts1_with_idx"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+     relname      | spcname 
+------------------+---------
+ testts1_pkey     | testts
+ testts1_with_idx | testts
+(2 rows)
+
+--using --indexes-only and --index option together
+\! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --index=testts1_pkey
+ERROR: cannot specify --index (-i) and --table (-t)
