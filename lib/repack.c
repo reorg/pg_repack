@@ -80,7 +80,6 @@ extern Datum PGUT_EXPORT repack_drop(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_disable_autovacuum(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_index_swap(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_get_table_and_inheritors(PG_FUNCTION_ARGS);
-extern Datum PGUT_EXPORT repack_get_relhasoids(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(repack_version);
 PG_FUNCTION_INFO_V1(repack_trigger);
@@ -92,7 +91,6 @@ PG_FUNCTION_INFO_V1(repack_drop);
 PG_FUNCTION_INFO_V1(repack_disable_autovacuum);
 PG_FUNCTION_INFO_V1(repack_index_swap);
 PG_FUNCTION_INFO_V1(repack_get_table_and_inheritors);
-PG_FUNCTION_INFO_V1(repack_get_relhasoids);
 
 static void	repack_init(void);
 static SPIPlanPtr repack_prepare(const char *src, int nargs, Oid *argtypes);
@@ -133,7 +131,7 @@ must_be_superuser(const char *func)
 #if PG_VERSION_NUM < 120000
 #define RENAME_INDEX(relid, newrelname) RENAME_REL(relid, newrelname);
 #else
-#define RENAME_INDEX(relid, newrelname) RenameRelationInternal(relid, newrelname, true, false);
+#define RENAME_INDEX(relid, newrelname) RenameRelationInternal(relid, newrelname, true, true);
 #endif
 
 #ifdef REPACK_VERSION
@@ -1430,35 +1428,4 @@ repack_get_table_and_inheritors(PG_FUNCTION_ARGS)
 	pfree(relations_array);
 
 	PG_RETURN_ARRAYTYPE_P(result);
-}
-
-/*
- * PostgreSQL 12 has no more support for "with oids" option and does
- * not have pg_class.relhasoids. Extract pg_class.relhasoid lookup to
- * seperate C routine
- */
-Datum
-repack_get_relhasoids(PG_FUNCTION_ARGS)
-{
-#if PG_VERSION_NUM >= 120000
-	PG_RETURN_BOOL(false);
-#else
-	Relation	class_rel;
-	HeapTuple	tuple;
-	Form_pg_class tuple_class;
-	bool relhasoid;
-
-	class_rel = heap_open(RelationRelationId, RowShareLock);
-
-	tuple = SearchSysCacheCopy1(RELOID, PG_GETARG_DATUM(0));
-	if (!HeapTupleIsValid(tuple))
-		elog(ERROR, "cache lookup failed for relation %u",
-			 PG_GETARG_OID(0));
-	tuple_class = (Form_pg_class) GETSTRUCT(tuple);
-
-	relhasoid = tuple_class->relhasoids;
-
-	heap_close(class_rel, RowShareLock);
-	PG_RETURN_BOOL(relhasoid);
-#endif
 }
