@@ -19,6 +19,14 @@ OBJS = repack.o pgut/pgut-spi.o
 
 SHLIB_EXPORTS = exports.txt
 
+
+# It is not possible to create tables with OIDs on PostgreSQL 12 or later
+ifeq ($(shell echo $$(($(INTVERSION) < 1200))),1)
+    RELHASOIDS := relhasoids
+else
+    RELHASOIDS := false
+endif
+
 # The version number of the program. It should be the same of the library.
 REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
 	| sed -e 's/[ 	]*"version":[ 	]*"\(.*\)",/\1/')
@@ -43,7 +51,8 @@ pg_repack.sql: pg_repack.sql.in
 	echo "COMMIT;" >> $@;
 
 pg_repack--$(REPACK_VERSION).sql: pg_repack.sql.in
-	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@;
+	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< \
+	| sed 's,relhasoids,$(RELHASOIDS),g'> $@;
 
 pg_repack.control: pg_repack.control.in
 	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@
