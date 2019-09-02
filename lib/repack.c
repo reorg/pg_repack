@@ -60,6 +60,11 @@
 #include "utils/ruleutils.h"
 #endif
 
+/* heap_open() was moved for 12, so now we need this header */
+#if PG_VERSION_NUM >= 120000
+#include "access/table.h"
+#endif
+
 PG_MODULE_MAGIC;
 
 extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
@@ -109,11 +114,13 @@ must_be_superuser(const char *func)
  * Use the RENAME_REL macro for compatibility across versions.
  */
 #if PG_VERSION_NUM < 90200
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
+#define RENAME_REL(relid, newrelname, isindex) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
 #elif PG_VERSION_NUM < 90300
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
+#define RENAME_REL(relid, newrelname, isindex) RenameRelationInternal(relid, newrelname);
+#elif PG_VERSION_NUM < 120000
+#define RENAME_REL(relid, newrelname, isindex) RenameRelationInternal(relid, newrelname, true);
 #else
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true);
+#define RENAME_REL(relid, newrelname, isindex) RenameRelationInternal(relid, newrelname, true, isindex);
 #endif
 
 #ifdef REPACK_VERSION
@@ -929,9 +936,9 @@ repack_swap(PG_FUNCTION_ARGS)
 
 		/* rename X to Y */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
-		RENAME_REL(reltoastrelid1, name);
+		RENAME_REL(reltoastrelid1, name, false);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_REL(reltoastidxid1, name, true);
 		CommandCounterIncrement();
 	}
 	else if (reltoastrelid1 != InvalidOid)
@@ -941,23 +948,23 @@ repack_swap(PG_FUNCTION_ARGS)
 
 		/* rename X to TEMP */
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d", pid);
-		RENAME_REL(reltoastrelid1, name);
+		RENAME_REL(reltoastrelid1, name, false);
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d_index", pid);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_REL(reltoastidxid1, name, true);
 		CommandCounterIncrement();
 
 		/* rename Y to X */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid);
-		RENAME_REL(reltoastrelid2, name);
+		RENAME_REL(reltoastrelid2, name, false);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid);
-		RENAME_REL(reltoastidxid2, name);
+		RENAME_REL(reltoastidxid2, name, true);
 		CommandCounterIncrement();
 
 		/* rename TEMP to Y */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
-		RENAME_REL(reltoastrelid1, name);
+		RENAME_REL(reltoastrelid1, name, false);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_REL(reltoastidxid1, name, true);
 		CommandCounterIncrement();
 	}
 
