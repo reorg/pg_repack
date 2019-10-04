@@ -1,13 +1,12 @@
 # Travis CI configuration file for psycopg2
 
-dist: trusty
+dist: xenial
 sudo: required
 
 env:
+  - PGVER=12
   - PGVER=11
-    PGTESTING=1
   - PGVER=10
-    PGTESTING=1
   - PGVER=9.6
   - PGVER=9.5
   - PGVER=9.4
