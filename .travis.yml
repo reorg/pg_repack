@@ -4,6 +4,8 @@ dist: trusty
 sudo: required
 
 env:
+  - PGVER=12
+    PGTESTING=1
   - PGVER=11
     PGTESTING=1
   - PGVER=10
