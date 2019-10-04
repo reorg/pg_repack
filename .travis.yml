@@ -1,6 +1,6 @@
 # Travis CI configuration file for psycopg2
 
-dist: bionic
+dist: xenial
 sudo: required
 
 env:
