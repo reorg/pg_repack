@@ -12,11 +12,11 @@ export PATH="$PGBIN:$PATH"
 # This also stops the server currently running on port 5432
 sudo apt-get remove -y libpq5
 
-if [ "$PGVER" = "9.1" ]; then
+if [[ "$PGVER" = "9.1" || "$PGVER" = "9.2" || "$PGVER" = "9.3" ]]; then
 
     # Dinosaur package kindly provided by psycopg
     sudo mkdir -p /usr/lib/postgresql
-    wget -O - http://initd.org/psycopg/upload/postgresql/postgresql-${PGVER}.tar.bz2 \
+    wget -O - http://initd.org/psycopg/upload/postgresql/postgresql-${PGVER}-xenial.tar.bz2 \
         | sudo tar xjf - -C /usr/lib/postgresql
 
     cd /
@@ -32,7 +32,7 @@ else
         /etc/apt/sources.list.d/pgdg.list
 
     if [ "$PGTESTING" != "" ]; then
-        sudo sed -i "s/trusty-pgdg/trusty-pgdg-testing/" \
+        sudo sed -i "s/xenial-pgdg/xenial-pgdg-testing/" \
             /etc/apt/sources.list.d/pgdg.list
     fi
 
