@@ -49,7 +49,7 @@ else
     sudo service postgresql restart $PGVER
 
     # ensure travis user exists. May be missed if the database was not provided by Travis
-    userexists=`"$PGBIN/psql" -tc "select count(*) from pg_catalog.pg_user where usename='travis';"`
+    userexists=`sudo -u postgres "$PGBIN/psql" -tc "select count(*) from pg_catalog.pg_user where usename='travis';"`
     if [ ${userexists} -eq 0  ]; then
       sudo -u postgres "$PGBIN/psql" -c "create user travis superuser"
     fi
