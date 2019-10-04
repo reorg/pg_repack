@@ -40,6 +40,19 @@ else
     sudo apt-get install -y "libpq5=${PGVER}*" "libpq-dev=${PGVER}*"
     sudo apt-mark hold libpq5
     sudo apt-get install -y postgresql-server-dev-$PGVER postgresql-$PGVER
+
+    # ensure PostgreSQL is running on 5432 port with proper auth
+    sudo sed -i \
+        's/\(^local[[:space:]]\+all[[:space:]]\+all[[:space:]]\+\).*/\1trust/' \
+        "$CONFDIR/pg_hba.conf"
+    sudo bash -c "echo 'port=5432' >> $CONFDIR/postgresql.conf"
+    sudo service postgresql restart $PGVER
+
+    # ensure travis user exists. May be missed if the database was not provided by Travis
+    userexists=`"$PGBIN/psql" -tc "select count(*) from pg_catalog.pg_user where usename='travis';"`
+    if [ ${userexists} -eq 0  ]; then
+      sudo -u postgres "$PGBIN/psql" -c "create user travis superuser"
+    fi
 fi
 
 # Go somewhere else or sudo will fail
@@ -50,18 +63,6 @@ cd /
 sudo -u postgres mkdir -p /var/lib/postgresql/testts
 sudo -u postgres "$PGBIN/psql" \
     -c "create tablespace testts location '/var/lib/postgresql/testts'"
-
-# If the database was not provided by Travis it needs some customization
-if [ "$PGTESTING" != "" ]; then
-
-    # Allow local connections with no password
-    sudo sed -i \
-        's/\(^local[[:space:]]\+all[[:space:]]\+all[[:space:]]\+\).*/\1trust/' \
-        "$CONFDIR/pg_hba.conf"
-    sudo -u postgres "$PGBIN/pg_ctl" -D "$DATADIR" reload
-
-    sudo -u postgres "$PGBIN/psql" -c "create user travis superuser"
-fi
 
 # Go back to the build dir
 cd -
