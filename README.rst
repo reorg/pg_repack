@@ -1,8 +1,8 @@
 pg_repack -- Reorganize tables in PostgreSQL databases with minimal locks
 =========================================================================
 
-- Homepage: http://reorg.github.com/pg_repack
-- Download: http://pgxn.org/dist/pg_repack/
+- Homepage: https://reorg.github.com/pg_repack
+- Download: https://pgxn.org/dist/pg_repack/
 - Development: https://github.com/reorg/pg_repack
 - Bug Report: https://github.com/reorg/pg_repack/issues
 - Mailing List: http://pgfoundry.org/mailman/listinfo/reorg-general
@@ -23,10 +23,10 @@ CLUSTER directly.
 Please check the documentation (in the ``doc`` directory or online_) for
 installation and usage instructions.
 
-.. _pg_repack: http://reorg.github.com/pg_repack
-.. _CLUSTER: http://www.postgresql.org/docs/current/static/sql-cluster.html
+.. _pg_repack: https://reorg.github.com/pg_repack
+.. _CLUSTER: https://www.postgresql.org/docs/current/static/sql-cluster.html
 .. _VACUUM FULL: VACUUM_
-.. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
+.. _VACUUM: https://www.postgresql.org/docs/current/static/sql-vacuum.html
 .. _online: pg_repack_
 .. _issue: https://github.com/reorg/pg_repack/issues/23
 
