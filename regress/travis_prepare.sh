@@ -16,7 +16,7 @@ if [[ "$PGVER" = "9.1" || "$PGVER" = "9.2" || "$PGVER" = "9.3" ]]; then
 
     # Dinosaur package kindly provided by psycopg
     sudo mkdir -p /usr/lib/postgresql
-    wget -O - http://initd.org/psycopg/upload/postgresql/postgresql-${PGVER}-xenial.tar.bz2 \
+    wget -O - https://upload.psycopg.org/postgresql/postgresql-${PGVER}-xenial.tar.bz2 \
         | sudo tar xjf - -C /usr/lib/postgresql
 
     cd /
