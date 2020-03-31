@@ -4,6 +4,8 @@ dist: xenial
 sudo: required
 
 env:
+  - PGVER=13
+    PGTESTING=1
   - PGVER=12
   - PGVER=11
   - PGVER=10
