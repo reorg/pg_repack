@@ -2,22 +2,22 @@
 # Copyright(C) 2009-2010 NIPPON TELEGRAPH AND TELEPHONE CORPORATION
 %define sname	pg_repack
 
-Summary:	Reorganize tables in PostgreSQL databases without any locks. 
+Summary:	Reorganize tables in PostgreSQL databases without any locks.
 Name:		%{sname}
 Version:	1.1.5
 Release:	1%{?dist}
 License:	BSD
 Group:		Applications/Databases
 Source0:	%{sname}-%{version}.tar.gz
-URL:		http://pgfoundry.org/projects/%{sname}/
+URL:		https://reorg.github.io/pg_repack/
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 
 BuildRequires:	postgresql-devel, postgresql
 Requires:	postgresql, postgresql-libs
 
-%description 	
-pg_repack can re-organize tables on a postgres database without any locks so that 
-you can retrieve or update rows in tables being reorganized. 
+%description
+pg_repack can re-organize tables on a postgres database without any locks so that
+you can retrieve or update rows in tables being reorganized.
 The module is developed to be a better alternative of CLUSTER and VACUUM FULL.
 
 %prep
@@ -39,15 +39,15 @@ install -m 755 lib/pg_repack.so			%{buildroot}%{_libdir}/pgsql/pg_repack.so
 install -m 644 lib/pg_repack.sql			%{buildroot}%{_datadir}/pgsql/contrib/pg_repack.sql
 install -m 644 lib/uninstall_pg_repack.sql	%{buildroot}%{_datadir}/pgsql/contrib/uninstall_pg_repack.sql
 
-%define pg_sharedir 
+%define pg_sharedir
 
 %files
 %defattr(755,root,root,755)
 %{_bindir}/pg_repack
 %{_libdir}/pgsql/pg_repack.so
 %defattr(644,root,root,755)
-%{_datadir}/pgsql/contrib/pg_repack.sql 
-%{_datadir}/pgsql/contrib/uninstall_pg_repack.sql 
+%{_datadir}/pgsql/contrib/pg_repack.sql
+%{_datadir}/pgsql/contrib/uninstall_pg_repack.sql
 
 %clean
 rm -rf %{buildroot}

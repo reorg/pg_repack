@@ -11,7 +11,7 @@
  */
 
 const char *PROGRAM_URL		= "http://reorg.github.com/pg_repack";
-const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
+const char *PROGRAM_EMAIL	= 0;
 
 #ifdef REPACK_VERSION
 /* macro trick to stringify a macro expansion */

@@ -27,7 +27,7 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
   the path, e.g. ``PATH=$(pg_config --bindir):$PATH``; check the ``install``
   log to see where ``pg_repack`` executable was installed).
 
-  .. __: http://pgxnclient.projects.pgfoundry.org/
+  .. __: https://pgxn.github.io/pgxnclient/
 
 - Push the code changes on github::
 
@@ -60,5 +60,4 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
 
 - Check the page http://reorg.github.io/pg_repack/ is right.
 
-- Announce the package on reorg-general@pgfoundry.org and
-  pgsql-announce@postgresql.org.
+- Announce the package on pgsql-announce@postgresql.org.
