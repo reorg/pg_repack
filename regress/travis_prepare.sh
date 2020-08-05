@@ -39,7 +39,10 @@ else
     sudo apt-get update
     sudo apt-get install -y "libpq5=${PGVER}*" "libpq-dev=${PGVER}*"
     sudo apt-mark hold libpq5
-    sudo apt-get install -y postgresql-server-dev-$PGVER postgresql-$PGVER
+    # NOTE: This command started failing in Postgres 9.6 in Travis CI
+    # due to the post-install script failing to start Postgres.
+    # See https://github.com/reorg/pg_repack/pull/237
+    sudo apt-get install -y postgresql-server-dev-$PGVER postgresql-$PGVER || [ "${PGVER}" = "9.6" ]
 
     # ensure PostgreSQL is running on 5432 port with proper auth
     sudo sed -i \
