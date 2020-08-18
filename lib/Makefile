@@ -9,15 +9,23 @@
 PG_CONFIG ?= pg_config
 
 # version as a number, e.g. 9.1.4 -> 901
-VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
-INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)\.\([[:digit:]]\{1,\}\).*/\1*100+\2/'))))
+VERSION := $(shell $(PG_CONFIG) --version | sed 's/.* \([[:digit:].]\{1,\}\).*/\1/')
+INTVERSION := $(shell echo $$(($$(echo $(VERSION).0 | sed 's/\([[:digit:]]\{1,\}\)\.\([[:digit:]]\{1,\}\).*/\1*100+\2/'))))
 
 EXTENSION = pg_repack
 MODULE_big = $(EXTENSION)
 
-OBJS = repack.o pgut/pgut-be.o pgut/pgut-spi.o
+OBJS = repack.o pgut/pgut-spi.o
 
 SHLIB_EXPORTS = exports.txt
+
+
+# It is not possible to create tables with OIDs on PostgreSQL 12 or later
+ifeq ($(shell echo $$(($(INTVERSION) < 1200))),1)
+    RELHASOIDS := relhasoids
+else
+    RELHASOIDS := false
+endif
 
 # The version number of the program. It should be the same of the library.
 REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
@@ -25,13 +33,7 @@ REPACK_VERSION = $(shell grep '"version":' ../META.json | head -1 \
 
 PG_CPPFLAGS = -DREPACK_VERSION=$(REPACK_VERSION)
 
-# Support CREATE EXTENSION for PG >= 9.1 and a simple sql script for PG < 9.1
-ifeq ($(shell echo $$(($(INTVERSION) >= 901))),1)
 DATA_built = pg_repack--$(REPACK_VERSION).sql pg_repack.control
-else
-DATA_built = pg_repack.sql
-DATA = uninstall_pg_repack.sql
-endif
 
 USE_PGXS = 1
 PGXS := $(shell $(PG_CONFIG) --pgxs)
@@ -40,9 +42,7 @@ include $(PGXS)
 # remove dependency on libxml2, libxslt, and libpam.
 # XXX: find a better way to make sure we are linking with libraries
 # from pg_config which we actually need.
-LIBS := $(filter-out -lxml2, $(LIBS))
-LIBS := $(filter-out -lxslt, $(LIBS))
-LIBS := $(filter-out -lpam, $(LIBS))
+LIBS := $(filter-out -lpam -lxml2 -lxslt, $(LIBS))
 
 pg_repack.sql: pg_repack.sql.in
 	echo "BEGIN;" > $@; \
@@ -51,7 +51,8 @@ pg_repack.sql: pg_repack.sql.in
 	echo "COMMIT;" >> $@;
 
 pg_repack--$(REPACK_VERSION).sql: pg_repack.sql.in
-	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@;
+	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< \
+	| sed 's,relhasoids,$(RELHASOIDS),g'> $@;
 
 pg_repack.control: pg_repack.control.in
 	sed 's,REPACK_VERSION,$(REPACK_VERSION),g' $< > $@

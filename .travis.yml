@@ -1,0 +1,26 @@
+# Travis CI configuration file for psycopg2
+
+dist: xenial
+sudo: required
+
+env:
+  - PGVER=12
+  - PGVER=11
+  - PGVER=10
+  - PGVER=9.6
+  - PGVER=9.5
+  - PGVER=9.4
+  - PGVER=9.3
+  - PGVER=9.2
+  - PGVER=9.1
+
+install:
+  - source regress/travis_prepare.sh
+  - make
+  - sudo make install
+
+script:
+  - regress/travis_test.sh
+
+notifications:
+  email: false

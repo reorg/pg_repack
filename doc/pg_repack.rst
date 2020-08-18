@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4, 9.5
+    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10, 11, 12
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -84,21 +84,12 @@ You can also use Microsoft Visual C++ 2010 to build the program on Windows.
 There are project files in the ``msvc`` folder.
 
 After installation, load the pg_repack extension in the database you want to
-process. On PostgreSQL 9.1 and following pg_repack is packaged as an
-extension, so you can execute::
+process. pg_repack is packaged as an extension, so you can execute::
 
     $ psql -c "CREATE EXTENSION pg_repack" -d your_database
 
-For previous PostgreSQL versions you should load the script
-``$SHAREDIR/contrib/pg_repack.sql`` in the database to process; you can
-get ``$SHAREDIR`` using ``pg_config --sharedir``, e.g. ::
-
-    $ psql -f "$(pg_config --sharedir)/contrib/pg_repack.sql" -d your_database
-
-You can remove pg_repack from a PostgreSQL 9.1 and following database using
-``DROP EXTENSION pg_repack``. For previous Postgresql versions load the
-``$SHAREDIR/contrib/uninstall_pg_repack.sql`` script or just drop the
-``repack`` schema.
+You can remove pg_repack using ``DROP EXTENSION pg_repack`` or just dropping
+the ``repack`` schema.
 
 If you are upgrading from a previous version of pg_repack or pg_reorg, just
 drop the old version from the database as explained above and install the new
@@ -117,6 +108,7 @@ The following options can be specified in ``OPTIONS``.
 Options:
   -a, --all                 repack all databases
   -t, --table=TABLE         repack specific table only
+  -I, --parent-table=TABLE  repack specific parent table and its inheritors
   -c, --schema=SCHEMA       repack tables in specific schema only
   -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
   -S, --moveidx             move repacked indexes to *TBLSPC* too
@@ -127,7 +119,10 @@ Options:
   -i, --index=INDEX         move only the specified index
   -x, --only-indexes        move only indexes of the specified table
   -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
+  -D, --no-kill-backend     don't kill other backends when timed out
   -Z, --no-analyze          don't analyze at end
+  -k, --no-superuser-check  skip superuser checks in client
+  -C, --exclude-extension   don't repack tables which belong to specific extension
 
 Connection options:
   -d, --dbname=DBNAME       database to connect
@@ -155,6 +150,10 @@ Reorg Options
     Reorganize the specified table(s) only. Multiple tables may be
     reorganized by writing multiple ``-t`` switches. By default, all eligible
     tables in the target databases are reorganized.
+
+``-I TABLE``, ``--parent-table=TABLE``
+    Reorganize both the specified table(s) and its inheritors. Multiple
+    table hierarchies may be reorganized by writing multiple ``-I`` switches.
 
 ``-c``, ``--schema``
     Repack the tables in the specified schema(s) only. Multiple schemas may
@@ -195,27 +194,40 @@ Reorg Options
 
 ``-x``, ``--only-indexes``
     Repack only the indexes of the specified table(s), which must be specified
-    with the ``--table`` option.
+    with the ``--table`` or ``--parent-table`` options.
 
 ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
-    wait to acquire this lock. If the lock cannot be taken after this duration,
-    pg_repack will forcibly cancel the conflicting queries. If you are using
-    PostgreSQL version 8.4 or newer, pg_repack will fall back to using
-    pg_terminate_backend() to disconnect any remaining backends after
-    twice this timeout has passed. The default is 60 seconds.
+    wait to acquire this lock. If the lock cannot be taken after this duration
+    and ``--no-kill-backend`` option is not specified, pg_repack will forcibly
+    cancel the conflicting queries. If you are using PostgreSQL version 8.4
+    or newer, pg_repack will fall back to using pg_terminate_backend() to
+    disconnect any remaining backends after twice this timeout has passed.
+    The default is 60 seconds.
+
+``-D``, ``--no-kill-backend``
+    Skip to repack table if the lock cannot be taken for duration specified
+    ``--wait-timeout``, instead of cancelling conflicting queries. The default
+    is false.
 
 ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
     ANALYZE after the reorganization.
 
+``-k``, ``--no-superuser-check``
+    Skip the superuser checks in the client.  This setting is useful for using
+    pg_repack on platforms that support running it as non-superusers.
+
+``-C``, ``--exclude-extension``
+    Skip tables that belong to the specified extension(s). Some extensions
+    may heavily depend on such tables at planning time etc.
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
 
 Options to connect to servers. You cannot use ``--all`` and ``--dbname`` or
-``--table`` together.
+``--table`` or ``--parent-table`` together.
 
 ``-a``, ``--all``
     Reorganize all databases.
@@ -362,7 +374,7 @@ ERROR: query failed: ERROR: column "col" does not exist
 
     Specify existing columns.
 
-WARNING: the table "tbl" already has a trigger called z_repack_trigger
+WARNING: the table "tbl" already has a trigger called repack_trigger
     The trigger was probably installed during a previous attempt to run
     pg_repack on the table which was interrupted and for some reason failed
     to clean up the temporary objects.
@@ -370,31 +382,19 @@ WARNING: the table "tbl" already has a trigger called z_repack_trigger
     You can remove all the temporary objects by dropping and re-creating the
     extension: see the installation_ section for the details.
 
-WARNING: trigger "trg" conflicting on table "tbl"
-    The target table has a trigger whose name follows ``z_repack_trigger``
-    in alphabetical order.
-
-    The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
-    Please rename your trigger so that it sorts alphabetically before
-    pg_repack's one; you can use::
-
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
-
-ERROR: Another pg_repack command may be running on the table. Please try again
-    later.
-
-   There is a chance of deadlock when two concurrent pg_repack commands are run
-   on the same table. So, try to run the command after some time.
+ERROR: Another pg_repack command may be running on the table. Please try again later.
+    There is a chance of deadlock when two concurrent pg_repack commands are
+    run on the same table. So, try to run the command after some time.
 
 WARNING: Cannot create index  "schema"."index_xxxxx", already exists
-DETAIL: An invalid index may have been left behind by a previous pg_repack on
-the table which was interrupted. Please use DROP INDEX "schema"."index_xxxxx"
-to remove this index and try again.
+    DETAIL: An invalid index may have been left behind by a previous pg_repack
+    on the table which was interrupted. Please use DROP INDEX
+    "schema"."index_xxxxx" to remove this index and try again.
 
-   A temporary index apparently created by pg_repack has been left behind, and
-   we do not want to risk dropping this index ourselves. If the index was in
-   fact created by an old pg_repack job which didn't get cleaned up, you
-   should just use DROP INDEX and try the repack command again.
+    A temporary index apparently created by pg_repack has been left behind, and
+    we do not want to risk dropping this index ourselves. If the index was in
+    fact created by an old pg_repack job which didn't get cleaned up, you
+    should just use DROP INDEX and try the repack command again.
 
 
 Restrictions
@@ -410,7 +410,7 @@ pg_repack cannot reorganize temp tables.
 GiST indexes
 ^^^^^^^^^^^^
 
-pg_repack cannot reorganize tables using GiST indexes.
+pg_repack cannot cluster tables by GiST indexes.
 
 DDL commands
 ^^^^^^^^^^^^
@@ -466,10 +466,49 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.4.5
+
+  * Added support for PostgreSQL 12
+  * Fixed parallel processing for indexes with operators from public schema
+
+* pg_repack 1.4.4
+
+  * Added support for PostgreSQL 11 (issue #181)
+  * Remove duplicate password prompt (issue #184)
+
+* pg_repack 1.4.3
+
+  * Fixed possible CVE-2018-1058 attack paths (issue #168)
+  * Fixed "unexpected index definition" after CVE-2018-1058 changes in
+    PostgreSQL (issue #169)
+  * Fixed build with recent Ubuntu packages (issue #179)
+
+* pg_repack 1.4.2
+
+  * added PostgreSQL 10 support (issue #120)
+  * fixed error DROP INDEX CONCURRENTLY cannot run inside a transaction block
+    (issue #129)
+
+* pg_repack 1.4.1
+
+  * fixed broken ``--order-by`` option (issue #138)
+
+* pg_repack 1.4
+
+  * added support for PostgreSQL 9.6, dropped support for versions before 9.1
+  * use ``AFTER`` trigger to solve concurrency problems with ``INSERT
+    CONFLICT`` (issue #106)
+  * added ``--no-kill-backend`` option (issue #108)
+  * added ``--no-superuser-check`` option (issue #114)
+  * added ``--exclude-extension`` option (#97)
+  * added ``--parent-table`` option (#117)
+  * restore TOAST storage parameters on repacked tables (issue #10)
+  * restore columns storage types in repacked tables (issue #94)
+
 * pg_repack 1.3.4
 
-  * grab exclusive lock before dropping original table (#81)
-  * do not attempt to repack unlogged tables (#71)
+  * grab exclusive lock before dropping original table (issue #81)
+  * do not attempt to repack unlogged tables (issue #71)
 
 * pg_repack 1.3.3
 

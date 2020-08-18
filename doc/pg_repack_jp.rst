@@ -62,7 +62,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
   ------------
   
   PostgreSQL versions
-      PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4
+      PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10
   
   Disks
       Performing a full-table repack requires free disk space about twice as
@@ -75,7 +75,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
 ---------
 
 PostgreSQL バージョン
-    PostgreSQL 8.3, 8.4, 9.0, 9.1, 9.2, 9.3, 9.4
+    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6
 
 ディスク
     テーブル全体の再編成を行うには、対象となるテーブルと付属するインデックスのおよそ2倍のサイズのディスク空き容量が必要です。例えば、テーブルとインデックスを合わせたサイズが1GBの場合、2GBのディスク領域が必要となります。
@@ -196,6 +196,7 @@ pg_repackもしくはpg_reorgの古いバージョンからのアップグレー
   Options:
     -a, --all                 repack all databases
     -t, --table=TABLE         repack specific table only
+    -I, --parent-table=TABLE  repack specific parent table and its inheritors
     -c, --schema=SCHEMA       repack tables in specific schema only
     -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
     -S, --moveidx             move repacked indexes to *TBLSPC* too
@@ -206,7 +207,9 @@ pg_repackもしくはpg_reorgの古いバージョンからのアップグレー
     -i, --index=INDEX         move only the specified index
     -x, --only-indexes        move only indexes of the specified table
     -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
+    -D, --no-kill-backend     don't kill other backends when timed out
     -Z, --no-analyze          don't analyze at end
+    -k, --no-superuser-check  skip superuser checks in client
   
   Connection options:
     -d, --dbname=DBNAME       database to connect
@@ -234,6 +237,7 @@ OPTIONには以下のものが指定できます。
 固有オプション:
   -a, --all                 すべてのデータベースに対して実行します
   -t, --table=TABLE         指定したテーブルに対して実行します
+  -I, --parent-table=TABLE  指定したテーブルとそれを継承する全ての子テーブルに対して実行します
   -c, --schema=SCHEMA       指定したスキーマに存在するテーブル全てに対して実行します
   -s, --tablespace=TBLSPC   指定したテーブル空間に再編成後のテーブルを配置します
   -S, --moveidx             -s/--tablespaceで指定したテーブル空間に再編成対象のテーブルに付与されたインデックスも配置します
@@ -244,7 +248,9 @@ OPTIONには以下のものが指定できます。
   -i, --index=INDEX         指定したインデックスのみ再編成します
   -x, --only-indexes        指定したテーブルに付与されたインデックスだけを再編成します
   -T, --wait-timeout=SECS   ロック競合している他のトランザクションをキャンセルするまで待機する時間を指定します
+  -D, --no-kill-backend     タイムアウト時に他のバックエンドをキャンセルしません
   -Z, --no-analyze          再編成後にANALYZEを行いません
+  -k, --no-superuser-check  接続ユーザがスーパーユーザかどうかのチェックを行いません
 
 接続オプション:
   -d, --dbname=DBNAME       接続する対象のデータベースを指定します
@@ -279,6 +285,13 @@ OPTIONには以下のものが指定できます。
 
 ``-t TABLE``, ``--table=TABLE``
     指定したテーブルのみを再編成します。 ``-t`` オプションを複数同時に使用することで、複数のテーブルを指定することができます。このオプションを指定しない限り、対象のデータベースに存在するすべてのテーブルを再編成します。
+
+.. ``-I TABLE``, ``--parent-table=TABLE``
+    Reorganize both the specified table(s) and its inheritors. Multiple
+    table hierarchies may be reorganized by writing multiple ``-I`` switches.
+
+``-I TABLE``, ``--parent-table=TABLE``
+    指定したテーブルとその子テーブルのみを再編成します。 ``-I`` オプションを複数同時に使用することで、複数の親テーブルを指定することができます。
 
 .. ``-c``, ``--schema``
     Repack the tables in the specified schema(s) only. Multiple schemas may
@@ -343,23 +356,31 @@ OPTIONには以下のものが指定できます。
 
 .. ``-x``, ``--only-indexes``
     Repack only the indexes of the specified table(s), which must be specified
-    with the ``--table`` option.
+    with the ``--table`` or ``--parent-table`` option.
 
 ``-x``, ``--only-indexes``
-    ``--table`` オプションと併用することで、指定したテーブルのインデックスのみを再編成します。
+    ``--table`` または ``--parent-table`` オプションと併用することで、指定したテーブルのインデックスのみを再編成します。
 
 .. ``-T SECS``, ``--wait-timeout=SECS``
     pg_repack needs to take an exclusive lock at the end of the
     reorganization.  This setting controls how many seconds pg_repack will
-    wait to acquire this lock. If the lock cannot be taken after this duration,
-    pg_repack will forcibly cancel the conflicting queries. If you are using
-    PostgreSQL version 8.4 or newer, pg_repack will fall back to using
-    pg_terminate_backend() to disconnect any remaining backends after
-    twice this timeout has passed. The default is 60 seconds.
+    wait to acquire this lock. If the lock cannot be taken after this duration
+    and ``--no-kill-backend`` option is not specified, pg_repack will forcibly
+    cancel the conflicting queries. If you are using PostgreSQL version 8.4
+    or newer, pg_repack will fall back to using pg_terminate_backend() to
+    disconnect any remaining backends after twice this timeout has passed.
+    The default is 60 seconds.
 
 ``-T SECS``, ``--wait-timeout=SECS``
-    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
+    pg_repackは再編成の完了直前に排他ロックを利用します。このオプションは、このロック取得時に何秒間pg_repackが取得を待機するかを指定します。指定した時間経ってもロックが取得できないかつ、``no-kill-backend``\オプションが指定されていない場合、pg_repackは競合するクエリを強制的にキャンセルさせます。PostgreSQL 8.4以上のバージョンを利用している場合、指定した時間の2倍以上経ってもロックが取得できない場合、pg_repackは競合するクエリを実行しているPostgreSQLバックエンドプロセスをpg_terminate_backend()関数により強制的に停止させます。このオプションのデフォルトは60秒です。
 
+..  ``-D``, ``--no-kill-backend``
+    Skip to repack table if the lock cannot be taken for duration specified
+    ``--wait-timeout``, instead of cancelling conflicting queries. The default
+    is false.
+
+``-D``, ``--no-kill-backend``
+    ``--wait-timeout``\オプションで指定された時間が経過してもロックが取得できない場合、競合するクエリをキャンセルする代わりに対象テーブルの再編成をスキップします。
 
 .. ``-Z``, ``--no-analyze``
     Disable ANALYZE after a full-table reorganization. If not specified, run
@@ -368,16 +389,23 @@ OPTIONには以下のものが指定できます。
 ``-Z``, ``--no-analyze``
     再編成終了後にANALYZEを行うことを無効にします。デフォルトでは再編成完了後に統計情報を更新するためANALYZEを実行します。
 
+.. ``-k``, ``--no-superuser-check``
+    Skip the superuser checks in the client. This setting is useful for using
+    pg_repack on platforms that support running it as non-superusers.
+
+``-k``, ``--no-superuser-check``
+    接続ユーザがスーパーユーザかどうかのチェックを行いません。これは、非スーパーユーザのみが利用できる環境でpg_repackを使用するときに有用です。
+
 .. Connection Options
    ^^^^^^^^^^^^^^^^^^
   Options to connect to servers. You cannot use ``--all`` and ``--dbname`` or
-  ``--table`` together.
+  ``--table`` or ``--parent-table`` together.
 
 接続オプション
 ---------------
 
 PostgreSQLサーバに接続するためのオプションです。
-``--all`` オプションと同時に ``--dbname`` や ``--table`` を利用することはできません。
+``--all`` オプションと同時に ``--dbname`` 、 ``--table`` や ``--parent-table`` を利用することはできません。
 
 
 .. ``-a``, ``--all``
@@ -651,7 +679,7 @@ ERROR: query failed: ERROR: column "col" does not exist
     対象のテーブルが  ``--order-by`` オプションで指定したカラムを持っていない場合に表示されます。
     存在しているカラムを指定してください。
 
-.. WARNING: the table "tbl" already has a trigger called z_repack_trigger
+.. WARNING: the table "tbl" already has a trigger called a_repack_trigger
     The trigger was probably installed during a previous attempt to run
     pg_repack on the table which was interrupted and for some reason failed
     to clean up the temporary objects.
@@ -661,37 +689,21 @@ ERROR: query failed: ERROR: column "col" does not exist
 
 .. class:: diag
 
-WARNING: the table "tbl" already has a trigger called z_repack_trigger
+WARNING: the table "tbl" already has a trigger called repack_trigger
     以前に実行したが何らかの理由で中断したか、あるいは失敗したpg_repackコマンドにより、
     対象テーブルにpg_repackが利用するトリガが残存している場合に表示されます。
     pg_repackを一度削除して、再度登録することで、こうした一時オブジェクトを削除できます。
     `インストール`_ を参照してください。
     
 .. WARNING: trigger "trg" conflicting on table "tbl"
-    The target table has a trigger whose name follows ``z_repack_trigger``
+    The target table has a trigger whose name follows ``repack_trigger``
     in alphabetical order.
   
-    The ``z_repack_trigger`` should be the last BEFORE trigger to fire.
+    The ``repack_trigger`` should be the first AFTER trigger to fire.
     Please rename your trigger so that it sorts alphabetically before
     pg_repack's one; you can use::
   
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
-
-.. class:: diag
-
-WARNING: trigger "trg" conflicting on table "tbl"
-    対象のテーブルが、pg_repackが利用する ``z_repack_trigger`` という名前のトリガ
-    よりもアルファベット順で後ろになるような名前のトリガを持っている場合に表示されます。
-    ``z_repack_trigger`` トリガは最後に実行されるBEFOREトリガになる必要があります。
-    該当のトリガ名称を変更してください。::
-
-        ALTER TRIGGER zzz_my_trigger ON sometable RENAME TO yyy_my_trigger;
-
-.. ERROR: Another pg_repack command may be running on the table. Please try again
-    later.
-  
-   There is a chance of deadlock when two concurrent pg_repack commands are run
-   on the same table. So, try to run the command after some time.
+        ALTER TRIGGER aaa_my_trigger ON sometable RENAME TO bbb_my_trigger;
 
 .. class:: diag
 
@@ -852,6 +864,90 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 リリースノート
 ---------------
+
+.. * pg_repack 1.4.3
+..  * Fixed possible CVE-2018-1058 attack paths (issue #168)
+..  * Fixed "unexpected index definition" after CVE-2018-1058 changes in
+..    PostgreSQL (issue #169)
+..  * Fixed build with recent Ubuntu packages (issue #179)
+
+* pg_repack 1.4.3
+
+  * CVE-2018-1058を利用した攻撃の可能性を修正しました (issue #168)
+  * PostgreSQLでのCVE-2018-1058の修正により"unexpected index definition"エラーが発生する事象を修正しました (issue #169)
+  * 最近のUbuntuパッケージでビルドが失敗する事象を修正しました (issue #179)
+
+.. * pg_repack 1.4.2
+..  * added PostgreSQL 10 support (issue #120)
+..  * fixed error DROP INDEX CONCURRENTLY cannot run inside a transaction block (issue #129)
+
+* pg_repack 1.4.2
+
+  * PostgreSQL 10をサポートしました (issue #120)
+  * エラー「DROP INDEX CONCURRENTLY cannot run inside a transaction block」が発生する事象を修正しました (issue #129)
+
+.. * pg_repack 1.4.1
+..   * fixed broken ``--order-by`` option (issue #138)
+
+* pg_repack 1.4.1
+
+  * 壊れていた ``--order-by`` オプションを修正しました (issue #138)
+
+.. * pg_repack 1.4
+..   * added support for PostgreSQL 9.6
+..   * use ``AFTER`` trigger to solve concurrency problems with ``INSERT
+..     CONFLICT`` (issue #106)
+..   * added ``--no-kill-backend`` option (issue #108)
+..   * added ``--no-superuser-check`` option (issue #114)
+..   * added ``--exclude-extension`` option (#97)
+..   * added ``--parent-table`` option (#117)
+..   * restore TOAST storage parameters on repacked tables (issue #10)
+..   * restore columns storage types in repacked tables (issue #94)
+
+* pg_repack 1.4
+
+  * PostgreSQL 9.6をサポートしました
+  * ``INSERT CONFLICT`` を同時実行した際の問題を解決するために、
+    ``AFTER`` トリガを使うようにしました(issue #106)
+  * ``--no-kill-backend`` オプションを追加しました (issue #108)
+  * ``--no-superuser-check`` オプションを追加しました (issue #114)
+  * ``--exclude-extension`` オプションを追加しました (#97)
+  * ``--parent-table`` オプションを追加しました(#117)
+  * TOASTテーブルの格納オプションを再編成後のテーブルに再設定するようにしました (issue #10)
+  * 列の格納タイプを再編成後のテーブルに再設定するようにしました (issue #94)
+
+.. * pg_repack 1.3.4
+..  * grab exclusive lock before dropping original table (#81)
+..  * do not attempt to repack unlogged table (#71)
+
+* pg_repack 1.3.4
+
+  * 元テーブルを削除する前に排他ロックを取得するようにしました(#81)
+  * Unlogged Tableを再編成対象から外すようにしました (#71)
+
+.. * pg_repack 1.3.3
+..  * Added support for PostgreSQL 9.5
+..  * Fixed possible deadlock when pg_repack command is interrupted (issue #55)
+..  * Fixed exit code for when pg_repack is invoked with ``--help`` and
+..    ``--version``
+..  * Added Japanese language user manual
+
+* pg_repack 1.3.3
+
+  * PostgreSQL 9.5をサポートしました
+  * pg_repackが中断されたときにデッドロックが発生する可能性を修正しました (issue #55)
+  * ``--help`` または ``--version`` オプションを指定した実行したときの終了コードを修正しました
+  * 日本語のユーザマニュアルを追加しました
+
+.. * pg_repack 1.3.2
+..  * Fixed to clean up temporary objects when pg_repack command is interrupted.
+..  * Fixed possible crash when pg_repack shared library is loaded a alongside
+..    pg_statsinfo (issue #43)
+
+* pg_repack 1.3.2
+
+  * pg_repackが中断されたときに一時オブジェクトを削除するようにしました
+  * pg_statsinfoと同時にロードされている時にクラッシュする可能性を修正しました
 
 .. * pg_repack 1.3.1
 ..  * Added support for PostgreSQL 9.4.

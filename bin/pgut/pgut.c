@@ -79,11 +79,9 @@ pgut_init(int argc, char **argv)
 		pthread_mutex_init(&pgut_conn_mutex, NULL);
 #endif
 
-#if PG_VERSION_NUM >= 90000
 		/* application_name for 9.0 or newer versions */
 		if (getenv("PGAPPNAME") == NULL)
 			pgut_putenv("PGAPPNAME", PROGRAM_NAME);
-#endif
 
 		init_cancel_handler();
 		atexit(on_cleanup);
@@ -436,7 +434,44 @@ simple_string_list_size(SimpleStringList list)
 static char *
 prompt_for_password(void)
 {
-	return simple_prompt("Password: ", 100, false);
+	char *buf;
+	static char *passwdbuf;
+	static bool have_passwd = false;
+
+#define BUFSIZE 100
+
+#if PG_VERSION_NUM < 100000
+	if (have_passwd) {
+		buf = pgut_malloc(BUFSIZE);
+		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
+	} else {
+		buf = simple_prompt("Password: ", BUFSIZE, false);
+		have_passwd = true;
+		passwdbuf = pgut_malloc(BUFSIZE);
+		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
+	}
+#else
+	buf = pgut_malloc(BUFSIZE);
+	if (have_passwd) {
+		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
+	} else {
+		if (buf != NULL)
+			simple_prompt("Password: ", buf, BUFSIZE, false);
+		have_passwd = true;
+		passwdbuf = pgut_malloc(BUFSIZE);
+		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
+	}
+#endif
+
+	if (buf == NULL)
+		ereport(FATAL,
+			(errcode_errno(),
+			 errmsg("could not allocate memory (" UINT64_FORMAT " bytes): ",
+				(uint64) BUFSIZE)));
+
+	return buf;
+
+#undef BUFSIZE
 }
 
 
@@ -486,6 +521,9 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			if (add_pass.data != NULL)
 				termStringInfo(&add_pass);
 			free(passwd);
+
+			/* Hardcode a search path to avoid injections into public or pg_temp */
+			pgut_command(conn, "SET search_path TO pg_catalog, pg_temp, public", 0, NULL);
 
 			return conn;
 		}
@@ -1307,8 +1345,8 @@ pgut_malloc(size_t size)
 	if ((ret = malloc(size)) == NULL)
 		ereport(FATAL,
 			(errcode_errno(),
-			 errmsg("could not allocate memory (%lu bytes): ",
-				(unsigned long) size)));
+			 errmsg("could not allocate memory (" UINT64_FORMAT " bytes): ",
+				(uint64) size)));
 	return ret;
 }
 
@@ -1320,8 +1358,8 @@ pgut_realloc(void *p, size_t size)
 	if ((ret = realloc(p, size)) == NULL)
 		ereport(FATAL,
 			(errcode_errno(),
-			 errmsg("could not re-allocate memory (%lu bytes): ",
-				(unsigned long) size)));
+			 errmsg("could not re-allocate memory (" UINT64_FORMAT " bytes): ",
+				(uint64) size)));
 	return ret;
 }
 

@@ -1,0 +1,335 @@
+SET client_min_messages = warning;
+SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster ORDER BY 1, 2;
+ col1 |       to_char       |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        ,")                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         
+------+---------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    1 | 2008-12-31 10:00:00 | admin
+    2 | 2008-01-01 00:00:00 | king
+    3 | 2008-03-04 12:00:00 | joker
+    4 | 2008-03-05 15:00:00 | queen
+    5 | 2008-01-01 00:30:00 | 1.4142135623730950488016887242096980785696718753769480731766797379907324784621070388503875343276415727350138462309122970249248360558507372126441214970999358314132226659275055927557999505011527820605714701095599716059702745345968620147285174186408891986095523292304843087143214508397626036279952514079896872533965463318088296406206152583523950547457502877599617298355752203375318570113543746034084988471603868999706990048150305440277903164542478230684929369186215805784631115966687130130156185689872372352885092648612494977154218334204285686060146824720771435854874155657069677653720226485447015858801620758474922657226002085584466521458398893944370926591800311388246468157082630100594858704003186480342194897278290641045072636881313739855256117322040245091227700226941127573627280495738108967504018369868368450725799364729060762996941380475654823728997180326802474420629269124859052181004459842150591120249441341728531478105803603371077309182869314710171111683916581726889419758716582152128229518488471.732050807568877293527446341505872366942805253810380628055806979451933016908800037081146186757248575675626141415406703029969945094998952478811655512094373648528093231902305582067974820101084674923265015312343266903322886650672254668921837971227047131660367861588019049986537379859389467650347506576050756618348129606100947602187190325083145829523959832997789824508288714463832917347224163984587855397667958063818353666110843173780894378316102088305524901670023520711144288695990956365797087168498072899493296484283020786408603988738697537582317317831395992983007838702877053913369563312103707264019249106768231199288375641141422016742752102372994270831059898459475987664288897796147837958390228854852903576033852808064381972344661059689722872865264153822664698420021195484155278441181286534507035191650016689294415480846071277143999762926834629577438361895110127148638746976545982451788550975379013880664961911962222957110555242923723192197738262561631468842032853716682938649611917049738836395495938
+(5 rows)
+
+SELECT * FROM tbl_only_ckey ORDER BY 1;
+ col1 |           col2           | ,") 
+------+--------------------------+-----
+    1 | Tue Jan 01 00:00:00 2008 | abc
+    2 | Fri Feb 01 00:00:00 2008 | def
+(2 rows)
+
+SELECT * FROM tbl_only_pkey ORDER BY 1;
+ col1 | ,") 
+------+-----
+    1 | abc
+    2 | def
+(2 rows)
+
+SELECT * FROM tbl_gistkey ORDER BY 1;
+ id |     c     
+----+-----------
+  1 | <(1,2),3>
+  2 | <(4,5),6>
+(2 rows)
+
+SET enable_seqscan = on;
+SET enable_indexscan = off;
+SELECT * FROM tbl_with_dropped_column ;
+ c1 | id | c2 | c3 
+----+----+----+----
+ c1 |  1 | c2 | 
+ c1 |  2 | c2 | 
+(2 rows)
+
+SELECT * FROM view_for_dropped_column ORDER BY 1, 2;
+ c1 | id | c2 | c3 
+----+----+----+----
+ c1 |  1 | c2 | 
+ c1 |  2 | c2 | 
+(2 rows)
+
+SELECT * FROM tbl_with_dropped_toast;
+ i | j  
+---+----
+ 1 | 10
+ 2 | 20
+(2 rows)
+
+SET enable_seqscan = off;
+SET enable_indexscan = on;
+SELECT * FROM tbl_with_dropped_column ORDER BY 1, 2;
+ c1 | id | c2 | c3 
+----+----+----+----
+ c1 |  1 | c2 | 
+ c1 |  2 | c2 | 
+(2 rows)
+
+SELECT * FROM view_for_dropped_column;
+ c1 | id | c2 | c3 
+----+----+----+----
+ c1 |  1 | c2 | 
+ c1 |  2 | c2 | 
+(2 rows)
+
+SELECT * FROM tbl_with_dropped_toast;
+ i | j  
+---+----
+ 1 | 10
+ 2 | 20
+(2 rows)
+
+RESET enable_seqscan;
+RESET enable_indexscan;
+-- check if storage option for both table and TOAST table didn't go away.
+SELECT CASE relkind
+       WHEN 'r' THEN relname
+       WHEN 't' THEN 'toast_table'
+       END as table,
+       reloptions
+FROM pg_class
+WHERE relname = 'tbl_with_toast' OR relname = 'pg_toast_' || 'tbl_with_toast'::regclass::oid
+ORDER BY 1;
+     table      |                             reloptions                              
+----------------+---------------------------------------------------------------------
+ tbl_with_toast | {autovacuum_vacuum_scale_factor=30,autovacuum_vacuum_threshold=300}
+ toast_table    | {autovacuum_vacuum_scale_factor=40,autovacuum_vacuum_threshold=400}
+(2 rows)
+
+SELECT pg_relation_size(reltoastrelid) = 0 as check_toast_rel_size FROM pg_class WHERE relname = 'tbl_with_mod_column_storage';
+ check_toast_rel_size 
+----------------------
+ t
+(1 row)
+
+--
+-- check broken links or orphan toast relations
+--
+SELECT oid, relname
+  FROM pg_class
+ WHERE relkind = 't'
+   AND oid NOT IN (SELECT reltoastrelid FROM pg_class WHERE relkind = 'r');
+ oid | relname 
+-----+---------
+(0 rows)
+
+SELECT oid, relname
+  FROM pg_class
+ WHERE relkind = 'r'
+   AND reltoastrelid <> 0
+   AND reltoastrelid NOT IN (SELECT oid FROM pg_class WHERE relkind = 't');
+ oid | relname 
+-----+---------
+(0 rows)
+
+-- check columns options
+SELECT attname, attstattarget, attoptions
+FROM pg_attribute
+WHERE attrelid = 'tbl_idxopts'::regclass
+AND attnum > 0
+ORDER BY attnum;
+ attname | attstattarget |    attoptions     
+---------+---------------+-------------------
+ i       |             1 | 
+ t       |            -1 | {n_distinct=-0.5}
+(2 rows)
+
+--
+-- NOT NULL UNIQUE
+--
+CREATE TABLE tbl_nn    (col1 int NOT NULL, col2 int NOT NULL);
+CREATE TABLE tbl_uk    (col1 int NOT NULL, col2 int         , UNIQUE(col1, col2));
+CREATE TABLE tbl_nn_uk (col1 int NOT NULL, col2 int NOT NULL, UNIQUE(col1, col2));
+CREATE TABLE tbl_pk_uk (col1 int NOT NULL, col2 int NOT NULL, PRIMARY KEY(col1, col2), UNIQUE(col2, col1));
+CREATE TABLE tbl_nn_puk (col1 int NOT NULL, col2 int NOT NULL);
+CREATE UNIQUE INDEX tbl_nn_puk_pcol1_idx ON tbl_nn_puk(col1) WHERE col1 < 10;
+\! pg_repack --dbname=contrib_regression --table=tbl_nn
+WARNING: relation "public.tbl_nn" must have a primary key or not-null unique keys
+-- => WARNING
+\! pg_repack --dbname=contrib_regression --table=tbl_uk
+WARNING: relation "public.tbl_uk" must have a primary key or not-null unique keys
+-- => WARNING
+\! pg_repack --dbname=contrib_regression --table=tbl_nn_uk
+INFO: repacking table "public.tbl_nn_uk"
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=tbl_pk_uk
+INFO: repacking table "public.tbl_pk_uk"
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=tbl_pk_uk --only-indexes
+INFO: repacking indexes of "tbl_pk_uk"
+INFO: repacking index "public.tbl_pk_uk_col2_col1_key"
+INFO: repacking index "public.tbl_pk_uk_pkey"
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=tbl_nn_puk
+WARNING: relation "public.tbl_nn_puk" must have a primary key or not-null unique keys
+-- => WARNING
+--
+-- Triggers handling
+--
+CREATE FUNCTION trgtest() RETURNS trigger AS
+$$BEGIN RETURN NEW; END$$
+LANGUAGE plpgsql;
+CREATE TABLE trg1 (id integer PRIMARY KEY);
+CREATE TRIGGER repack_trigger_1 AFTER UPDATE ON trg1 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+\! pg_repack --dbname=contrib_regression --table=trg1
+INFO: repacking table "public.trg1"
+CREATE TABLE trg2 (id integer PRIMARY KEY);
+CREATE TRIGGER repack_trigger AFTER UPDATE ON trg2 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+\! pg_repack --dbname=contrib_regression --table=trg2
+INFO: repacking table "public.trg2"
+WARNING: the table "public.trg2" already has a trigger called "repack_trigger"
+DETAIL: The trigger was probably installed during a previous attempt to run pg_repack on the table which was interrupted and for some reason failed to clean up the temporary objects.  Please drop the trigger or drop and recreate the pg_repack extension altogether to remove all the temporary objects left over.
+CREATE TABLE trg3 (id integer PRIMARY KEY);
+CREATE TRIGGER repack_trigger_1 BEFORE UPDATE ON trg3 FOR EACH ROW EXECUTE PROCEDURE trgtest();
+\! pg_repack --dbname=contrib_regression --table=trg3
+INFO: repacking table "public.trg3"
+--
+-- Table re-organization using specific column
+--
+-- reorganize table using cluster key. Sort in ascending order.
+\! pg_repack --dbname=contrib_regression --table=tbl_order
+INFO: repacking table "public.tbl_order"
+SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
+  ctid  | c  
+--------+----
+ (0,1)  |  1
+ (0,2)  |  2
+ (0,3)  |  3
+ (0,4)  |  4
+ (0,5)  |  5
+ (0,6)  |  6
+ (0,7)  |  7
+ (0,8)  |  8
+ (0,9)  |  9
+ (0,10) | 10
+(10 rows)
+
+-- reorganize table using specific column order. Sort in descending order.
+\! pg_repack --dbname=contrib_regression --table=tbl_order -o "c DESC"
+INFO: repacking table "public.tbl_order"
+SELECT ctid, c FROM tbl_order WHERE ctid <= '(0,10)';
+  ctid  |  c  
+--------+-----
+ (0,1)  | 100
+ (0,2)  |  99
+ (0,3)  |  98
+ (0,4)  |  97
+ (0,5)  |  96
+ (0,6)  |  95
+ (0,7)  |  94
+ (0,8)  |  93
+ (0,9)  |  92
+ (0,10) |  91
+(10 rows)
+
+--
+-- Dry run
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --dry-run
+INFO: Dry run enabled, not executing repack
+INFO: repacking table "public.tbl_cluster"
+-- Test --schema
+--
+CREATE SCHEMA test_schema1;
+CREATE TABLE test_schema1.tbl1 (id INTEGER PRIMARY KEY);
+CREATE TABLE test_schema1.tbl2 (id INTEGER PRIMARY KEY);
+CREATE SCHEMA test_schema2;
+CREATE TABLE test_schema2.tbl1 (id INTEGER PRIMARY KEY);
+CREATE TABLE test_schema2.tbl2 (id INTEGER PRIMARY KEY);
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=test_schema1
+INFO: repacking table "test_schema1.tbl1"
+INFO: repacking table "test_schema1.tbl2"
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=test_schema1 --schema=test_schema2
+INFO: repacking table "test_schema1.tbl1"
+INFO: repacking table "test_schema1.tbl2"
+INFO: repacking table "test_schema2.tbl1"
+INFO: repacking table "test_schema2.tbl2"
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --schema=test_schema1 --table=tbl1
+ERROR: cannot repack specific table(s) in schema, use schema.table notation instead
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --all --schema=test_schema1
+ERROR: cannot repack specific schema(s) in all databases
+--
+-- don't kill backend
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-kill-backend
+INFO: repacking table "public.tbl_cluster"
+--
+-- exclude extension check
+--
+CREATE SCHEMA exclude_extension_schema;
+CREATE TABLE exclude_extension_schema.tbl(val integer primary key);
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=dummy_table --exclude-extension=dummy_extension
+ERROR: cannot specify --table (-t) and --exclude-extension (-C)
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=dummy_table --exclude-extension=dummy_extension -x
+ERROR: cannot specify --only-indexes (-x) and --exclude-extension (-C)
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --index=dummy_index --exclude-extension=dummy_extension
+ERROR: cannot specify --index (-i) and --exclude-extension (-C)
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension
+INFO: repacking table "exclude_extension_schema.tbl"
+-- => OK
+\! pg_repack --dbname=contrib_regression --schema=exclude_extension_schema --exclude-extension=dummy_extension --exclude-extension=dummy_extension
+INFO: repacking table "exclude_extension_schema.tbl"
+--
+-- table inheritance check
+--
+CREATE TABLE parent_a(val integer primary key);
+CREATE TABLE child_a_1(val integer primary key) INHERITS(parent_a);
+CREATE TABLE child_a_2(val integer primary key) INHERITS(parent_a);
+CREATE TABLE parent_b(val integer primary key);
+CREATE TABLE child_b_1(val integer primary key) INHERITS(parent_b);
+CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table
+ERROR: pg_repack failed with error: ERROR:  relation "dummy_table" does not exist
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_index --index=dummy_index
+ERROR: cannot specify --index (-i) and --parent-table (-I)
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table --schema=dummy_schema
+ERROR: cannot repack specific table(s) in schema, use schema.table notation instead
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --parent-table=dummy_table --all
+ERROR: cannot repack specific table(s) in all databases
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b
+INFO: repacking table "public.child_b_1"
+INFO: repacking table "public.child_b_2"
+INFO: repacking table "public.parent_a"
+INFO: repacking table "public.parent_b"
+-- => OK
+\! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b
+INFO: repacking table "public.child_a_1"
+INFO: repacking table "public.child_a_2"
+INFO: repacking table "public.child_b_1"
+INFO: repacking table "public.child_b_2"
+INFO: repacking table "public.parent_a"
+INFO: repacking table "public.parent_b"
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b --only-indexes
+INFO: repacking indexes of "parent_a"
+INFO: repacking index "public.parent_a_pkey"
+INFO: repacking indexes of "public.child_b_1"
+INFO: repacking index "public.child_b_1_pkey"
+INFO: repacking indexes of "public.child_b_2"
+INFO: repacking index "public.child_b_2_pkey"
+INFO: repacking indexes of "public.parent_b"
+INFO: repacking index "public.parent_b_pkey"
+-- => OK
+\! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes
+INFO: repacking indexes of "public.child_a_1"
+INFO: repacking index "public.child_a_1_pkey"
+INFO: repacking indexes of "public.child_a_2"
+INFO: repacking index "public.child_a_2_pkey"
+INFO: repacking indexes of "public.parent_a"
+INFO: repacking index "public.parent_a_pkey"
+INFO: repacking indexes of "public.child_b_1"
+INFO: repacking index "public.child_b_1_pkey"
+INFO: repacking indexes of "public.child_b_2"
+INFO: repacking index "public.child_b_2_pkey"
+INFO: repacking indexes of "public.parent_b"
+INFO: repacking index "public.parent_b_pkey"

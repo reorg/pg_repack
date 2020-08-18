@@ -18,20 +18,38 @@
 #include "catalog/namespace.h"
 
 /*
+ * heap_open/heap_close was moved to table_open/table_close in 12.0
+ * table.h has macros mapping the old names to the new ones
+ */
+#if PG_VERSION_NUM >= 120000
+#include "access/table.h"
+#endif
+
+/*
  * utils/rel.h no longer includes pg_am.h as of 9.6, so need to include
  * it explicitly.
  */
 #if PG_VERSION_NUM >= 90600
 #include "catalog/pg_am.h"
 #endif
-
+/*
+ * catalog/pg_foo_fn.h headers was merged back into pg_foo.h headers
+ */
+#if PG_VERSION_NUM >= 110000
+#include "catalog/pg_inherits.h"
+#else
+#include "catalog/pg_inherits_fn.h"
+#endif
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
 #include "miscadmin.h"
+#include "storage/lmgr.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/relcache.h"
@@ -61,6 +79,7 @@ extern Datum PGUT_EXPORT repack_swap(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_drop(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_disable_autovacuum(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_index_swap(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_get_table_and_inheritors(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(repack_version);
 PG_FUNCTION_INFO_V1(repack_trigger);
@@ -71,6 +90,7 @@ PG_FUNCTION_INFO_V1(repack_swap);
 PG_FUNCTION_INFO_V1(repack_drop);
 PG_FUNCTION_INFO_V1(repack_disable_autovacuum);
 PG_FUNCTION_INFO_V1(repack_index_swap);
+PG_FUNCTION_INFO_V1(repack_get_table_and_inheritors);
 
 static void	repack_init(void);
 static SPIPlanPtr repack_prepare(const char *src, int nargs, Oid *argtypes);
@@ -93,14 +113,6 @@ must_be_superuser(const char *func)
 }
 
 
-/* Include an implementation of RenameRelationInternal for old
- * versions which don't have one.
- */
-#if PG_VERSION_NUM < 80400
-static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId);
-#endif
-
-
 /* The API of RenameRelationInternal() was changed in 9.2.
  * Use the RENAME_REL macro for compatibility across versions.
  */
@@ -108,8 +120,18 @@ static void RenameRelationInternal(Oid myrelid, const char *newrelname, Oid name
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
 #elif PG_VERSION_NUM < 90300
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
-#else
+#elif PG_VERSION_NUM < 120000
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true);
+#else
+#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true, false);
+#endif
+/*
+ * is_index flag was added in 12.0, prefer separate macro for relation and index
+ */
+#if PG_VERSION_NUM < 120000
+#define RENAME_INDEX(relid, newrelname) RENAME_REL(relid, newrelname);
+#else
+#define RENAME_INDEX(relid, newrelname) RenameRelationInternal(relid, newrelname, true, true);
 #endif
 
 #ifdef REPACK_VERSION
@@ -151,7 +173,7 @@ repack_trigger(PG_FUNCTION_ARGS)
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
-		!TRIGGER_FIRED_BEFORE(trigdata->tg_event) ||
+		!TRIGGER_FIRED_AFTER(trigdata->tg_event) ||
 		!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event) ||
 		trigdata->tg_trigger->tgnargs != 1)
 		elog(ERROR, "repack_trigger: invalid trigger call");
@@ -227,7 +249,7 @@ repack_apply(PG_FUNCTION_ARGS)
 	uint32			n, i;
 	Oid				argtypes_peek[1] = { INT4OID };
 	Datum			values_peek[1];
-	bool			nulls_peek[1] = { 0 };
+	const char			nulls_peek[1] = { 0 };
 	StringInfoData		sql_pop;
 
 	initStringInfo(&sql_pop);
@@ -289,21 +311,21 @@ repack_apply(PG_FUNCTION_ARGS)
 				/* INSERT */
 				if (plan_insert == NULL)
 					plan_insert = repack_prepare(sql_insert, 1, &argtypes[2]);
-				execute_plan(SPI_OK_INSERT, plan_insert, &values[2], &nulls[2]);
+				execute_plan(SPI_OK_INSERT, plan_insert, &values[2], (nulls[2] ? "n" : " "));
 			}
 			else if (nulls[2])
 			{
 				/* DELETE */
 				if (plan_delete == NULL)
 					plan_delete = repack_prepare(sql_delete, 1, &argtypes[1]);
-				execute_plan(SPI_OK_DELETE, plan_delete, &values[1], &nulls[1]);
+				execute_plan(SPI_OK_DELETE, plan_delete, &values[1], (nulls[1] ? "n" : " "));
 			}
 			else
 			{
 				/* UPDATE */
 				if (plan_update == NULL)
 					plan_update = repack_prepare(sql_update, 2, &argtypes[1]);
-				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], &nulls[1]);
+				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], (nulls[1] ? "n" : " "));
 			}
 
 			/* Add the primary key ID of each row from the log
@@ -312,9 +334,9 @@ repack_apply(PG_FUNCTION_ARGS)
 			 * can delete all the rows we have processed at-once.
 			 */
 			if (i == 0)
-			    appendStringInfoString(&sql_pop, pkid);
+				appendStringInfoString(&sql_pop, pkid);
 			else
-			    appendStringInfo(&sql_pop, ",%s", pkid);
+				appendStringInfo(&sql_pop, ",%s", pkid);
 			pfree(pkid);
 		}
 		/* i must be > 0 (and hence we must have some rows to delete)
@@ -356,12 +378,47 @@ get_relation_name(Oid relid)
 {
 	Oid		nsp = get_rel_namespace(relid);
 	char   *nspname;
+	char   *strver;
+	int ver;
 
-	/* Qualify the name if not visible in search path */
-	if (RelationIsVisible(relid))
-		nspname = NULL;
+	/* Get the version of the running server (PG_VERSION_NUM would return
+	 * the version we compiled the extension with) */
+	strver = GetConfigOptionByName("server_version_num", NULL
+#if PG_VERSION_NUM >= 90600
+		, false	    /* missing_ok */
+#endif
+	);
+
+	ver = atoi(strver);
+	pfree(strver);
+
+	/*
+	 * Relation names given by PostgreSQL core are always
+	 * qualified since some minor releases. Note that this change
+	 * wasn't introduced in PostgreSQL 9.2 and 9.1 releases.
+	 */
+	if ((ver >= 100000 && ver < 100003) ||
+		(ver >= 90600 && ver < 90608) ||
+		(ver >= 90500 && ver < 90512) ||
+		(ver >= 90400 && ver < 90417) ||
+		(ver >= 90300 && ver < 90322) ||
+		(ver >= 90200 && ver < 90300) ||
+		(ver >= 90100 && ver < 90200))
+	{
+		/* Qualify the name if not visible in search path */
+		if (RelationIsVisible(relid))
+			nspname = NULL;
+		else
+			nspname = get_namespace_name(nsp);
+	}
 	else
-		nspname = get_namespace_name(nsp);
+	{
+		/* Always qualify the name */
+		if (OidIsValid(nsp))
+			nspname = get_namespace_name(nsp);
+		else
+			nspname = NULL;
+	}
 
 	return quote_qualified_identifier(nspname, get_rel_name(relid));
 }
@@ -671,7 +728,11 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 				if (indexRel == NULL)
 					indexRel = index_open(index, NoLock);
 
+#if PG_VERSION_NUM >= 110000
+				opcintype = TupleDescAttr(RelationGetDescr(indexRel), nattr)->atttypid;
+#else
 				opcintype = RelationGetDescr(indexRel)->attrs[nattr]->atttypid;
+#endif
 			}
 
 			oprid = get_opfamily_member(opfamily, opcintype, opcintype, strategy);
@@ -888,7 +949,7 @@ repack_swap(PG_FUNCTION_ARGS)
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
 		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_INDEX(reltoastidxid1, name);
 		CommandCounterIncrement();
 	}
 	else if (reltoastrelid1 != InvalidOid)
@@ -900,28 +961,28 @@ repack_swap(PG_FUNCTION_ARGS)
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d", pid);
 		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_pid%d_index", pid);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_INDEX(reltoastidxid1, name);
 		CommandCounterIncrement();
 
 		/* rename Y to X */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid);
 		RENAME_REL(reltoastrelid2, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid);
-		RENAME_REL(reltoastidxid2, name);
+		RENAME_INDEX(reltoastidxid2, name);
 		CommandCounterIncrement();
 
 		/* rename TEMP to Y */
 		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid2);
 		RENAME_REL(reltoastrelid1, name);
 		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid2);
-		RENAME_REL(reltoastidxid1, name);
+		RENAME_INDEX(reltoastidxid1, name);
 		CommandCounterIncrement();
 	}
 
 	/* drop repack trigger */
 	execute_with_format(
 		SPI_OK_UTILITY,
-		"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
+		"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
 		nspname, relname);
 
 	SPI_finish();
@@ -962,7 +1023,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	 * To prevent concurrent lockers of the repack target table from causing
 	 * deadlocks, take an exclusive lock on it. Consider that the following
 	 * commands take exclusive lock on tables log_xxx and the target table
-	 * itself when deleting the z_repack_trigger on it, while concurrent
+	 * itself when deleting the repack_trigger on it, while concurrent
 	 * updaters require row exclusive lock on the target table and in
 	 * addition, on the log_xxx table, because of the trigger.
 	 *
@@ -974,11 +1035,21 @@ repack_drop(PG_FUNCTION_ARGS)
 	 * which in turn, is waiting for lock on log_%u table.
 	 *
 	 * Fixes deadlock mentioned in the Github issue #55.
+	 *
+	 * Skip the lock if we are not going to do anything.
+	 * Otherwise, if repack gets accidentally run twice for the same table
+	 * at the same time, the second repack, in order to perform
+	 * a pointless cleanup, has to wait until the first one completes.
+	 * This adds an ACCESS EXCLUSIVE lock request into the queue
+	 * making the table effectively inaccessible for any other backend.
 	 */
-	execute_with_format(
-		SPI_OK_UTILITY,
-		"LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE",
-		nspname, relname);
+	if (numobj > 0)
+	{
+		execute_with_format(
+			SPI_OK_UTILITY,
+			"LOCK TABLE %s.%s IN ACCESS EXCLUSIVE MODE",
+			nspname, relname);
+	}
 
 	/* drop log table: must be done before dropping the pk type,
 	 * since the log table is dependent on the pk type. (That's
@@ -1011,23 +1082,10 @@ repack_drop(PG_FUNCTION_ARGS)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
-			"DROP TRIGGER IF EXISTS z_repack_trigger ON %s.%s CASCADE",
+			"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
 			nspname, relname);
 		--numobj;
 	}
-
-#if PG_VERSION_NUM < 80400
-	/* delete autovacuum settings */
-	execute_with_format(
-		SPI_OK_DELETE,
-		"DELETE FROM pg_catalog.pg_autovacuum v"
-		" USING pg_class c, pg_namespace n"
-		" WHERE relname IN ('log_%u', 'table_%u')"
-		"   AND n.nspname = 'repack'"
-		"   AND c.relnamespace = n.oid"
-		"   AND v.vacrelid = c.oid",
-		oid, oid);
-#endif
 
 	/* drop temp table */
 	if (numobj > 0)
@@ -1052,17 +1110,10 @@ repack_disable_autovacuum(PG_FUNCTION_ARGS)
 	/* connect to SPI manager */
 	repack_init();
 
-#if PG_VERSION_NUM >= 80400
 	execute_with_format(
 		SPI_OK_UTILITY,
 		"ALTER TABLE %s SET (autovacuum_enabled = off)",
 		get_relation_name(oid));
-#else
-	execute_with_format(
-		SPI_OK_INSERT,
-		"INSERT INTO pg_catalog.pg_autovacuum VALUES (%u, false, -1, -1, -1, -1, -1, -1, -1, -1)",
-		oid);
-#endif
 
 	SPI_finish();
 
@@ -1179,14 +1230,25 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 		relform2->reltuples = swap_tuples;
 	}
 
+	indstate = CatalogOpenIndexes(relRelation);
+
+#if PG_VERSION_NUM < 100000
+
 	/* Update the tuples in pg_class */
 	simple_heap_update(relRelation, &reltup1->t_self, reltup1);
 	simple_heap_update(relRelation, &reltup2->t_self, reltup2);
 
 	/* Keep system catalogs current */
-	indstate = CatalogOpenIndexes(relRelation);
 	CatalogIndexInsert(indstate, reltup1);
 	CatalogIndexInsert(indstate, reltup2);
+
+#else
+
+	CatalogTupleUpdateWithInfo(relRelation, &reltup1->t_self, reltup1, indstate);
+	CatalogTupleUpdateWithInfo(relRelation, &reltup2->t_self, reltup2, indstate);
+
+#endif
+
 	CatalogCloseIndexes(indstate);
 
 	/*
@@ -1306,8 +1368,8 @@ repack_index_swap(PG_FUNCTION_ARGS)
 					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);
 	if (SPI_processed != 1)
-		elog(ERROR, "Could not find index 'index_%u', found %d matches",
-			 orig_idx_oid, SPI_processed);
+		elog(ERROR, "Could not find index 'index_%u', found " UINT64_FORMAT " matches",
+			 orig_idx_oid, (uint64) SPI_processed);
 
 	tuptable = SPI_tuptable;
 	desc = tuptable->tupdesc;
@@ -1318,27 +1380,52 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	PG_RETURN_VOID();
 }
 
-#if PG_VERSION_NUM < 80400
-
-/* XXX: You might need to add PGDLLIMPORT into your miscadmin.h. */
-extern PGDLLIMPORT bool allowSystemTableMods;
-
-static void
-RenameRelationInternal(Oid myrelid, const char *newrelname, Oid namespaceId)
+/**
+ * @fn      Datum get_table_and_inheritors(PG_FUNCTION_ARGS)
+ * @brief   Return array containing Oids of parent table and its children.
+ *          Note that this function does not release relation locks.
+ *
+ * get_table_and_inheritors(table)
+ *
+ * @param	table	parent table.
+ * @retval	regclass[]
+ */
+Datum
+repack_get_table_and_inheritors(PG_FUNCTION_ARGS)
 {
-	bool	save_allowSystemTableMods = allowSystemTableMods;
+	Oid			parent = PG_GETARG_OID(0);
+	List	   *relations;
+	Datum	   *relations_array;
+	int			relations_array_size;
+	ArrayType  *result;
+	ListCell   *lc;
+	int			i;
 
-	allowSystemTableMods = true;
-	PG_TRY();
-	{
-		renamerel(myrelid, newrelname, OBJECT_TABLE);
-		allowSystemTableMods = save_allowSystemTableMods;
-	}
-	PG_CATCH();
-	{
-		allowSystemTableMods = save_allowSystemTableMods;
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
+	LockRelationOid(parent, AccessShareLock);
+
+	/* Check that parent table exists */
+	if (!SearchSysCacheExists1(RELOID, ObjectIdGetDatum(parent)))
+		PG_RETURN_ARRAYTYPE_P(construct_empty_array(OIDOID));
+
+	/* Also check that children exist */
+	relations = find_all_inheritors(parent, AccessShareLock, NULL);
+
+	relations_array_size = list_length(relations);
+	if (relations_array_size == 0)
+		PG_RETURN_ARRAYTYPE_P(construct_empty_array(OIDOID));
+
+	relations_array = palloc(relations_array_size * sizeof(Datum));
+
+	i = 0;
+	foreach (lc, relations)
+		relations_array[i++] = ObjectIdGetDatum(lfirst_oid(lc));
+
+	result = construct_array(relations_array,
+							 relations_array_size,
+							 OIDOID, sizeof(Oid),
+							 true, 'i');
+
+	pfree(relations_array);
+
+	PG_RETURN_ARRAYTYPE_P(result);
 }
-#endif

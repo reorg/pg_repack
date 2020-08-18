@@ -25,14 +25,15 @@ endif
 
 PG_LIBS = $(libpq)
 
+# libs pgport, pgcommon moved somewhere else in some ubuntu version
+# see ticket #179
+PG_LIBS += -L$(shell $(PG_CONFIG) --pkglibdir)
+
 USE_PGXS = 1	# use pgxs if not in contrib directory
-PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
 # remove dependency on libxml2, libxslt, and libpam.
 # XXX: find a better way to make sure we are linking with libraries
 # from pg_config which we actually need.
-LIBS := $(filter-out -lxml2, $(LIBS))
-LIBS := $(filter-out -lxslt, $(LIBS))
-LIBS := $(filter-out -lpam, $(LIBS))
+LIBS := $(filter-out -ledit -lgssapi_krb5 -lpam -lselinux -lxml2 -lxslt, $(LIBS))

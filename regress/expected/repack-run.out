@@ -1,0 +1,20 @@
+--
+-- do repack
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster
+INFO: repacking table "public.tbl_cluster"
+\! pg_repack --dbname=contrib_regression --table=tbl_badindex
+INFO: repacking table "public.tbl_badindex"
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badindex USING btree (n)
+\! pg_repack --dbname=contrib_regression
+INFO: repacking table "public.tbl_badindex"
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON tbl_badindex USING btree (n)
+INFO: repacking table "public.tbl_cluster"
+INFO: repacking table "public.tbl_gistkey"
+INFO: repacking table "public.tbl_idxopts"
+INFO: repacking table "public.tbl_only_pkey"
+INFO: repacking table "public.tbl_order"
+INFO: repacking table "public.tbl_with_dropped_column"
+INFO: repacking table "public.tbl_with_dropped_toast"
+INFO: repacking table "public.tbl_with_mod_column_storage"
+INFO: repacking table "public.tbl_with_toast"

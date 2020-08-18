@@ -99,6 +99,9 @@ setup_workers(int num_workers)
 				break;
 			}
 
+			/* Hardcode a search path to avoid injections into public or pg_temp */
+			pgut_command(conn, "SET search_path TO pg_catalog, pg_temp, public", 0, NULL);
+
             /* Make sure each worker connection can work in non-blocking
              * mode.
              */

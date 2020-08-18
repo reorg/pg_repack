@@ -1,0 +1,142 @@
+SET client_min_messages = warning;
+
+--
+-- create table.
+--
+
+CREATE TABLE tbl_cluster (
+	col1 int,
+	"time" timestamp,
+	","")" text,
+	PRIMARY KEY (","")", col1) WITH (fillfactor = 75)
+) WITH (fillfactor = 70);
+
+CREATE INDEX ","") cluster" ON tbl_cluster ("time", length(","")"), ","")" text_pattern_ops) WITH (fillfactor = 75);
+ALTER TABLE tbl_cluster CLUSTER ON ","") cluster";
+
+CREATE TABLE tbl_only_pkey (
+	col1 int PRIMARY KEY,
+	","")" text
+);
+
+CREATE TABLE tbl_only_ckey (
+	col1 int,
+	col2 timestamp,
+	","")" text
+) WITH (fillfactor = 70);
+
+CREATE INDEX cidx_only_ckey ON tbl_only_ckey (col2, ","")");
+ALTER TABLE tbl_only_ckey CLUSTER ON cidx_only_ckey;
+
+CREATE TABLE tbl_gistkey (
+	id integer PRIMARY KEY,
+	c circle
+);
+
+CREATE INDEX cidx_circle ON tbl_gistkey USING gist (c);
+ALTER TABLE tbl_gistkey CLUSTER ON cidx_circle;
+
+CREATE TABLE tbl_with_dropped_column (
+	d1 text,
+	c1 text,
+	id integer PRIMARY KEY,
+	d2 text,
+	c2 text,
+	d3 text
+);
+ALTER INDEX tbl_with_dropped_column_pkey SET (fillfactor = 75);
+ALTER TABLE tbl_with_dropped_column CLUSTER ON tbl_with_dropped_column_pkey;
+CREATE INDEX idx_c1c2 ON tbl_with_dropped_column (c1, c2) WITH (fillfactor = 75);
+CREATE INDEX idx_c2c1 ON tbl_with_dropped_column (c2, c1);
+
+CREATE TABLE tbl_with_dropped_toast (
+	i integer,
+	j integer,
+	t text,
+	PRIMARY KEY (i, j)
+);
+ALTER TABLE tbl_with_dropped_toast CLUSTER ON tbl_with_dropped_toast_pkey;
+
+CREATE TABLE tbl_badindex (
+	id integer PRIMARY KEY,
+	n integer
+);
+
+CREATE TABLE tbl_idxopts (
+       i integer PRIMARY KEY,
+       t text
+);
+CREATE INDEX idxopts_t ON tbl_idxopts (t DESC NULLS LAST) WHERE (t != 'aaa');
+
+-- Use this table to play with attribute options too
+ALTER TABLE tbl_idxopts ALTER i SET STATISTICS 1;
+ALTER TABLE tbl_idxopts ALTER t SET (n_distinct = -0.5);
+CREATE TABLE tbl_with_toast (
+      i integer PRIMARY KEY,
+      c text
+);
+ALTER TABLE tbl_with_toast SET (AUTOVACUUM_VACUUM_SCALE_FACTOR = 30, AUTOVACUUM_VACUUM_THRESHOLD = 300);
+ALTER TABLE tbl_with_toast SET (TOAST.AUTOVACUUM_VACUUM_SCALE_FACTOR = 40, TOAST.AUTOVACUUM_VACUUM_THRESHOLD = 400);
+CREATE TABLE tbl_with_mod_column_storage (
+	id integer PRIMARY KEY,
+	c text
+);
+ALTER TABLE tbl_with_mod_column_storage ALTER c SET STORAGE MAIN;
+
+CREATE TABLE tbl_order (c int primary key);
+--
+-- insert data
+--
+
+INSERT INTO tbl_cluster VALUES(1, '2008-12-31 10:00:00', 'admin');
+INSERT INTO tbl_cluster VALUES(2, '2008-01-01 00:00:00', 'king');
+INSERT INTO tbl_cluster VALUES(3, '2008-03-04 12:00:00', 'joker');
+INSERT INTO tbl_cluster VALUES(4, '2008-03-05 15:00:00', 'queen');
+INSERT INTO tbl_cluster VALUES(5, '2008-01-01 00:30:00', sqrt(2::numeric(1000,999))::text || sqrt(3::numeric(1000,999))::text);
+
+INSERT INTO tbl_only_pkey VALUES(1, 'abc');
+INSERT INTO tbl_only_pkey VALUES(2, 'def');
+
+INSERT INTO tbl_only_ckey VALUES(1, '2008-01-01 00:00:00', 'abc');
+INSERT INTO tbl_only_ckey VALUES(2, '2008-02-01 00:00:00', 'def');
+
+INSERT INTO tbl_gistkey VALUES(1, '<(1,2),3>');
+INSERT INTO tbl_gistkey VALUES(2, '<(4,5),6>');
+
+INSERT INTO tbl_with_dropped_column VALUES('d1', 'c1', 2, 'd2', 'c2', 'd3');
+INSERT INTO tbl_with_dropped_column VALUES('d1', 'c1', 1, 'd2', 'c2', 'd3');
+ALTER TABLE tbl_with_dropped_column DROP COLUMN d1;
+ALTER TABLE tbl_with_dropped_column DROP COLUMN d2;
+ALTER TABLE tbl_with_dropped_column DROP COLUMN d3;
+ALTER TABLE tbl_with_dropped_column ADD COLUMN c3 text;
+CREATE VIEW view_for_dropped_column AS
+	SELECT * FROM tbl_with_dropped_column;
+
+INSERT INTO tbl_with_dropped_toast VALUES(1, 10, 'abc');
+INSERT INTO tbl_with_dropped_toast VALUES(2, 20, sqrt(2::numeric(1000,999))::text || sqrt(3::numeric(1000,999))::text);
+ALTER TABLE tbl_with_dropped_toast DROP COLUMN t;
+
+INSERT INTO tbl_badindex VALUES(1, 10);
+INSERT INTO tbl_badindex VALUES(2, 10);
+
+-- insert data that is always stored into the toast table if column type is extended.
+SELECT setseed(0); INSERT INTO tbl_with_mod_column_storage SELECT 1, array_to_string(ARRAY(SELECT chr((random() * (127 - 32) + 32)::int) FROM generate_series(1, 3 * 1024) code), '');
+
+--- This will fail
+\set VERBOSITY terse
+CREATE UNIQUE INDEX CONCURRENTLY idx_badindex_n ON tbl_badindex (n);
+
+INSERT INTO tbl_idxopts VALUES (0, 'abc'), (1, 'aaa'), (2, NULL), (3, 'bbb');
+
+-- Insert no-ordered data
+INSERT INTO tbl_order SELECT generate_series(100, 51, -1);
+CLUSTER tbl_order USING tbl_order_pkey;
+INSERT INTO tbl_order SELECT generate_series(50, 1, -1);
+
+--
+-- before
+--
+
+SELECT * FROM tbl_with_dropped_column;
+SELECT * FROM view_for_dropped_column;
+SELECT * FROM tbl_with_dropped_toast;

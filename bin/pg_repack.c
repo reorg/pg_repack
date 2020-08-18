@@ -100,8 +100,8 @@ const char *PROGRAM_VERSION = "unknown";
 	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
-	"  AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
-	"  AND a.query !~ E'^autovacuum: ' " \
+	"  AND a.current_query !~* E'^\\\\s*vacuum\\\\s+' " \
+	"  AND a.current_query !~ E'^autovacuum: ' " \
 	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 /* application_name is not available before 9.0. The last clause of
@@ -109,15 +109,15 @@ const char *PROGRAM_VERSION = "unknown";
  */
 #define SQL_XID_SNAPSHOT_80300 \
 	"SELECT repack.array_accum(l.virtualtransaction) " \
-    "  FROM pg_locks AS l" \
+	"  FROM pg_locks AS l" \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
 	"  LEFT JOIN pg_database AS d " \
 	"    ON a.datid = d.oid " \
 	" WHERE l.locktype = 'virtualxid' AND l.pid NOT IN (pg_backend_pid(), $1)" \
 	" AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
-	" AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
-	" AND a.query !~ E'^autovacuum: ' " \
+	" AND a.current_query !~* E'^\\\\s*vacuum\\\\s+' " \
+	" AND a.current_query !~ E'^autovacuum: ' " \
 	" AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)" \
 	" AND ($2::text IS NOT NULL)"
 
@@ -152,6 +152,11 @@ const char *PROGRAM_VERSION = "unknown";
 	" AND granted = false AND relation = %u"\
 	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
 
+#define COUNT_COMPETING_LOCKS \
+	"SELECT pid FROM pg_locks WHERE locktype = 'relation'" \
+	" AND granted = false AND relation = %u" \
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+
 /* Will be used as a unique prefix for advisory locks. */
 #define REPACK_LOCK_PREFIX_STR "16185446"
 
@@ -169,7 +174,7 @@ typedef struct repack_index
 {
 	Oid				target_oid;		/* target: OID */
 	const char	   *create_index;	/* CREATE INDEX */
-    index_status_t  status; 		/* Track parallel build statuses. */
+	index_status_t  status; 		/* Track parallel build statuses. */
 	int             worker_idx;		/* which worker conn is handling */
 } repack_index;
 
@@ -186,9 +191,11 @@ typedef struct repack_table
 	Oid				ckid;			/* target: CK OID */
 	const char	   *create_pktype;	/* CREATE TYPE pk */
 	const char	   *create_log;		/* CREATE TABLE log */
-	const char	   *create_trigger;	/* CREATE TRIGGER z_repack_trigger */
-	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER z_repack_trigger */
-	const char	   *create_table;	/* CREATE TABLE table AS SELECT */
+	const char	   *create_trigger;	/* CREATE TRIGGER repack_trigger */
+	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER repack_trigger */
+	const char	   *create_table;	/* CREATE TABLE table AS SELECT WITH NO DATA*/
+	const char	   *copy_data;		/* INSERT INTO */
+	const char	   *alter_col_storage;	/* ALTER TABLE ALTER COLUMN SET STORAGE */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
 	const char	   *delete_log;		/* DELETE FROM log */
 	const char	   *lock_table;		/* LOCK TABLE table */
@@ -233,6 +240,7 @@ static bool sqlstate_equals(PGresult *res, const char *state)
 static bool				analyze = true;
 static bool				alldb = false;
 static bool				noorder = false;
+static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
@@ -245,6 +253,9 @@ static int				wait_timeout = 60;	/* in seconds */
 static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
+static bool				no_kill_backend = false; /* abandon when timed-out */
+static bool				no_superuser_check = false;
+static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -259,6 +270,7 @@ static pgut_option options[] =
 {
 	{ 'b', 'a', "all", &alldb },
 	{ 'l', 't', "table", &table_list },
+	{ 'l', 'I', "parent-table", &parent_table_list },
 	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
@@ -271,6 +283,9 @@ static pgut_option options[] =
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
+	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
+	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
+	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
 	{ 0 },
 };
 
@@ -299,12 +314,22 @@ main(int argc, char *argv[])
 		if (r_index.head && table_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --table (-t)")));
+		if (r_index.head && parent_table_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --index (-i) and --parent-table (-I)")));
 		else if (r_index.head && only_indexes)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --index (-i) and --only-indexes (-x)")));
-		else if (only_indexes && !table_list.head)
+		else if (r_index.head && exclude_extension_list.head)
 			ereport(ERROR, (errcode(EINVAL),
-				errmsg("cannot repack all indexes of database, specify the table(s) via --table (-t)")));
+				errmsg("cannot specify --index (-i) and --exclude-extension (-C)")));
+		else if (only_indexes && !(table_list.head || parent_table_list.head))
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot repack all indexes of database, specify the table(s)"
+					   "via --table (-t) or --parent-table (-I)")));
+		else if (only_indexes && exclude_extension_list.head)
+			ereport(ERROR, (errcode(EINVAL),
+				errmsg("cannot specify --only-indexes (-x) and --exclude-extension (-C)")));
 		else if (alldb)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack specific index(es) in all databases")));
@@ -332,17 +357,27 @@ main(int argc, char *argv[])
 	}
 	else
 	{
-		if (schema_list.head && table_list.head)
+		if (schema_list.head && (table_list.head || parent_table_list.head))
 			ereport(ERROR,
 				(errcode(EINVAL),
 				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
+
+		if (exclude_extension_list.head && table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot specify --table (-t) and --exclude-extension (-C)")));
+
+		if (exclude_extension_list.head && parent_table_list.head)
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot specify --parent-table (-I) and --exclude-extension (-C)")));
 
 		if (noorder)
 			orderby = "";
 
 		if (alldb)
 		{
-			if (table_list.head)
+			if (table_list.head || parent_table_list.head)
 				ereport(ERROR,
 					(errcode(EINVAL),
 					 errmsg("cannot repack specific table(s) in all databases")));
@@ -375,6 +410,9 @@ bool
 is_superuser(void)
 {
 	const char *val;
+
+	if (no_superuser_check)
+		return true;
 
 	if (!connection)
 		return false;
@@ -595,15 +633,22 @@ repack_one_database(const char *orderby, const char *deletekey, char *errbuf, si
 	SimpleStringListCell   *cell;
 	const char			  **params = NULL;
 	int						iparam = 0;
-	size_t					num_tables;
-	size_t					num_schemas;
-	size_t					num_params;
+	size_t					num_parent_tables,
+							num_tables,
+							num_schemas,
+							num_params,
+							num_excluded_extensions;
 
+	num_parent_tables = simple_string_list_size(parent_table_list);
 	num_tables = simple_string_list_size(table_list);
 	num_schemas = simple_string_list_size(schema_list);
+	num_excluded_extensions = simple_string_list_size(exclude_extension_list);
 
 	/* 1st param is the user-specified tablespace */
-	num_params = num_tables + num_schemas + 1;
+	num_params = num_excluded_extensions +
+				 num_parent_tables +
+				 num_tables +
+				 num_schemas + 1;
 	params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
@@ -626,18 +671,42 @@ repack_one_database(const char *orderby, const char *deletekey, char *errbuf, si
 		" WHERE ");
 
 	params[iparam++] = tablespace;
-	if (num_tables)
+	if (num_tables || num_parent_tables)
 	{
-		appendStringInfoString(&sql, "(");
-		for (cell = table_list.head; cell; cell = cell->next)
+		/* standalone tables */
+		if (num_tables)
 		{
-			/* Construct table name placeholders to be used by PQexecParams */
-			appendStringInfo(&sql, "relid = $%d::regclass", iparam + 1);
-			params[iparam++] = cell->val;
-			if (cell->next)
-				appendStringInfoString(&sql, " OR ");
+			appendStringInfoString(&sql, "(");
+			for (cell = table_list.head; cell; cell = cell->next)
+			{
+				/* Construct table name placeholders to be used by PQexecParams */
+				appendStringInfo(&sql, "relid = $%d::regclass", iparam + 1);
+				params[iparam++] = cell->val;
+				if (cell->next)
+					appendStringInfoString(&sql, " OR ");
+			}
+			appendStringInfoString(&sql, ")");
 		}
-		appendStringInfoString(&sql, ")");
+
+		if (num_tables && num_parent_tables)
+			appendStringInfoString(&sql, " OR ");
+
+		/* parent tables + inherited children */
+		if (num_parent_tables)
+		{
+			appendStringInfoString(&sql, "(");
+			for (cell = parent_table_list.head; cell; cell = cell->next)
+			{
+				/* Construct table name placeholders to be used by PQexecParams */
+				appendStringInfo(&sql,
+								 "relid = ANY(repack.get_table_and_inheritors($%d::regclass))",
+								 iparam + 1);
+				params[iparam++] = cell->val;
+				if (cell->next)
+					appendStringInfoString(&sql, " OR ");
+			}
+			appendStringInfoString(&sql, ")");
+		}
 	}
 	else if (num_schemas)
 	{
@@ -656,6 +725,29 @@ repack_one_database(const char *orderby, const char *deletekey, char *errbuf, si
 	{
 		appendStringInfoString(&sql, "pkid IS NOT NULL");
 	}
+
+	/* Exclude tables which belong to extensions */
+	if (exclude_extension_list.head)
+	{
+		appendStringInfoString(&sql, " AND t.relid NOT IN"
+									 "  (SELECT d.objid::regclass"
+									 "   FROM pg_depend d JOIN pg_extension e"
+									 "   ON d.refobjid = e.oid"
+									 "   WHERE d.classid = 'pg_class'::regclass AND (");
+
+		/* List all excluded extensions */
+		for (cell = exclude_extension_list.head; cell; cell = cell->next)
+		{
+			appendStringInfo(&sql, "e.extname = $%d", iparam + 1);
+			params[iparam++] = cell->val;
+
+			appendStringInfoString(&sql, cell->next ? " OR " : ")");
+		}
+
+		/* Close subquery */
+		appendStringInfoString(&sql, ")");
+	}
+
 	/* Ensure the regression tests get a consistent ordering of tables */
 	appendStringInfoString(&sql, " ORDER BY t.relname, t.schemaname");
 
@@ -685,6 +777,7 @@ repack_one_database(const char *orderby, const char *deletekey, char *errbuf, si
 	for (i = 0; i < num; i++)
 	{
 		repack_table	table;
+		StringInfoData	copy_sql;
 		const char *create_table_1;
 		const char *create_table_2;
 		const char *tablespace;
@@ -714,6 +807,8 @@ repack_one_database(const char *orderby, const char *deletekey, char *errbuf, si
 		create_table_1 = getstr(res, i, c++);
 		tablespace = getstr(res, i, c++);	/* to be clobbered */
 		create_table_2 = getstr(res, i, c++);
+		table.copy_data = getstr(res, i , c++);
+		table.alter_col_storage = getstr(res, i, c++);
 		table.drop_columns = getstr(res, i, c++);
 		table.delete_log = getstr(res, i, c++);
 		table.lock_table = getstr(res, i, c++);
@@ -725,47 +820,51 @@ repack_one_database(const char *orderby, const char *deletekey, char *errbuf, si
 		table.sql_pop = getstr(res, i, c++);
 		tablespace = getstr(res, i, c++);
 
+		/* Craft CREATE TABLE SQL */
 		resetStringInfo(&sql);
 		appendStringInfoString(&sql, create_table_1);
 		appendStringInfoString(&sql, tablespace);
 		appendStringInfoString(&sql, create_table_2);
-		
-		if (deletekey)
+
+		/* Always append WITH NO DATA to CREATE TABLE SQL*/
+		appendStringInfoString(&sql, " WITH NO DATA");
+		table.create_table = sql.data;
+
+		/* Craft Copy SQL */
+		initStringInfo(&copy_sql);
+		appendStringInfoString(&copy_sql, table.copy_data);
+
+    if (deletekey)
 		{
 			/* User specified WHERE clause */
 			/* This will cause a bulk delete to happen for the specified table. */
-                        appendStringInfoString(&sql, " WHERE ");
-                        appendStringInfoString(&sql, deletekey);
-                        table.create_table = sql.data;	
-		}
-
-		if (!orderby)
+      appendStringInfoString(&sql, " WHERE ");
+      appendStringInfoString(&sql, deletekey);
+      table.create_table = sql.data;	
+	  }
+    
+    if (!orderby)
 		{
 			if (ckey != NULL)
 			{
 				/* CLUSTER mode */
-				appendStringInfoString(&sql, " ORDER BY ");
-				appendStringInfoString(&sql, ckey);
-				table.create_table = sql.data;
+				appendStringInfoString(&copy_sql, " ORDER BY ");
+				appendStringInfoString(&copy_sql, ckey);
 			}
-			else
-			{
-				/* VACUUM FULL mode (non-clustered tables) */
-				table.create_table = sql.data;
-			}
+
+			/* else, VACUUM FULL mode (non-clustered tables) */
 		}
 		else if (!orderby[0])
 		{
-			/* VACUUM FULL mode (for clustered tables too) */
-			table.create_table = sql.data;
+			/* VACUUM FULL mode (for clustered tables too), do nothing */
 		}
 		else
 		{
 			/* User specified ORDER BY */
-			appendStringInfoString(&sql, " ORDER BY ");
-			appendStringInfoString(&sql, orderby);
-			table.create_table = sql.data;
+			appendStringInfoString(&copy_sql, " ORDER BY ");
+			appendStringInfoString(&copy_sql, orderby);
 		}
+		table.copy_data = copy_sql.data;
 
 		repack_one_table(&table, orderby);
 	}
@@ -775,6 +874,7 @@ cleanup:
 	CLEARPGRES(res);
 	disconnect();
 	termStringInfo(&sql);
+	free(params);
 	return ret;
 }
 
@@ -1039,7 +1139,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	const char     *appname = getenv("PGAPPNAME");
 
 	/* Keep track of whether we have gotten through setup to install
-	 * the z_repack_trigger, log table, etc. ourselves. We don't want to
+	 * the repack_trigger, log table, etc. ourselves. We don't want to
 	 * go through repack_cleanup() if we didn't actually set up the
 	 * trigger ourselves, lest we be cleaning up another pg_repack's mess,
 	 * or worse, interfering with a still-running pg_repack.
@@ -1051,25 +1151,28 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(INFO, "repacking table \"%s\"", table->target_name);
 
 	elog(DEBUG2, "---- repack_one_table ----");
-	elog(DEBUG2, "target_name    : %s", table->target_name);
-	elog(DEBUG2, "target_oid     : %u", table->target_oid);
-	elog(DEBUG2, "target_toast   : %u", table->target_toast);
-	elog(DEBUG2, "target_tidx    : %u", table->target_tidx);
-	elog(DEBUG2, "pkid           : %u", table->pkid);
-	elog(DEBUG2, "ckid           : %u", table->ckid);
-	elog(DEBUG2, "create_pktype  : %s", table->create_pktype);
-	elog(DEBUG2, "create_log     : %s", table->create_log);
-	elog(DEBUG2, "create_trigger : %s", table->create_trigger);
-	elog(DEBUG2, "enable_trigger : %s", table->enable_trigger);
-	elog(DEBUG2, "create_table   : %s", table->create_table);
-	elog(DEBUG2, "drop_columns   : %s", table->drop_columns ? table->drop_columns : "(skipped)");
-	elog(DEBUG2, "delete_log     : %s", table->delete_log);
-	elog(DEBUG2, "lock_table     : %s", table->lock_table);
-	elog(DEBUG2, "sql_peek       : %s", table->sql_peek);
-	elog(DEBUG2, "sql_insert     : %s", table->sql_insert);
-	elog(DEBUG2, "sql_delete     : %s", table->sql_delete);
-	elog(DEBUG2, "sql_update     : %s", table->sql_update);
-	elog(DEBUG2, "sql_pop        : %s", table->sql_pop);
+	elog(DEBUG2, "target_name       : %s", table->target_name);
+	elog(DEBUG2, "target_oid        : %u", table->target_oid);
+	elog(DEBUG2, "target_toast      : %u", table->target_toast);
+	elog(DEBUG2, "target_tidx       : %u", table->target_tidx);
+	elog(DEBUG2, "pkid              : %u", table->pkid);
+	elog(DEBUG2, "ckid              : %u", table->ckid);
+	elog(DEBUG2, "create_pktype     : %s", table->create_pktype);
+	elog(DEBUG2, "create_log        : %s", table->create_log);
+	elog(DEBUG2, "create_trigger    : %s", table->create_trigger);
+	elog(DEBUG2, "enable_trigger    : %s", table->enable_trigger);
+	elog(DEBUG2, "create_table      : %s", table->create_table);
+	elog(DEBUG2, "copy_data         : %s", table->copy_data);
+	elog(DEBUG2, "alter_col_storage : %s", table->alter_col_storage ?
+		 table->alter_col_storage : "(skipped)");
+	elog(DEBUG2, "drop_columns      : %s", table->drop_columns ? table->drop_columns : "(skipped)");
+	elog(DEBUG2, "delete_log        : %s", table->delete_log);
+	elog(DEBUG2, "lock_table        : %s", table->lock_table);
+	elog(DEBUG2, "sql_peek          : %s", table->sql_peek);
+	elog(DEBUG2, "sql_insert        : %s", table->sql_insert);
+	elog(DEBUG2, "sql_delete        : %s", table->sql_delete);
+	elog(DEBUG2, "sql_update        : %s", table->sql_update);
+	elog(DEBUG2, "sql_pop           : %s", table->sql_pop);
 
 	if (dryrun)
 		return;
@@ -1087,9 +1190,12 @@ repack_one_table(repack_table *table, const char *orderby)
 	if (!advisory_lock(connection, buffer))
 		goto cleanup;
 
-	if (!(lock_exclusive(connection, buffer, table->lock_table, TRUE)))
+	if (!(lock_exclusive(connection, buffer, table->lock_table, true)))
 	{
-		elog(WARNING, "lock_exclusive() failed for %s", table->target_name);
+		if (no_kill_backend)
+			elog(INFO, "Skipping repack %s due to timeout", table->target_name);
+		else
+			elog(WARNING, "lock_exclusive() failed for %s", table->target_name);
 		goto cleanup;
 	}
 
@@ -1141,43 +1247,28 @@ repack_one_table(repack_table *table, const char *orderby)
 
 
 	/*
-	 * Check z_repack_trigger is the trigger executed last so that
-	 * other before triggers cannot modify triggered tuples.
+	 * Check if repack_trigger is not conflict with existing trigger. We can
+	 * find it out later but we check it in advance and go to cleanup if needed.
+	 * In AFTER trigger context, since triggered tuple is not changed by other
+	 * trigger we don't care about the fire order.
 	 */
 	res = execute("SELECT repack.conflicted_triggers($1)", 1, params);
 	if (PQntuples(res) > 0)
 	{
-		if (0 == strcmp("z_repack_trigger", PQgetvalue(res, 0, 0)))
-		{
-			ereport(WARNING,
+		ereport(WARNING,
 				(errcode(E_PG_COMMAND),
 				 errmsg("the table \"%s\" already has a trigger called \"%s\"",
-					table->target_name, PQgetvalue(res, 0, 0)),
+						table->target_name, "repack_trigger"),
 				 errdetail(
-					"The trigger was probably installed during a previous"
-					" attempt to run pg_repack on the table which was"
-					" interrupted and for some reason failed to clean up"
-					" the temporary objects.  Please drop the trigger or drop"
+					 "The trigger was probably installed during a previous"
+					 " attempt to run pg_repack on the table which was"
+					 " interrupted and for some reason failed to clean up"
+					 " the temporary objects.  Please drop the trigger or drop"
 					" and recreate the pg_repack extension altogether"
-					" to remove all the temporary objects left over.")));
-		}
-		else
-		{
-			ereport(WARNING,
-				(errcode(E_PG_COMMAND),
-				 errmsg("trigger \"%s\" conflicting on table \"%s\"",
-					PQgetvalue(res, 0, 0), table->target_name),
-				 errdetail(
-					"The trigger \"z_repack_trigger\" must be the last of the"
-					" BEFORE triggers to fire on the table (triggers fire in"
-					" alphabetical order). Please rename the trigger so that"
-					" it sorts before \"z_repack_trigger\": you can use"
-					" \"ALTER TRIGGER %s ON %s RENAME TO newname\".",
-					PQgetvalue(res, 0, 0), table->target_name)));
-		}
-
+					 " to remove all the temporary objects left over.")));
 		goto cleanup;
 	}
+
 	CLEARPGRES(res);
 
 	command(table->create_pktype, 0, NULL);
@@ -1238,7 +1329,10 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	if (!(kill_ddl(connection, table->target_oid, true)))
 	{
-		elog(WARNING, "kill_ddl() failed.");
+		if (no_kill_backend)
+			elog(INFO, "Skipping repack %s due to timeout.", table->target_name);
+		else
+			elog(WARNING, "kill_ddl() failed.");
 		goto cleanup;
 	}
 
@@ -1247,7 +1341,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	command("COMMIT", 0, NULL);
 
-	/* The main connection has now committed its z_repack_trigger,
+	/* The main connection has now committed its repack_trigger,
 	 * log table, and temp. table. If any error occurs from this point
 	 * on and we bail out, we should try to clean those up.
 	 */
@@ -1320,7 +1414,14 @@ repack_one_table(repack_table *table, const char *orderby)
 	if (!(lock_access_share(connection, table->target_oid, table->target_name)))
 		goto cleanup;
 
+	/*
+	 * Before copying data to the target table, we need to set the column storage
+	 * type if its storage type has been changed from the type default.
+	 */
 	command(table->create_table, 0, NULL);
+	if (table->alter_col_storage)
+		command(table->alter_col_storage, 0, NULL);
+	command(table->copy_data, 0, NULL);
 	temp_obj_num++;
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
 	if (table->drop_columns)
@@ -1396,7 +1497,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	/* Bump our existing AccessShare lock to AccessExclusive */
 
 	if (!(lock_exclusive(conn2, utoa(table->target_oid, buffer),
-						 table->lock_table, FALSE)))
+						 table->lock_table, false)))
 	{
 		elog(WARNING, "lock_exclusive() failed in conn2 for %s",
 			 table->target_name);
@@ -1415,7 +1516,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 	if (!(lock_exclusive(connection, utoa(table->target_oid, buffer),
-						 table->lock_table, FALSE)))
+						 table->lock_table, false)))
 	{
 		elog(WARNING, "lock_exclusive() failed in connection for %s",
 			 table->target_name);
@@ -1468,9 +1569,9 @@ cleanup:
 }
 
 /* Kill off any concurrent DDL (or any transaction attempting to take
- * an AccessExclusive lock) trying to run against our table. Note, we're
- * killing these queries off *before* they are granted an AccessExclusive
- * lock on our table.
+ * an AccessExclusive lock) trying to run against our table if we want to
+ * do. Note, we're killing these queries off *before* they are granted
+ * an AccessExclusive lock on our table.
  *
  * Returns true if no problems encountered, false otherwise.
  */
@@ -1480,35 +1581,57 @@ kill_ddl(PGconn *conn, Oid relid, bool terminate)
 	bool			ret = true;
 	PGresult	   *res;
 	StringInfoData	sql;
+	int				n_tuples;
 
 	initStringInfo(&sql);
 
-	printfStringInfo(&sql, CANCEL_COMPETING_LOCKS, relid);
+	/* Check the number of backends competing AccessExclusiveLock */
+	printfStringInfo(&sql, COUNT_COMPETING_LOCKS, relid);
 	res = pgut_execute(conn, sql.data, 0, NULL);
-	if (PQresultStatus(res) != PGRES_TUPLES_OK)
-	{
-		elog(WARNING, "Error canceling unsafe queries: %s",
-			 PQerrorMessage(conn));
-		ret = false;
-	}
-	else if (PQntuples(res) > 0 && terminate && PQserverVersion(conn) >= 80400)
-	{
-		elog(WARNING,
-			 "Canceled %d unsafe queries. Terminating any remaining PIDs.",
-			 PQntuples(res));
+	n_tuples = PQntuples(res);
 
-		CLEARPGRES(res);
-		printfStringInfo(&sql, KILL_COMPETING_LOCKS, relid);
-		res = pgut_execute(conn, sql.data, 0, NULL);
-		if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	if (n_tuples != 0)
+	{
+		/* Competing backend is exsits, but if we do not want to calcel/terminate
+		 * any backend, do nothing.
+		 */
+		if (no_kill_backend)
 		{
-			elog(WARNING, "Error killing unsafe queries: %s",
-				 PQerrorMessage(conn));
+			elog(WARNING, "%d unsafe queries remain but do not cancel them and skip to repack it",
+				 n_tuples);
 			ret = false;
 		}
+		else
+		{
+			resetStringInfo(&sql);
+			printfStringInfo(&sql, CANCEL_COMPETING_LOCKS, relid);
+			res = pgut_execute(conn, sql.data, 0, NULL);
+			if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			{
+				elog(WARNING, "Error canceling unsafe queries: %s",
+					 PQerrorMessage(conn));
+				ret = false;
+			}
+			else if (PQntuples(res) > 0 && terminate && PQserverVersion(conn) >= 80400)
+			{
+				elog(WARNING,
+					 "Canceled %d unsafe queries. Terminating any remaining PIDs.",
+					 PQntuples(res));
+
+				CLEARPGRES(res);
+				printfStringInfo(&sql, KILL_COMPETING_LOCKS, relid);
+				res = pgut_execute(conn, sql.data, 0, NULL);
+				if (PQresultStatus(res) != PGRES_TUPLES_OK)
+				{
+					elog(WARNING, "Error killing unsafe queries: %s",
+						 PQerrorMessage(conn));
+					ret = false;
+				}
+			}
+			else if (PQntuples(res) > 0)
+				elog(NOTICE, "Canceled %d unsafe queries", PQntuples(res));
+		}
 	}
-	else if (PQntuples(res) > 0)
-		elog(NOTICE, "Canceled %d unsafe queries", PQntuples(res));
 	else
 		elog(DEBUG2, "No competing DDL to cancel.");
 
@@ -1667,26 +1790,41 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		duration = time(NULL) - start;
 		if (duration > wait_timeout)
 		{
-			const char *cancel_query;
-			if (PQserverVersion(conn) >= 80400 &&
-				duration > wait_timeout * 2)
+			if (no_kill_backend)
 			{
-				elog(WARNING, "terminating conflicted backends");
-				cancel_query =
-					"SELECT pg_terminate_backend(pid) FROM pg_locks"
-					" WHERE locktype = 'relation'"
-					"   AND relation = $1 AND pid <> pg_backend_pid()";
+				elog(WARNING, "timed out, do not cancel conflicting backends");
+				ret = false;
+
+				/* Before exit the loop reset the transaction */
+				if (start_xact)
+					pgut_rollback(conn);
+				else
+					pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
+				break;
 			}
 			else
 			{
-				elog(WARNING, "canceling conflicted backends");
-				cancel_query =
-					"SELECT pg_cancel_backend(pid) FROM pg_locks"
-					" WHERE locktype = 'relation'"
-					"   AND relation = $1 AND pid <> pg_backend_pid()";
-			}
+				const char *cancel_query;
+				if (PQserverVersion(conn) >= 80400 &&
+					duration > wait_timeout * 2)
+				{
+					elog(WARNING, "terminating conflicted backends");
+					cancel_query =
+						"SELECT pg_terminate_backend(pid) FROM pg_locks"
+						" WHERE locktype = 'relation'"
+						"   AND relation = $1 AND pid <> pg_backend_pid()";
+				}
+				else
+				{
+					elog(WARNING, "canceling conflicted backends");
+					cancel_query =
+						"SELECT pg_cancel_backend(pid) FROM pg_locks"
+						" WHERE locktype = 'relation'"
+						"   AND relation = $1 AND pid <> pg_backend_pid()";
+				}
 
-			pgut_command(conn, cancel_query, 1, &relid);
+				pgut_command(conn, cancel_query, 1, &relid);
+			}
 		}
 
 		/* wait for a while to lock the table. */
@@ -1802,6 +1940,7 @@ repack_table_indexes(PGresult *index_details)
 	params[1] = utoa(table, buffer[1]);
 	params[2] = tablespace;
 	schema_name = getstr(index_details, 0, 5);
+	/* table_name is schema-qualified */
 	table_name = getstr(index_details, 0, 4);
 
 	/* Keep track of which of the table's indexes we have successfully
@@ -1834,7 +1973,7 @@ repack_table_indexes(PGresult *index_details)
 							 "WHERE pgc.relname = 'index_%u' "
 							 "AND nsp.nspname = $1", index);
 			params[0] = schema_name;
-			elog(INFO, "repacking index \"%s\".\"%s\"", schema_name, idx_name);
+			elog(INFO, "repacking index \"%s\"", idx_name);
 			res = execute(sql.data, 1, params);
 			if (PQresultStatus(res) != PGRES_TUPLES_OK)
 			{
@@ -1866,8 +2005,8 @@ repack_table_indexes(PGresult *index_details)
 			if (PQntuples(res) < 1)
 			{
 				elog(WARNING,
-					"unable to generate SQL to CREATE work index for %s.%s",
-					schema_name, getstr(index_details, i, 0));
+					"unable to generate SQL to CREATE work index for %s",
+					getstr(index_details, i, 0));
 				continue;
 			}
 
@@ -1920,7 +2059,7 @@ repack_table_indexes(PGresult *index_details)
 	resetStringInfo(&sql);
 	appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
 					 table_name);
-	if (!(lock_exclusive(connection, params[1], sql.data, TRUE)))
+	if (!(lock_exclusive(connection, params[1], sql.data, true)))
 	{
 		elog(WARNING, "lock_exclusive() failed in connection for %s",
 			 table_name);
@@ -1981,7 +2120,7 @@ static bool
 repack_all_indexes(char *errbuf, size_t errsize)
 {
 	bool					ret = false;
-	PGresult		   		*res = NULL;
+	PGresult				*res = NULL;
 	StringInfoData			sql;
 	SimpleStringListCell	*cell = NULL;
 	const char				*params[1];
@@ -1989,7 +2128,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	initStringInfo(&sql);
 	reconnect(ERROR);
 
-	assert(r_index.head || table_list.head);
+	assert(r_index.head || table_list.head || parent_table_list.head);
 
 	if (!preliminary_checks(errbuf, errsize))
 		goto cleanup;
@@ -1997,20 +2136,53 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	if (r_index.head)
 	{
 		appendStringInfoString(&sql,
-			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, idx.indrelid::regclass, n.nspname"
+			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, repack.oid2text(idx.indrelid), n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indexrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
 
 		cell = r_index.head;
 	}
-	else if (table_list.head)
+	else if (table_list.head || parent_table_list.head)
 	{
 		appendStringInfoString(&sql,
-			"SELECT i.relname, idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
+			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
+
+		for (cell = parent_table_list.head; cell; cell = cell->next)
+		{
+			int nchildren, i;
+
+			params[0] = cell->val;
+
+			/* find children of this parent table */
+			res = execute_elevel("SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)"
+								 " FROM pg_class c JOIN pg_namespace n on n.oid = c.relnamespace"
+								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
+								 " ORDER BY n.nspname, c.relname", 1, params, DEBUG2);
+
+			if (PQresultStatus(res) != PGRES_TUPLES_OK)
+			{
+				elog(WARNING, "%s", PQerrorMessage(connection));
+				continue;
+			}
+
+			nchildren = PQntuples(res);
+
+			if (nchildren == 0)
+			{
+				elog(WARNING, "relation \"%s\" does not exist", cell->val);
+				continue;
+			}
+
+			/* append new tables to 'table_list' */
+			for (i = 0; i < nchildren; i++)
+				simple_string_list_append(&table_list, getstr(res, i, 0));
+		}
+
+		CLEARPGRES(res);
 
 		cell = table_list.head;
 	}
@@ -2049,7 +2221,6 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	ret = true;
 
 cleanup:
-	CLEARPGRES(res);
 	disconnect();
 	termStringInfo(&sql);
 	return ret;
@@ -2068,6 +2239,7 @@ pgut_help(bool details)
 	printf("Options:\n");
 	printf("  -a, --all                 repack all databases\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
+	printf("  -I, --parent-table=TABLE  repack specific parent table and its inheritors\n");
 	printf("  -c, --schema=SCHEMA       repack tables in specific schema only\n");
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
@@ -2079,5 +2251,8 @@ pgut_help(bool details)
 	printf("  -i, --index=INDEX         move only the specified index\n");
 	printf("  -x, --only-indexes        move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict\n");
+	printf("  -D, --no-kill-backend     don't kill other backends when timed out\n");
 	printf("  -Z, --no-analyze          don't analyze at end\n");
+	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
+	printf("  -C, --exclude-extension   don't repack tables which belong to specific extension\n");
 }

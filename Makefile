@@ -12,20 +12,21 @@ EXTENSION = pg_repack
 .PHONY: dist/$(EXTENSION)-$(EXTVERSION).zip
 
 # Pull out PostgreSQL version number from pg_config
-VERSION := $(shell $(PG_CONFIG) --version | awk '{print $$2}')
+VERSION := $(shell $(PG_CONFIG) --version | sed 's/.* \([[:digit:].]\{1,\}\).*/\1/')
 ifeq ("$(VERSION)","")
 $(error pg_config not found)
 endif
 
 # PostgreSQL version as a number, e.g. 9.1.4 -> 901
-INTVERSION := $(shell echo $$(($$(echo $(VERSION) | sed 's/\([[:digit:]]\{1,\}\)\.\([[:digit:]]\{1,\}\).*/\1*100+\2/'))))
+INTVERSION := $(shell echo $$(($$(echo $(VERSION).0 | sed 's/\([[:digit:]]\{1,\}\)\.\([[:digit:]]\{1,\}\).*/\1*100+\2/'))))
 
 # The version number of the library
 EXTVERSION = $(shell grep '"version":' META.json | head -1 \
 	| sed -e 's/[ 	]*"version":[ 	]*"\(.*\)",/\1/')
 
-ifeq ($(shell echo $$(($(INTVERSION) < 803))),1)
-$(error $(EXTENSION) requires PostgreSQL 8.3 or later. This is $(VERSION))
+# NOTE: keep consistent with META.json
+ifeq ($(shell echo $$(($(INTVERSION) < 901))),1)
+$(error $(EXTENSION) requires PostgreSQL 9.1 or later. This is $(VERSION))
 endif
 
 SUBDIRS = bin lib regress
