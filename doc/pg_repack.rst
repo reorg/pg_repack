@@ -466,6 +466,10 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.4.6
+
+  * Added support for PostgreSQL 13
+
 * pg_repack 1.4.5
 
   * Added support for PostgreSQL 12
