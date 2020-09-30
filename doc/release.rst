@@ -52,7 +52,7 @@ with the right privileges: contact Daniele Varrazzo to obtain them.
   http://reorg.github.io/pg_repack/. The operations are roughly::
 
     git clone --recursive git@github.com:reorg/reorg.github.com.git
-    cd reorg.github.com.git
+    cd reorg.github.com
     make sm
     make
     git commit -a -m "Docs upload for release $VER"
