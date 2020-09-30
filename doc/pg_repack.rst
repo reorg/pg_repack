@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10, 11, 12, 13
+    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -469,6 +469,7 @@ Releases
 * pg_repack 1.4.6
 
   * Added support for PostgreSQL 13
+  * Dropped support for PostgreSQL before 9.4
 
 * pg_repack 1.4.5
 

@@ -2070,11 +2070,7 @@ repack_table_indexes(PGresult *index_details)
 drop_idx:
 	resetStringInfo(&sql);
 	initStringInfo(&sql_drop);
-#if PG_VERSION_NUM < 90200
-	appendStringInfoString(&sql, "DROP INDEX ");
-#else
 	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY ");
-#endif
 	appendStringInfo(&sql, "\"%s\".",  schema_name);
 
 	for (i = 0; i < num; i++)

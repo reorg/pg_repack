@@ -57,10 +57,7 @@
 #include "pgut/pgut-spi.h"
 #include "pgut/pgut-be.h"
 
-/* htup.h was reorganized for 9.3, so now we need this header */
-#if PG_VERSION_NUM >= 90300
 #include "access/htup_details.h"
-#endif
 
 /* builtins.h was reorganized for 9.5, so now we need this header */
 #if PG_VERSION_NUM >= 90500
@@ -115,11 +112,7 @@ must_be_superuser(const char *func)
 /* The API of RenameRelationInternal() was changed in 9.2.
  * Use the RENAME_REL macro for compatibility across versions.
  */
-#if PG_VERSION_NUM < 90200
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
-#elif PG_VERSION_NUM < 90300
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
-#elif PG_VERSION_NUM < 120000
+#if PG_VERSION_NUM < 120000
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true);
 #else
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true, false);
@@ -1217,11 +1210,7 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 
 	/* swap size statistics too, since new rel has freshly-updated stats */
 	{
-#if PG_VERSION_NUM >= 90300
 		int32		swap_pages;
-#else
-		int4		swap_pages;
-#endif
 		float4		swap_tuples;
 
 		swap_pages = relform1->relpages;

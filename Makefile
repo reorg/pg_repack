@@ -25,8 +25,8 @@ EXTVERSION = $(shell grep '"version":' META.json | head -1 \
 	| sed -e 's/[ 	]*"version":[ 	]*"\(.*\)",/\1/')
 
 # NOTE: keep consistent with META.json
-ifeq ($(shell echo $$(($(INTVERSION) < 901))),1)
-$(error $(EXTENSION) requires PostgreSQL 9.1 or later. This is $(VERSION))
+ifeq ($(shell echo $$(($(INTVERSION) < 904))),1)
+$(error $(EXTENSION) requires PostgreSQL 9.4 or later. This is $(VERSION))
 endif
 
 SUBDIRS = bin lib regress
