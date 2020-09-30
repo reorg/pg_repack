@@ -10,8 +10,8 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_URL		= "http://reorg.github.com/pg_repack";
-const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
+const char *PROGRAM_URL		= "https://reorg.github.io/pg_repack/";
+const char *PROGRAM_ISSUES	= "https://github.com/reorg/pg_repack/issues";
 
 #ifdef REPACK_VERSION
 /* macro trick to stringify a macro expansion */

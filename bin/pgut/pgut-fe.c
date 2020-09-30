@@ -817,12 +817,12 @@ help(bool details)
 	printf("  --help                    show this help, then exit\n");
 	printf("  --version                 output version information, then exit\n");
 
-	if (details && (PROGRAM_URL || PROGRAM_EMAIL))
+	if (details && (PROGRAM_URL || PROGRAM_ISSUES))
 	{
 		printf("\n");
 		if (PROGRAM_URL)
 			printf("Read the website for details: <%s>.\n", PROGRAM_URL);
-		if (PROGRAM_EMAIL)
-			printf("Report bugs to <%s>.\n", PROGRAM_EMAIL);
+		if (PROGRAM_ISSUES)
+			printf("Report bugs to <%s>.\n", PROGRAM_ISSUES);
 	}
 }

@@ -5,7 +5,6 @@ pg_repack -- Reorganize tables in PostgreSQL databases with minimal locks
 - Download: https://pgxn.org/dist/pg_repack/
 - Development: https://github.com/reorg/pg_repack
 - Bug Report: https://github.com/reorg/pg_repack/issues
-- Mailing List: http://pgfoundry.org/mailman/listinfo/reorg-general
 
 |travis|
 
@@ -49,4 +48,4 @@ drop-in replacement: you are advised to check the documentation__ before
 upgrading from previous versions.
 
 .. __: pg_repack_
-.. _pg_reorg: http://reorg.projects.pgfoundry.org/
+.. _pg_reorg: https://github.com/reorg/pg_reorg

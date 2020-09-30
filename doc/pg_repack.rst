@@ -33,7 +33,7 @@ NOTICE:
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
 .. _project page: https://github.com/reorg/pg_repack
-.. _pg_reorg: http://reorg.projects.pgfoundry.org/
+.. _pg_reorg: https://github.com/reorg/pg_reorg
 
 
 Requirements
@@ -64,8 +64,8 @@ the package; use::
 
 Check the `pgxn install documentation`__ for the options available.
 
-.. _PGXN Client: http://pgxnclient.projects.pgfoundry.org/
-.. __: http://pgxnclient.projects.pgfoundry.org/usage.html#pgxn-install
+.. _PGXN Client: https://pgxn.github.io/pgxnclient/
+.. __: https://pgxn.github.io/pgxnclient/usage.html#pgxn-install
 
 
 Installation

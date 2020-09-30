@@ -55,7 +55,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.jp/document/current/html/sql-vacuum.html
 .. _project page: https://github.com/reorg/pg_repack
-.. _pg_reorg: http://reorg.projects.pgfoundry.org/
+.. _pg_reorg: https://github.com/reorg/pg_reorg
 
 
 .. Requirements
@@ -95,8 +95,8 @@ PostgreSQL バージョン
   
   Check the `pgxn install documentation`__ for the options available.
   
-  .. _PGXN Client: http://pgxnclient.projects.pgfoundry.org/
-  .. __: http://pgxnclient.projects.pgfoundry.org/usage.html#pgxn-install
+  .. _PGXN Client: https://pgxn.github.io/pgxnclient/
+  .. __: https://pgxn.github.io/pgxnclient/usage.html#pgxn-install
 
 
 ダウンロード
@@ -113,8 +113,8 @@ pg_repackは、PGXNのWebサイトから `ダウンロード`__ できます。
 
 利用可能なオプションについては `pgxn install コマンドのドキュメント`__ を参照してください。
 
-.. _PGXN Client: http://pgxnclient.projects.pgfoundry.org/
-.. __: http://pgxnclient.projects.pgfoundry.org/usage.html#pgxn-install
+.. _PGXN Client: https://pgxn.github.io/pgxnclient/
+.. __: https://pgxn.github.io/pgxnclient/usage.html#pgxn-install
 
 
 
