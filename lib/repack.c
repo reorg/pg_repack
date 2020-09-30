@@ -19,7 +19,6 @@
 
 /*
  * heap_open/heap_close was moved to table_open/table_close in 12.0
- * table.h has macros mapping the old names to the new ones
  */
 #if PG_VERSION_NUM >= 120000
 #include "access/table.h"
@@ -1169,7 +1168,11 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	CatalogIndexState indstate;
 
 	/* We need writable copies of both pg_class tuples. */
+#if PG_VERSION_NUM >= 120000
+	relRelation = table_open(RelationRelationId, RowExclusiveLock);
+#else
 	relRelation = heap_open(RelationRelationId, RowExclusiveLock);
+#endif
 
 	reltup1 = SearchSysCacheCopy(RELOID,
 								 ObjectIdGetDatum(r1),
@@ -1332,7 +1335,11 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	heap_freetuple(reltup1);
 	heap_freetuple(reltup2);
 
+#if PG_VERSION_NUM >= 120000
+	table_close(relRelation, RowExclusiveLock);
+#else
 	heap_close(relRelation, RowExclusiveLock);
+#endif
 }
 
 /**

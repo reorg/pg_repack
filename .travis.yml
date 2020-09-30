@@ -4,10 +4,13 @@ dist: xenial
 sudo: required
 
 env:
+  - PGVER=13
   - PGVER=12
   - PGVER=11
   - PGVER=10
-  - PGVER=9.6
+  # Disabled because packages broken at least on xenial
+  # https://www.postgresql.org/message-id/CA%2Bmi_8a1oEnCzkt0CvqysgY4MQ6jEefjmS%3Dq_K-AvOx%3DF7m2%2BQ%40mail.gmail.com
+  # - PGVER=9.6
   - PGVER=9.5
   - PGVER=9.4
   - PGVER=9.3
