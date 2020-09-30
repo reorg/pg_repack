@@ -37,9 +37,23 @@ else
     fi
 
     sudo apt-get update
-    sudo apt-get install -y "libpq5=${PGVER}*" "libpq-dev=${PGVER}*"
-    sudo apt-mark hold libpq5
-    sudo apt-get install -y postgresql-server-dev-$PGVER postgresql-$PGVER
+
+    # This might be a moving target, but it currently fails. 13 could start
+    # failing in the future instead.
+    # Some versions break if this is not specified (9.4 for sure, maybe 9.6)
+    if [[ "$PGVER" = "9.4" ]]; then
+        sudo apt-get install -y "libpq5=${PGVER}*" "libpq-dev=${PGVER}*"
+        sudo apt-mark hold libpq5
+    fi
+
+    if ! sudo apt-get install -y \
+        postgresql-$PGVER \
+        postgresql-client-$PGVER \
+        postgresql-server-dev-$PGVER
+    then
+        sudo systemctl status postgresql.service -l
+        exit 1
+    fi
 
     # ensure PostgreSQL is running on 5432 port with proper auth
     sudo sed -i \
