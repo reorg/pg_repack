@@ -5,6 +5,7 @@ pg_repack -- Reorganize tables in PostgreSQL databases with minimal locks
 - Download: https://pgxn.org/dist/pg_repack/
 - Development: https://github.com/reorg/pg_repack
 - Bug Report: https://github.com/reorg/pg_repack/issues
+- Docker: https://hub.docker.com/repository/docker/hartmutcouk/pg-repack-docker
 
 |travis|
 
