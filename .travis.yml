@@ -3,6 +3,10 @@
 dist: xenial
 sudo: required
 
+arch:
+  - AMD64
+  - ppc64le
+
 env:
   - PGVER=13
   - PGVER=12
