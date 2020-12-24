@@ -124,6 +124,7 @@ Options:
   -k, --no-superuser-check      skip superuser checks in client
   -C, --exclude-extension       don't repack tables which belong to specific extension
   -F, --error-on-invalid-index  don't repack when invalid index is found
+      --switch-threshold        switch tables when that many tuples are left to catchup
 
 Connection options:
   -d, --dbname=DBNAME           database to connect
@@ -224,6 +225,10 @@ Reorg Options
 ``-C``, ``--exclude-extension``
     Skip tables that belong to the specified extension(s). Some extensions
     may heavily depend on such tables at planning time etc.
+
+``--switch-threshold``
+    Switch tables when that many tuples are left in log table.
+    This setting can be used to avoid the inability to catchup with write-heavy tables.
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
