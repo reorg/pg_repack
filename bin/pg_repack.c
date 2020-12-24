@@ -285,7 +285,7 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
-	{ 'i', 't', "switch-threshold", &switch_threshold },
+	{ 'i', 'r', "switch-threshold", &switch_threshold },
 	{ 0 },
 };
 
@@ -2238,5 +2238,5 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
 	printf("  -C, --exclude-extension   don't repack tables which belong to specific extension\n");
-	printf("  -t, --switch-threshold    switch tables when that many tuples are left to catchup\n");
+	printf("  -r, --switch-threshold    switch tables when that many tuples are left to catchup\n");
 }
