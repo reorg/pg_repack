@@ -1,0 +1,211 @@
+name: Test extension
+
+# Run this workflow every time a new commit pushed to your repository
+on: 
+  push:
+    #branches: '**'
+    #branches-ignore: 'master'
+
+  pull_request:
+    #branches: '**'
+    #branches-ignore: 'master'
+
+  workflow_dispatch:
+
+
+defaults:
+  run:
+    shell: bash
+
+
+jobs:
+  pr-test:
+    name: Test the extension
+    runs-on: ${{ matrix.os }}
+    env:
+      EXTENSION_NAME: pg_repack
+      EXTENSION_DB: pg_repack
+      EXTENSION_BRANCH: master
+    strategy:
+      matrix:
+        # also test 'latest', eventually this will be upgraded to a newer version and might fail early
+        os: [ubuntu-18.04, ubuntu-20.04, ubuntu-latest]
+        #os: [ubuntu-latest]
+        # currently PostgreSQL 13 is not supported in our fork
+        postgresql: [9.6, 10, 11, 12]
+        #postgresql: [12]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Versions
+        run: echo "${{ matrix.os }} - ${{ matrix.postgresql }}"
+
+      - name: Calculate working directory
+        run: echo "::set-output name=PWD::$(realpath ./)"
+        id: pwd
+
+      - name: Working directory
+        run: echo "${{ steps.pwd.outputs.PWD }}"
+
+
+      # GitHub does only checkout the current branch
+      # in case this is a PR the check also needs $EXTENSION_BRANCH for the .control file
+      - name: get branch
+        run: git fetch --depth=5 origin $EXTENSION_BRANCH
+
+      - name: See the META.json
+        run: git show origin/$EXTENSION_BRANCH:META.json
+
+
+      # there might be PostgreSQL packages pre-installed, remove them
+      - name: Installed PostgreSQL packages
+        run: dpkg --list | grep postgresql
+
+      - name: Get list of PostgreSQL packages
+        run: echo "::set-output name=Packages::$(dpkg-query -f '${Package}\n' -W | grep ^postgresql | xargs)"
+        id: preinstalled_packages
+
+      - name: Remove preinstalled PostgreSQL packages
+        run: sudo dpkg --purge ${{ steps.preinstalled_packages.outputs.Packages }}
+
+
+      # verify result
+      - name: Installed PostgreSQL packages
+        run: dpkg --list | grep postgresql
+
+
+      # install build tools
+      - name: Install build-essential and other tools
+        run: sudo apt-get install -y build-essential ruby curl ca-certificates gnupg jq
+
+
+      # enable PostgreSQL APT repository
+      - name: Install GPG Key for PostgreSQL repository
+        run: curl https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+
+      - name: Install repository
+        run: sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+
+      - name: Update repository
+        run: sudo apt-get update
+
+      # install the requested version
+      - name: Install PostgreSQL
+        run: sudo apt-get install -y postgresql-${{ matrix.postgresql }} postgresql-server-dev-${{ matrix.postgresql }} postgresql-client-${{ matrix.postgresql }}
+
+      # debug output
+      - name: Path of pg_config
+        run: which pg_config
+
+      - name: pg_config output
+        run: pg_config
+
+      - name: Update pg_hba.conf
+        run: sudo bash -c "echo 'local all all trust' > /etc/postgresql/${{ matrix.postgresql }}/main/pg_hba.conf"
+
+      - name: Update pg_hba.conf
+        run: sudo bash -c "echo 'host all all 0/0 trust' >> /etc/postgresql/${{ matrix.postgresql }}/main/pg_hba.conf"
+
+      - name: Restart PostgreSQL
+        run: sudo service postgresql reload
+
+
+      # do the actual compilation
+      - name: Compile the extension
+        run: cd ${{ steps.pwd.outputs.PWD }} && make
+
+      - name: Test the extension
+        run: cd ${{ steps.pwd.outputs.PWD }} && make check
+
+      # install extension
+      - name: Install the extension
+        run: cd ${{ steps.pwd.outputs.PWD }} && sudo make install
+
+      - name: Add PostgreSQL bin path to system PATH
+        run: echo "/usr/lib/postgresql/${{ matrix.postgresql }}/bin" >> $GITHUB_PATH
+
+      - name: Create directory for tablespace
+        run: sudo -u postgres -s mkdir -p /var/lib/postgresql/testts
+
+      - name: Create tablespace
+        run: psql -U postgres -c "CREATE TABLESPACE testts LOCATION '/var/lib/postgresql/testts'"
+
+      - name: Test the extension
+        run: cd ${{ steps.pwd.outputs.PWD }} && make PGUSER=postgres installcheck
+
+      - name: Show regression.out
+        run: cat ${{ steps.pwd.outputs.PWD }}/regress/regression.out
+        if: ${{ failure() }}
+
+      - name: Show regression.diffs
+        run: cat ${{ steps.pwd.outputs.PWD }}/regress/regression.diffs
+        if: ${{ failure() }}
+
+
+      # start testing
+
+      - name: Get current branch name
+        run: echo "::set-output name=Packages::$(git branch --show-current)"
+        id: current_branch
+
+
+      # in a PR this version might be different
+      - name: Get current extension version
+        run: echo "::set-output name=Version::$(cat META.json | jq -r '.version')"
+        id: current_extension_version
+
+      # the version from the branch in $EXTENSION_BRANCH
+      - name: Get installed extension version
+        run: echo "::set-output name=Version::$(git show origin/$EXTENSION_BRANCH:META.json | jq -r '.version')"
+        id: installed_extension_version
+
+      - name: Show versions
+        run: echo "${{ steps.installed_extension_version.outputs.Version }} - ${{ steps.current_extension_version.outputs.Version }}"
+
+      - name: Test current version string
+        run: exit 1
+        if: steps.current_extension_version.outputs.Version == ''
+
+      - name: Test installed version string
+        run: exit 1
+        if: steps.installed_extension_version.outputs.Version == ''
+
+      - name: Create test database
+        run: createdb -U postgres $EXTENSION_DB
+
+
+
+      # install the version from $EXTENSION_BRANCH
+      - name: Install extension in database
+        run: psql -U postgres -c "CREATE EXTENSION $EXTENSION_NAME VERSION '${{ steps.installed_extension_version.outputs.Version }}'" $EXTENSION_DB
+
+      - name: Get extension version installed in the database - Step 1
+        run: psql -U postgres -A -q -t -o /tmp/installed_version_step_1.txt -c "SELECT extversion FROM pg_catalog.pg_extension WHERE extname='$EXTENSION_NAME'" $EXTENSION_DB
+
+      - name: Get extension version installed in the database - Step 2
+        run: echo "::set-output name=Version::$(cat /tmp/installed_version_step_1.txt)"
+        id: installed_version_step_1
+
+      - name: Show installed version - after extension install
+        run: echo "${{ steps.installed_version_step_1.outputs.Version }}"
+
+      # if this is a PR, the version might be different - try an extension upgrade in this case
+      - name: Upgrade extension in database
+        run: psql -U postgres -c "ALTER EXTENSION $EXTENSION_NAME UPDATE TO '${{ steps.current_extension_version.outputs.Version }}'" $EXTENSION_DB
+        if: steps.installed_extension_version.outputs.Version != steps.current_extension_version.outputs.Version
+
+      - name: Get extension version installed in the database - Step 1
+        run: psql -U postgres -A -q -t -o /tmp/installed_version_step_2.txt -c "SELECT extversion FROM pg_catalog.pg_extension WHERE extname='$EXTENSION_NAME'" $EXTENSION_DB
+
+      - name: Get extension version installed in the database - Step 2
+        run: echo "::set-output name=Version::$(cat /tmp/installed_version_step_2.txt)"
+        id: installed_version_step_2
+
+      - name: Show installed version - after extension update
+        run: echo "${{ steps.installed_version_step_2.outputs.Version }}"
+
+      - name: Fail if the upgraded version is not the expected version
+        run: exit 1
+        if: steps.installed_version_step_2.outputs.Version != steps.current_extension_version.outputs.Version
