@@ -1135,6 +1135,12 @@ repack_one_table(repack_table *table, const char *orderby)
 	 * or worse, interfering with a still-running pg_repack.
 	 */
 	bool            table_init = false;
+	char            textbuffer[26] = {0};
+	time_t          start = time(NULL);
+	struct tm       *t = localtime(&start);
+
+	strftime(textbuffer, sizeof(textbuffer)-1, "%Y.%m.%d %H:%M:%S", t);
+	elog(INFO, "date: %s", textbuffer);
 
 	initStringInfo(&sql);
 	/* Skip table if user ignore it */
