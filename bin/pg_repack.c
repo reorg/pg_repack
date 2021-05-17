@@ -1136,6 +1136,16 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	initStringInfo(&sql);
 
+	/* Skip table if user ignore it */
+	for (SimpleStringListCell* cell = exclude_table_list.head; cell; cell = cell->next)
+	{
+		if ( strcmp(cell->val, table->target_name) == 0 )
+		{
+			elog(INFO, "skipping table \"%s\"", table->target_name);
+			return;
+		}
+	}
+
 	elog(INFO, "repacking table \"%s\"", table->target_name);
 
 	elog(DEBUG2, "---- repack_one_table ----");
