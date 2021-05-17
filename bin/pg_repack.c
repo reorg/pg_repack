@@ -242,6 +242,7 @@ static bool				alldb = false;
 static bool				noorder = false;
 static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
+static SimpleStringList	exclude_table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
 static char				*tablespace = NULL;
@@ -270,6 +271,7 @@ static pgut_option options[] =
 	{ 'b', 'a', "all", &alldb },
 	{ 'l', 't', "table", &table_list },
 	{ 'l', 'I', "parent-table", &parent_table_list },
+	{ 'l', 'q', "exclude-table", &exclude_table_list },
 	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
@@ -2222,6 +2224,7 @@ pgut_help(bool details)
 	printf("  -a, --all                 repack all databases\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
 	printf("  -I, --parent-table=TABLE  repack specific parent table and its inheritors\n");
+	printf("  -q, --exclude-table=TABLE repack exclude specific table and its inheritors\n");
 	printf("  -c, --schema=SCHEMA       repack tables in specific schema only\n");
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
