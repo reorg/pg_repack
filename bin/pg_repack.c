@@ -75,7 +75,7 @@ const char *PROGRAM_VERSION = "unknown";
  * pg_regress.
  */
 #define SQL_XID_SNAPSHOT_90200 \
-	"SELECT repack.array_accum(l.virtualtransaction) " \
+	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
 	"  FROM pg_locks AS l " \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.pid " \
@@ -90,7 +90,7 @@ const char *PROGRAM_VERSION = "unknown";
 	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 #define SQL_XID_SNAPSHOT_90000 \
-	"SELECT repack.array_accum(l.virtualtransaction) " \
+	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
 	"  FROM pg_locks AS l " \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
@@ -108,7 +108,7 @@ const char *PROGRAM_VERSION = "unknown";
  * the WHERE clause is just to eat the $2 parameter (application name).
  */
 #define SQL_XID_SNAPSHOT_80300 \
-	"SELECT repack.array_accum(l.virtualtransaction) " \
+	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
 	"  FROM pg_locks AS l" \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
