@@ -252,6 +252,7 @@ static bool				moveidx = false;
 static SimpleStringList	r_index = {NULL, NULL};
 static bool				only_indexes = false;
 static int				wait_timeout = 60;	/* in seconds */
+static int				max_lock_timeout_msec = 1000;
 static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
@@ -285,6 +286,7 @@ static pgut_option options[] =
 	{ 'l', 'i', "index", &r_index },
 	{ 'b', 'x', "only-indexes", &only_indexes },
 	{ 'i', 'T', "wait-timeout", &wait_timeout },
+	{ 'i', 'm', "max-lock-timeout", &max_lock_timeout_msec },
 	{ 'B', 'Z', "no-analyze", &analyze },
 	{ 'i', 'j', "jobs", &jobs },
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
@@ -319,6 +321,10 @@ main(int argc, char *argv[])
 
 	if (dryrun)
 		elog(INFO, "Dry run enabled, not executing repack");
+
+	if (max_lock_timeout_msec < 1 || max_lock_timeout_msec > 1000)
+		ereport(ERROR, (errcode(EINVAL),
+			errmsg("--max-lock-timeout must be between 1 and 1000")));
 
 	if (r_index.head || only_indexes)
 	{
@@ -1916,6 +1922,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		char		sql[1024];
 		PGresult   *res;
 		int			wait_msec;
+		int			timeout_msec;
 
 		if (start_xact)
 			pgut_command(conn, "BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
@@ -1964,7 +1971,8 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 
 		/* wait for a while to lock the table. */
 		wait_msec = Min(1000, i * 100);
-		snprintf(sql, lengthof(sql), "SET LOCAL lock_timeout = %d", wait_msec);
+		timeout_msec = Min(wait_msec, max_lock_timeout_msec);
+		snprintf(sql, lengthof(sql), "SET LOCAL lock_timeout = %d", timeout_msec);
 		pgut_command(conn, sql, 0, NULL);
 
 		res = pgut_execute_elevel(conn, lock_query, 0, NULL, DEBUG2);
@@ -1981,6 +1989,8 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 				pgut_rollback(conn);
 			else
 				pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
+			if (timeout_msec < wait_msec)
+				usleep(1000 * (wait_msec - timeout_msec));
 			continue;
 		}
 		else
@@ -2415,6 +2425,7 @@ pgut_help(bool details)
 	printf("  -i, --index=INDEX             move only the specified index\n");
 	printf("  -x, --only-indexes            move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS       timeout to cancel other backends on conflict\n");
+	printf("  -m, --max-lock-timeout=MS     max millisecond timeout for a strong lock attempt\n");
 	printf("  -D, --no-kill-backend         don't kill other backends when timed out\n");
 	printf("  -Z, --no-analyze              don't analyze at end\n");
 	printf("  -k, --no-superuser-check      skip superuser checks in client\n");
