@@ -227,7 +227,7 @@ static bool rebuild_indexes(const repack_table *table);
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
 static bool advisory_lock(PGconn *conn, const char *relid);
-static bool lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact);
+static bool lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact, const repack_table *apply_log_table);
 static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
 
@@ -1298,7 +1298,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	if (!advisory_lock(connection, buffer))
 		goto cleanup;
 
-	if (!(lock_exclusive(connection, buffer, table->lock_table, true)))
+	if (!(lock_exclusive(connection, buffer, table->lock_table, true, NULL)))
 	{
 		if (no_kill_backend)
 			elog(INFO, "Skipping repack %s due to timeout", table->target_name);
@@ -1621,7 +1621,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	/* Bump our existing AccessShare lock to AccessExclusive */
 
 	if (!(lock_exclusive(conn2, utoa(table->target_oid, buffer),
-						 table->lock_table, false)))
+						 table->lock_table, false, table)))
 	{
 		elog(WARNING, "lock_exclusive() failed in conn2 for %s",
 			 table->target_name);
@@ -1635,7 +1635,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	printfStringInfo(&sql, "LOCK TABLE repack.table_%u IN ACCESS EXCLUSIVE MODE",
 					 table->target_oid);
 	if (!(lock_exclusive(conn2, utoa(table->temp_oid, buffer),
-						 sql.data, false)))
+						 sql.data, false, NULL)))
 	{
 		elog(WARNING, "lock_exclusive() failed in conn2 for table_%u",
 			 table->target_oid);
@@ -1654,7 +1654,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 	if (!(lock_exclusive(connection, utoa(table->target_oid, buffer),
-						 table->lock_table, false)))
+						 table->lock_table, false, NULL)))
 	{
 		elog(WARNING, "lock_exclusive() failed in connection for %s",
 			 table->target_name);
@@ -1908,9 +1908,14 @@ static bool advisory_lock(PGconn *conn, const char *relid)
  *  start_xact: whether we will issue a BEGIN ourselves. If not, we will
  *              use a SAVEPOINT and ROLLBACK TO SAVEPOINT if our query
  *              times out, to avoid leaving the transaction in error state.
+ *  apply_log_table: if non-NULL, call apply_log() on this table between
+ *                   locking attempts. This prevents lots of log from
+ *                   building up if getting the exclusive lock takes many
+ *                   retries over a long period.
  */
 static bool
-lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact)
+lock_exclusive(PGconn *conn, const char *relid, const char *lock_query,
+					bool start_xact, const repack_table *apply_log_table)
 {
 	time_t		start = time(NULL);
 	int			i;
@@ -1991,6 +1996,8 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 				pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
 			if (timeout_msec < wait_msec)
 				usleep(1000 * (wait_msec - timeout_msec));
+			if (apply_log_table)
+				apply_log(conn, apply_log_table, 0);
 			continue;
 		}
 		else
@@ -2031,7 +2038,7 @@ repack_cleanup_callback(bool fatal, void *userdata)
 		reconnect(ERROR);
 
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
+		if (!(lock_exclusive(connection, params[0], table->lock_table, false, NULL)))
 		{
 			pgut_rollback(connection);
 			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup callback",
@@ -2071,7 +2078,7 @@ repack_cleanup(bool fatal, const repack_table *table)
 		params[1] =  utoa(temp_obj_num, num_buff);
 
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
+		if (!(lock_exclusive(connection, params[0], table->lock_table, false, NULL)))
 		{
 			pgut_rollback(connection);
 			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup",
@@ -2225,7 +2232,7 @@ repack_table_indexes(PGresult *index_details)
 	resetStringInfo(&sql);
 	appendStringInfo(&sql, "LOCK TABLE %s IN ACCESS EXCLUSIVE MODE",
 					 table_name);
-	if (!(lock_exclusive(connection, params[1], sql.data, true)))
+	if (!(lock_exclusive(connection, params[1], sql.data, true, NULL)))
 	{
 		elog(WARNING, "lock_exclusive() failed in connection for %s",
 			 table_name);
