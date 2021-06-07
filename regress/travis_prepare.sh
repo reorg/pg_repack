@@ -29,6 +29,11 @@ if [[ "$PGVER" = "9.4" ]]; then
     sudo apt-mark hold libpq5
 fi
 
+# missing build dependency by postgresql-server-dev
+if [[ "$PGVER" -ge "14" ]]; then
+    sudo apt-get install -y liblz4-dev
+fi
+
 if ! sudo apt-get install -y \
     postgresql-$PGVER \
     postgresql-client-$PGVER \
