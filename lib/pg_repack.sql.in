@@ -16,13 +16,6 @@ CREATE FUNCTION repack.version_sql() RETURNS text AS
 $$SELECT 'pg_repack REPACK_VERSION'::text$$
 LANGUAGE SQL IMMUTABLE STRICT;
 
-CREATE AGGREGATE repack.array_accum (
-    sfunc = array_append,
-    basetype = anyelement,
-    stype = anyarray,
-    initcond = '{}'
-);
-
 -- Always specify search_path to 'pg_catalog' so that we
 -- always can get schema-qualified relation name
 CREATE FUNCTION repack.oid2text(oid) RETURNS text AS
@@ -33,7 +26,7 @@ LANGUAGE sql STABLE STRICT SET search_path to 'pg_catalog';
 
 CREATE FUNCTION repack.get_index_columns(oid, text) RETURNS text AS
 $$
-  SELECT array_to_string(repack.array_accum(quote_ident(attname)), $2)
+  SELECT coalesce(string_agg(quote_ident(attname), $2), '')
     FROM pg_attribute,
          (SELECT indrelid,
                  indkey,
@@ -53,8 +46,8 @@ LANGUAGE C STABLE STRICT;
 CREATE FUNCTION repack.get_create_index_type(oid, name) RETURNS text AS
 $$
   SELECT 'CREATE TYPE ' || $2 || ' AS (' ||
-         array_to_string(repack.array_accum(quote_ident(attname) || ' ' ||
-           pg_catalog.format_type(atttypid, atttypmod)), ', ') || ')'
+         coalesce(string_agg(quote_ident(attname) || ' ' ||
+           pg_catalog.format_type(atttypid, atttypmod), ', '), '') || ')'
     FROM pg_attribute,
          (SELECT indrelid,
                  indkey,
@@ -90,9 +83,9 @@ LANGUAGE sql STABLE STRICT;
 
 CREATE FUNCTION repack.get_assign(oid, text) RETURNS text AS
 $$
-  SELECT '(' || array_to_string(repack.array_accum(quote_ident(attname)), ', ') ||
+  SELECT '(' || coalesce(string_agg(quote_ident(attname), ', '), '') ||
          ') = (' || $2 || '.' ||
-         array_to_string(repack.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
+         coalesce(string_agg(quote_ident(attname), ', ' || $2 || '.'), '') || ')'
     FROM (SELECT attname FROM pg_attribute
            WHERE attrelid = $1 AND attnum > 0 AND NOT attisdropped
            ORDER BY attnum) tmp;
@@ -102,9 +95,9 @@ LANGUAGE sql STABLE STRICT;
 CREATE FUNCTION repack.get_compare_pkey(oid, text)
   RETURNS text AS
 $$
-  SELECT '(' || array_to_string(repack.array_accum(quote_ident(attname)), ', ') ||
+  SELECT '(' || coalesce(string_agg(quote_ident(attname), ', '), '') ||
          ') = (' || $2 || '.' ||
-         array_to_string(repack.array_accum(quote_ident(attname)), ', ' || $2 || '.') || ')'
+         coalesce(string_agg(quote_ident(attname), ', ' || $2 || '.'), '') || ')'
     FROM pg_attribute,
          (SELECT indrelid,
                  indkey,
@@ -122,7 +115,7 @@ LANGUAGE sql STABLE STRICT;
 CREATE FUNCTION repack.get_columns_for_create_as(oid)
   RETURNS text AS
 $$
-SELECT array_to_string(repack.array_accum(c), ',') FROM (SELECT
+SELECT coalesce(string_agg(c, ','), '') FROM (SELECT
 	CASE WHEN attisdropped
 		THEN 'NULL::integer AS ' || quote_ident(attname)
 		ELSE quote_ident(attname)
@@ -142,7 +135,7 @@ SELECT
 	'ALTER TABLE ' || $2 || ' ' || array_to_string(dropped_columns, ', ')
 FROM (
 	SELECT
-		repack.array_accum('DROP COLUMN ' || quote_ident(attname)) AS dropped_columns
+		array_agg('DROP COLUMN ' || quote_ident(attname)) AS dropped_columns
 	FROM (
 		SELECT * FROM pg_attribute
 		WHERE attrelid = $1 AND attnum > 0 AND attisdropped
@@ -161,7 +154,7 @@ LANGUAGE sql STABLE STRICT;
 CREATE FUNCTION repack.get_storage_param(oid)
   RETURNS TEXT AS
 $$
-SELECT array_to_string(array_agg(param), ', ')
+SELECT string_agg(param, ', ')
 FROM (
     -- table storage parameter
     SELECT unnest(reloptions) as param
@@ -196,7 +189,7 @@ $$
  SELECT 'ALTER TABLE repack.table_' || $1 || array_to_string(column_storage, ',')
  FROM (
        SELECT
-         repack.array_accum(' ALTER ' || quote_ident(attname) ||
+         array_agg(' ALTER ' || quote_ident(attname) ||
           CASE attstorage
                WHEN 'p' THEN ' SET STORAGE PLAIN'
                WHEN 'm' THEN ' SET STORAGE MAIN'
@@ -222,7 +215,7 @@ LANGUAGE sql STABLE STRICT;
 
 -- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
 CREATE VIEW repack.primary_keys AS
-  SELECT indrelid, (repack.array_accum(indexrelid))[1] AS indexrelid
+  SELECT indrelid, min(indexrelid) AS indexrelid
     FROM (SELECT indrelid, indexrelid FROM pg_index
    WHERE indisunique
      AND indisvalid

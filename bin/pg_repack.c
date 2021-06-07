@@ -75,7 +75,7 @@ const char *PROGRAM_VERSION = "unknown";
  * pg_regress.
  */
 #define SQL_XID_SNAPSHOT_90200 \
-	"SELECT repack.array_accum(l.virtualtransaction) " \
+	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
 	"  FROM pg_locks AS l " \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.pid " \
@@ -90,7 +90,7 @@ const char *PROGRAM_VERSION = "unknown";
 	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
 
 #define SQL_XID_SNAPSHOT_90000 \
-	"SELECT repack.array_accum(l.virtualtransaction) " \
+	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
 	"  FROM pg_locks AS l " \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
@@ -108,7 +108,7 @@ const char *PROGRAM_VERSION = "unknown";
  * the WHERE clause is just to eat the $2 parameter (application name).
  */
 #define SQL_XID_SNAPSHOT_80300 \
-	"SELECT repack.array_accum(l.virtualtransaction) " \
+	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
 	"  FROM pg_locks AS l" \
 	"  LEFT JOIN pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
@@ -212,6 +212,7 @@ typedef struct repack_table
 static bool is_superuser(void);
 static void check_tablespace(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
+static bool is_requested_relation_exists(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by);
 static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
 static void repack_one_table(repack_table *table, const char *order_by);
@@ -559,6 +560,113 @@ cleanup:
 }
 
 /*
+ * Check the presence of tables specified by --parent-table and --table
+ * otherwise format user-friendly message
+ */
+static bool
+is_requested_relation_exists(char *errbuf, size_t errsize){
+	bool			ret = false;
+	PGresult		*res = NULL;
+	const char	    **params = NULL;
+	int				iparam = 0;
+	StringInfoData	sql;
+	int				num_relations;
+	SimpleStringListCell   *cell;
+
+	num_relations = simple_string_list_size(parent_table_list) +
+					simple_string_list_size(table_list);
+
+	/* nothing was implicitly requested, so nothing to do here */
+	if (num_relations == 0)
+		return true;
+
+	/* has no suitable to_regclass(text) */
+	if (PQserverVersion(connection)<90600)
+		return true;
+
+	params = pgut_malloc(num_relations * sizeof(char *));
+	initStringInfo(&sql);
+	appendStringInfoString(&sql, "SELECT r FROM (VALUES ");
+
+	for (cell = table_list.head; cell; cell = cell->next)
+	{
+		appendStringInfo(&sql, "($%d)", iparam + 1);
+		params[iparam++] = cell->val;
+		if (iparam < num_relations)
+			appendStringInfoChar(&sql, ',');
+	}
+	for (cell = parent_table_list.head; cell; cell = cell->next)
+	{
+		appendStringInfo(&sql, "($%d)", iparam + 1);
+		params[iparam++] = cell->val;
+		if (iparam < num_relations)
+			appendStringInfoChar(&sql, ',');
+	}
+	appendStringInfoString(&sql,
+		") AS given_t(r)"
+		" WHERE NOT EXISTS("
+		"  SELECT FROM repack.tables WHERE relid=to_regclass(given_t.r) )"
+	);
+
+	/* double check the parameters array is sane */
+	if (iparam != num_relations)
+	{
+		if (errbuf)
+			snprintf(errbuf, errsize,
+				"internal error: bad parameters count: %i instead of %i",
+				 iparam, num_relations);
+		goto cleanup;
+	}
+
+	res = execute_elevel(sql.data, iparam, params, DEBUG2);
+	if (PQresultStatus(res) == PGRES_TUPLES_OK)
+	{
+		int 	num;
+
+		num = PQntuples(res);
+
+		if (num != 0)
+		{
+			int i;
+			StringInfoData	rel_names;
+			initStringInfo(&rel_names);
+
+			for (i = 0; i < num; i++)
+			{
+				appendStringInfo(&rel_names, "\"%s\"", getstr(res, i, 0));
+				if ((i + 1) != num)
+					appendStringInfoString(&rel_names, ", ");
+			}
+
+			if (errbuf)
+			{
+				if (num > 1)
+					snprintf(errbuf, errsize,
+							"relations do not exist: %s", rel_names.data);
+				else
+					snprintf(errbuf, errsize,
+							"ERROR:  relation %s does not exist", rel_names.data);
+			}
+			termStringInfo(&rel_names);
+		}
+		else
+			ret = true;
+	}
+	else
+	{
+		if (errbuf)
+			snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+	}
+	CLEARPGRES(res);
+
+cleanup:
+	CLEARPGRES(res);
+	termStringInfo(&sql);
+	free(params);
+	return ret;
+}
+
+/*
  * Call repack_one_database for each database.
  */
 static void
@@ -655,6 +763,9 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		setup_workers(jobs);
 
 	if (!preliminary_checks(errbuf, errsize))
+		goto cleanup;
+
+	if (!is_requested_relation_exists(errbuf, errsize))
 		goto cleanup;
 
 	/* acquire target tables */
@@ -2113,6 +2224,9 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	assert(r_index.head || table_list.head || parent_table_list.head);
 
 	if (!preliminary_checks(errbuf, errsize))
+		goto cleanup;
+
+	if (!is_requested_relation_exists(errbuf, errsize))
 		goto cleanup;
 
 	if (r_index.head)
