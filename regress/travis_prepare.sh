@@ -14,8 +14,10 @@ sudo apt-get remove -y libpq5
 
 # Match libpq and server-dev packages
 # See https://github.com/reorg/pg_repack/issues/63
-sudo sed -i "s/main[[:space:]]*$/main ${PGVER}/" \
-    /etc/apt/sources.list.d/pgdg.list
+sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg ${PGVER}" > /etc/apt/sources.list.d/pgdg.list'
+
+# Import the repository signing key:
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 
 if [ "$PGTESTING" != "" ]; then
     sudo sed -i "s/focal-pgdg/focal-pgdg-testing/" \
