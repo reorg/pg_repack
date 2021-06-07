@@ -19,11 +19,6 @@ sudo sh -c 'echo "deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt $(lsb
 # Import the repository signing key:
 wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 
-if [ "$PGTESTING" != "" ]; then
-    sudo sed -i "s/focal-pgdg/focal-pgdg-testing/" \
-        /etc/apt/sources.list.d/pgdg.list
-fi
-
 sudo apt-get update
 
 # This might be a moving target, but it currently fails. 13 could start
