@@ -285,7 +285,7 @@ CREATE TABLE child_b_1(val integer primary key) INHERITS(parent_b);
 CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --parent-table=dummy_table
-ERROR: pg_repack failed with error: relation "dummy_table" does not exist
+ERROR: pg_repack failed with error: ERROR:  relation "dummy_table" does not exist
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --parent-table=dummy_index --index=dummy_index
 ERROR: cannot specify --index (-i) and --parent-table (-I)

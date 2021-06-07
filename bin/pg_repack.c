@@ -580,6 +580,10 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 	if (num_relations == 0)
 		return true;
 
+	/* has no suitable to_regclass(text) */
+	if (PQserverVersion(connection)<90600)
+		return true;
+
 	params = pgut_malloc(num_relations * sizeof(char *));
 	initStringInfo(&sql);
 	appendStringInfoString(&sql, "SELECT r FROM (VALUES ");
@@ -641,7 +645,7 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 							"relations do not exist: %s", rel_names.data);
 				else
 					snprintf(errbuf, errsize,
-							"relation %s does not exist", rel_names.data);
+							"ERROR:  relation %s does not exist", rel_names.data);
 			}
 			termStringInfo(&rel_names);
 		}
