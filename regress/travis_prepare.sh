@@ -18,7 +18,7 @@ sudo sed -i "s/main[[:space:]]*$/main ${PGVER}/" \
     /etc/apt/sources.list.d/pgdg.list
 
 if [ "$PGTESTING" != "" ]; then
-    sudo sed -i "s/xenial-pgdg/xenial-pgdg-testing/" \
+    sudo sed -i "s/focal-pgdg/focal-pgdg-testing/" \
         /etc/apt/sources.list.d/pgdg.list
 fi
 

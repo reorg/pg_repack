@@ -1,6 +1,6 @@
 # Travis CI configuration file for psycopg2
 
-dist: xenial
+dist: focal
 sudo: required
 
 env:
