@@ -27,7 +27,7 @@
       }
    },
    "resources": {
-      "homepage": "http://reorg.github.com/pg_repack",
+      "homepage": "https://reorg.github.io/pg_repack",
       "bugtracker": {
          "web": "https://github.com/reorg/pg_repack/issues"
       },
@@ -39,6 +39,6 @@
    },
    "meta-spec": {
       "version": "1.0.0",
-      "url": "http://pgxn.org/meta/spec.txt"
+      "url": "https://pgxn.org/meta/spec.txt"
    }
 }

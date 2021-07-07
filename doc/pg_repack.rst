@@ -28,7 +28,7 @@ NOTICE:
 * Target table must have a PRIMARY KEY, or at least a UNIQUE total index on a
   NOT NULL column.
 
-.. _pg_repack: http://reorg.github.com/pg_repack
+.. _pg_repack: https://reorg.github.io/pg_repack
 .. _CLUSTER: http://www.postgresql.org/docs/current/static/sql-cluster.html
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
@@ -587,4 +587,3 @@ See Also
 
 * `clusterdb <http://www.postgresql.org/docs/current/static/app-clusterdb.html>`__
 * `vacuumdb <http://www.postgresql.org/docs/current/static/app-vacuumdb.html>`__
-

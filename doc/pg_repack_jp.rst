@@ -50,7 +50,7 @@ pg_repackでは再編成する方法として次のものが選択できます�
 * DBのスーパーユーザだけがpg_repackを実行できます
 * 対象となるテーブルは主キー、もしくはNOT NULL制約を持つカラムへのユニーク制約をもつインデックスが存在している必要があります
 
-.. _pg_repack: http://reorg.github.com/pg_repack
+.. _pg_repack: https://reorg.github.io/pg_repack
 .. _CLUSTER: http://www.postgresql.jp/document/current/html/sql-cluster.html
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.jp/document/current/html/sql-vacuum.html
@@ -1050,4 +1050,3 @@ ACCESS EXCLUSIVEロックを取得します。その他のステップでは、A
 
 * `clusterdb <http://www.postgresql.jp/document/current/html/app-clusterdb.html>`__
 * `vacuumdb <http://www.postgresql.jp/document/current/html/app-vacuumdb.html>`__
-
