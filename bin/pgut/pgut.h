@@ -3,7 +3,7 @@
  *
  * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  * Portions Copyright (c) 2011, Itagaki Takahiro
- * Portions Copyright (c) 2012-2015, The Reorg Development Team
+ * Portions Copyright (c) 2012-2020, The Reorg Development Team
  *-------------------------------------------------------------------------
  */
 
@@ -43,7 +43,7 @@ typedef void (*pgut_atexit_callback)(bool fatal, void *userdata);
 extern const char  *PROGRAM_NAME;
 extern const char  *PROGRAM_VERSION;
 extern const char  *PROGRAM_URL;
-extern const char  *PROGRAM_EMAIL;
+extern const char  *PROGRAM_ISSUES;
 
 /*
  * pgut framework variables and functions

@@ -33,14 +33,14 @@ NOTICE:
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
 .. _project page: https://github.com/reorg/pg_repack
-.. _pg_reorg: http://reorg.projects.pgfoundry.org/
+.. _pg_reorg: https://github.com/reorg/pg_reorg
 
 
 Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 10, 11, 12
+    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -64,8 +64,8 @@ the package; use::
 
 Check the `pgxn install documentation`__ for the options available.
 
-.. _PGXN Client: http://pgxnclient.projects.pgfoundry.org/
-.. __: http://pgxnclient.projects.pgfoundry.org/usage.html#pgxn-install
+.. _PGXN Client: https://pgxn.github.io/pgxnclient/
+.. __: https://pgxn.github.io/pgxnclient/usage.html#pgxn-install
 
 
 Installation
@@ -465,6 +465,11 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 
 Releases
 --------
+
+* pg_repack 1.4.6
+
+  * Added support for PostgreSQL 13
+  * Dropped support for PostgreSQL before 9.4
 
 * pg_repack 1.4.5
 

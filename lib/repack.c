@@ -3,7 +3,7 @@
  *
  * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  * Portions Copyright (c) 2011, Itagaki Takahiro
- * Portions Copyright (c) 2012-2015, The Reorg Development Team
+ * Portions Copyright (c) 2012-2020, The Reorg Development Team
  */
 
 #include "postgres.h"
@@ -19,7 +19,6 @@
 
 /*
  * heap_open/heap_close was moved to table_open/table_close in 12.0
- * table.h has macros mapping the old names to the new ones
  */
 #if PG_VERSION_NUM >= 120000
 #include "access/table.h"
@@ -58,10 +57,7 @@
 #include "pgut/pgut-spi.h"
 #include "pgut/pgut-be.h"
 
-/* htup.h was reorganized for 9.3, so now we need this header */
-#if PG_VERSION_NUM >= 90300
 #include "access/htup_details.h"
-#endif
 
 /* builtins.h was reorganized for 9.5, so now we need this header */
 #if PG_VERSION_NUM >= 90500
@@ -116,11 +112,7 @@ must_be_superuser(const char *func)
 /* The API of RenameRelationInternal() was changed in 9.2.
  * Use the RENAME_REL macro for compatibility across versions.
  */
-#if PG_VERSION_NUM < 90200
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, PG_TOAST_NAMESPACE);
-#elif PG_VERSION_NUM < 90300
-#define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname);
-#elif PG_VERSION_NUM < 120000
+#if PG_VERSION_NUM < 120000
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true);
 #else
 #define RENAME_REL(relid, newrelname) RenameRelationInternal(relid, newrelname, true, false);
@@ -1169,7 +1161,11 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	CatalogIndexState indstate;
 
 	/* We need writable copies of both pg_class tuples. */
+#if PG_VERSION_NUM >= 120000
+	relRelation = table_open(RelationRelationId, RowExclusiveLock);
+#else
 	relRelation = heap_open(RelationRelationId, RowExclusiveLock);
+#endif
 
 	reltup1 = SearchSysCacheCopy(RELOID,
 								 ObjectIdGetDatum(r1),
@@ -1214,11 +1210,7 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 
 	/* swap size statistics too, since new rel has freshly-updated stats */
 	{
-#if PG_VERSION_NUM >= 90300
 		int32		swap_pages;
-#else
-		int4		swap_pages;
-#endif
 		float4		swap_tuples;
 
 		swap_pages = relform1->relpages;
@@ -1332,7 +1324,11 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	heap_freetuple(reltup1);
 	heap_freetuple(reltup2);
 
+#if PG_VERSION_NUM >= 120000
+	table_close(relRelation, RowExclusiveLock);
+#else
 	heap_close(relRelation, RowExclusiveLock);
+#endif
 }
 
 /**

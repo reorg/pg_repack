@@ -1,6 +1,7 @@
 # Global excludes across all subdirectories
 *.o
 *.so
+*.bc
 regress/regression.diffs
 regress/regression.out
 regress/results/

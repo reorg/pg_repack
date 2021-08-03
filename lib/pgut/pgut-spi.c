@@ -3,7 +3,7 @@
  *
  * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  * Portions Copyright (c) 2011, Itagaki Takahiro
- * Portions Copyright (c) 2012-2015, The Reorg Development Team
+ * Portions Copyright (c) 2012-2020, The Reorg Development Team
  *-------------------------------------------------------------------------
  */
 
@@ -29,20 +29,12 @@ termStringInfo(StringInfo str)
 static void
 appendStringInfoVA_s(StringInfo str, const char *fmt, va_list args)
 {
-#if PG_VERSION_NUM >= 90400
 	int needed;
 	while ((needed = appendStringInfoVA(str, fmt, args)) > 0)
 	{
 		/* Double the buffer size and try again. */
 		enlargeStringInfo(str, needed);
 	}
-#else
-	while (!appendStringInfoVA(str, fmt, args))
-	{
-		/* Double the buffer size and try again. */
-		enlargeStringInfo(str, str->maxlen);
-	}
-#endif
 }
 
 /* simple execute */
