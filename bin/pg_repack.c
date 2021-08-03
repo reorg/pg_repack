@@ -3,15 +3,15 @@
  *
  * Portions Copyright (c) 2008-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  * Portions Copyright (c) 2011, Itagaki Takahiro
- * Portions Copyright (c) 2012-2015, The Reorg Development Team
+ * Portions Copyright (c) 2012-2020, The Reorg Development Team
  */
 
 /**
  * @brief Client Modules
  */
 
-const char *PROGRAM_URL		= "http://reorg.github.com/pg_repack";
-const char *PROGRAM_EMAIL	= "reorg-general@lists.pgfoundry.org";
+const char *PROGRAM_URL		= "https://reorg.github.io/pg_repack/";
+const char *PROGRAM_ISSUES	= "https://github.com/reorg/pg_repack/issues";
 
 #ifdef REPACK_VERSION
 /* macro trick to stringify a macro expansion */
@@ -2070,11 +2070,7 @@ repack_table_indexes(PGresult *index_details)
 drop_idx:
 	resetStringInfo(&sql);
 	initStringInfo(&sql_drop);
-#if PG_VERSION_NUM < 90200
-	appendStringInfoString(&sql, "DROP INDEX ");
-#else
 	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY ");
-#endif
 	appendStringInfo(&sql, "\"%s\".",  schema_name);
 
 	for (i = 0; i < num; i++)

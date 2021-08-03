@@ -12,47 +12,46 @@ export PATH="$PGBIN:$PATH"
 # This also stops the server currently running on port 5432
 sudo apt-get remove -y libpq5
 
-if [[ "$PGVER" = "9.1" || "$PGVER" = "9.2" || "$PGVER" = "9.3" ]]; then
+# Match libpq and server-dev packages
+# See https://github.com/reorg/pg_repack/issues/63
+sudo sed -i "s/main[[:space:]]*$/main ${PGVER}/" \
+    /etc/apt/sources.list.d/pgdg.list
 
-    # Dinosaur package kindly provided by psycopg
-    sudo mkdir -p /usr/lib/postgresql
-    wget -O - http://initd.org/psycopg/upload/postgresql/postgresql-${PGVER}-xenial.tar.bz2 \
-        | sudo tar xjf - -C /usr/lib/postgresql
-
-    cd /
-    sudo -u postgres "$PGBIN/initdb" "/var/lib/postgresql/${PGVER}/main/"
-    sudo -u postgres "$PGBIN/pg_ctl" -w -l /dev/null -D "$DATADIR" start
-    sudo -u postgres "$PGBIN/psql" -c "create user travis superuser"
-    cd -
-
-else
-    # Match libpq and server-dev packages
-    # See https://github.com/reorg/pg_repack/issues/63
-    sudo sed -i "s/main[[:space:]]*$/main ${PGVER}/" \
+if [ "$PGTESTING" != "" ]; then
+    sudo sed -i "s/xenial-pgdg/xenial-pgdg-testing/" \
         /etc/apt/sources.list.d/pgdg.list
+fi
 
-    if [ "$PGTESTING" != "" ]; then
-        sudo sed -i "s/xenial-pgdg/xenial-pgdg-testing/" \
-            /etc/apt/sources.list.d/pgdg.list
-    fi
+sudo apt-get update
 
-    sudo apt-get update
+# This might be a moving target, but it currently fails. 13 could start
+# failing in the future instead.
+# Some versions break if this is not specified (9.4 for sure, maybe 9.6)
+if [[ "$PGVER" = "9.4" ]]; then
     sudo apt-get install -y "libpq5=${PGVER}*" "libpq-dev=${PGVER}*"
     sudo apt-mark hold libpq5
-    sudo apt-get install -y postgresql-server-dev-$PGVER postgresql-$PGVER
+fi
 
-    # ensure PostgreSQL is running on 5432 port with proper auth
-    sudo sed -i \
-        's/\(^local[[:space:]]\+all[[:space:]]\+all[[:space:]]\+\).*/\1trust/' \
-        "$CONFDIR/pg_hba.conf"
-    sudo bash -c "echo 'port=5432' >> $CONFDIR/postgresql.conf"
-    sudo service postgresql restart $PGVER
+if ! sudo apt-get install -y \
+    postgresql-$PGVER \
+    postgresql-client-$PGVER \
+    postgresql-server-dev-$PGVER
+then
+    sudo systemctl status postgresql.service -l
+    exit 1
+fi
 
-    # ensure travis user exists. May be missed if the database was not provided by Travis
-    userexists=`sudo -u postgres "$PGBIN/psql" -tc "select count(*) from pg_catalog.pg_user where usename='travis';"`
-    if [ ${userexists} -eq 0  ]; then
-      sudo -u postgres "$PGBIN/psql" -c "create user travis superuser"
-    fi
+# ensure PostgreSQL is running on 5432 port with proper auth
+sudo sed -i \
+    's/\(^local[[:space:]]\+all[[:space:]]\+all[[:space:]]\+\).*/\1trust/' \
+    "$CONFDIR/pg_hba.conf"
+sudo bash -c "echo 'port=5432' >> $CONFDIR/postgresql.conf"
+sudo service postgresql restart $PGVER
+
+# ensure travis user exists. May be missed if the database was not provided by Travis
+userexists=`sudo -u postgres "$PGBIN/psql" -tc "select count(*) from pg_catalog.pg_user where usename='travis';"`
+if [ ${userexists} -eq 0  ]; then
+  sudo -u postgres "$PGBIN/psql" -c "create user travis superuser"
 fi
 
 # Go somewhere else or sudo will fail

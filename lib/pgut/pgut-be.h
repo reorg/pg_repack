@@ -3,7 +3,7 @@
  * pgut-be.h
  *
  * Copyright (c) 2009-2011, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
- * Portions Copyright (c) 2012-2015, The Reorg Development Team
+ * Portions Copyright (c) 2012-2020, The Reorg Development Team
  *
  *-------------------------------------------------------------------------
  */
