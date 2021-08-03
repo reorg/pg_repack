@@ -14,7 +14,7 @@ Release:	1%{?dist}
 License:	BSD
 Group:		Applications/Databases
 Source0:	%{sname}-%{version}.tar.gz
-URL:		http://pgfoundry.org/projects/%{sname}/
+URL:		https://reorg.github.io/%{sname}/
 BuildRoot:	%{_tmppath}/%{name}-%{version}-%{release}-%(%{__id_u} -n)
 
 BuildRequires:	postgresql90-devel, postgresql90
