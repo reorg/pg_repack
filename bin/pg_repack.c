@@ -1164,7 +1164,7 @@ repack_one_table(repack_table *table, const char *orderby)
 		return;
 
 	/* push repack_cleanup_callback() on stack to clean temporary objects */
-	pgut_atexit_push(repack_cleanup_callback, &table->target_oid);
+	pgut_atexit_push(repack_cleanup_callback, table);
 
 	/*
 	 * 1. Setup advisory lock and trigger on main table.
@@ -1854,7 +1854,8 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 void
 repack_cleanup_callback(bool fatal, void *userdata)
 {
-	Oid			target_table = *(Oid *) userdata;
+	repack_table *table = (repack_table *) userdata;
+	Oid			target_table = table->target_oid;
 	const char *params[2];
 	char		buffer[12];
 	char		num_buff[12];
@@ -1869,7 +1870,17 @@ repack_cleanup_callback(bool fatal, void *userdata)
 		 * so just use an unconditional reconnect().
 		 */
 		reconnect(ERROR);
+
+		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
+		{
+			elog(WARNING, "lock_exclusive() failed in connection for %s during cleanup callback",
+				 table->target_name);
+			return;
+		}
+
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		command("COMMIT", 0, NULL);
 		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
 }
@@ -1899,7 +1910,17 @@ repack_cleanup(bool fatal, const repack_table *table)
 		/* do cleanup */
 		params[0] = utoa(table->target_oid, buffer);
 		params[1] =  utoa(temp_obj_num, num_buff);
+
+		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
+		{
+			elog(WARNING, "lock_exclusive() failed in connection for %s during cleanup",
+				 table->target_name);
+			return;
+		}
+
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		command("COMMIT", 0, NULL);
 		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
 }
