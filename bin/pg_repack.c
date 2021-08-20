@@ -1874,9 +1874,8 @@ repack_cleanup_callback(bool fatal, void *userdata)
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
 		{
-			elog(WARNING, "lock_exclusive() failed in connection for %s during cleanup callback",
+			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup callback",
 				 table->target_name);
-			return;
 		}
 
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
@@ -1914,9 +1913,8 @@ repack_cleanup(bool fatal, const repack_table *table)
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
 		{
-			elog(WARNING, "lock_exclusive() failed in connection for %s during cleanup",
+			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup",
 				 table->target_name);
-			return;
 		}
 
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
