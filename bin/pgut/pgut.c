@@ -548,8 +548,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 
 		ereport(elevel,
 			(errcode(E_PG_CONNECT),
-			 errmsg("could not connect to database with \"%s\": %s",
-				info, PQerrorMessage(conn))));
+			 errmsg("could not connect to database: %s", PQerrorMessage(conn))));
 		PQfinish(conn);
 		return NULL;
 	}
