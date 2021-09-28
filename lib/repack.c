@@ -1167,16 +1167,12 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	relRelation = heap_open(RelationRelationId, RowExclusiveLock);
 #endif
 
-	reltup1 = SearchSysCacheCopy(RELOID,
-								 ObjectIdGetDatum(r1),
-								 0, 0, 0);
+	reltup1 = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(r1));
 	if (!HeapTupleIsValid(reltup1))
 		elog(ERROR, "cache lookup failed for relation %u", r1);
 	relform1 = (Form_pg_class) GETSTRUCT(reltup1);
 
-	reltup2 = SearchSysCacheCopy(RELOID,
-								 ObjectIdGetDatum(r2),
-								 0, 0, 0);
+	reltup2 = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(r2));
 	if (!HeapTupleIsValid(reltup2))
 		elog(ERROR, "cache lookup failed for relation %u", r2);
 	relform2 = (Form_pg_class) GETSTRUCT(reltup2);
