@@ -346,7 +346,7 @@ parse_time(const char *value, time_t *time)
 	char		junk[2];
 
 	/* tmp = replace( value, !isalnum, ' ' ) */
-	tmp = pgut_malloc(strlen(value) + + 1);
+	tmp = pgut_malloc(strlen(value) + 1);
 	len = 0;
 	for (i = 0; value[i]; i++)
 		tmp[len++] = (IsAlnum(value[i]) ? value[i] : ' ');
