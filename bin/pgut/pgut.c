@@ -1164,7 +1164,7 @@ on_interrupt(void)
 	pgutConn   *c;
 	int			save_errno = errno;
 
-	/* Set interruped flag */
+	/* Set interrupted flag */
 	interrupted = true;
 
 	if (in_cleanup)
