@@ -147,8 +147,8 @@ WHERE
 $$
 LANGUAGE sql STABLE STRICT;
 
--- Get a comma-separated storage paramter for the table including
--- paramters for the corresponding TOAST table.
+-- Get a comma-separated storage parameter for the table including
+-- parameters for the corresponding TOAST table.
 -- Note that since oid setting is always not NULL, this function
 -- never returns NULL
 CREATE FUNCTION repack.get_storage_param(oid)
