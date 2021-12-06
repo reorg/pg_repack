@@ -356,7 +356,7 @@ ERROR: program 'pg_repack V1' does not match database library 'pg_repack V2'
     database; if they are what expected you may need to repeat pg_repack
     installation.
 
-ERROR: extension 'pg_repack V1' required, found extension 'pg_repack V2'
+ERROR: extension 'pg_repack V1' required, found 'pg_repack V2'
     The SQL extension found in the database does not match the version
     required by the pg_repack program.
 

@@ -515,7 +515,8 @@ preliminary_checks(char *errbuf, size_t errsize){
 		{
 			if (errbuf)
 				snprintf(errbuf, errsize,
-					"extension '%s' required, found extension '%s'",
+					"extension '%s' required, found '%s';"
+					" please drop and re-create the extension",
 					buf, libver);
 			goto cleanup;
 		}
