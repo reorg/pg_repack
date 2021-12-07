@@ -126,7 +126,7 @@ WHERE attrelid = $1 AND attnum > 0 ORDER BY attnum
 $$
 LANGUAGE sql STABLE STRICT;
 
--- Get a SQL text to DROP dropped columns for the table,
+-- Get an SQL text to DROP dropped columns for the table,
 -- or NULL if it has no dropped columns.
 CREATE FUNCTION repack.get_drop_columns(oid, text)
   RETURNS text AS
@@ -182,7 +182,7 @@ FROM (
 $$
 LANGUAGE sql STABLE STRICT;
 
--- GET a SQL text to set column storage option for the table.
+-- GET an SQL text to set column storage option for the table.
 CREATE FUNCTION repack.get_alter_col_storage(oid)
   RETURNS text AS
 $$
