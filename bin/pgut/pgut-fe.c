@@ -573,7 +573,7 @@ parse_pair(const char buffer[], char key[], char value[])
 }
 
 /*
- * execute - Execute a SQL and return the result.
+ * execute - Execute an SQL and return the result.
  */
 PGresult *
 execute(const char *query, int nParams, const char **params)
@@ -588,7 +588,7 @@ execute_elevel(const char *query, int nParams, const char **params, int elevel)
 }
 
 /*
- * command - Execute a SQL and discard the result.
+ * command - Execute an SQL and discard the result.
  */
 ExecStatusType
 command(const char *query, int nParams, const char **params)
