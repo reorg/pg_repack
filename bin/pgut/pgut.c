@@ -449,7 +449,9 @@ prompt_for_password(void)
 		buf = pgut_malloc(BUFSIZE);
 		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
 	} else {
-		buf = simple_prompt("Password: ", BUFSIZE, false);
+		do {
+			buf = simple_prompt("Password: ", BUFSIZE, false);
+		} while (strlen(buf) == 0);
 		have_passwd = true;
 		passwdbuf = pgut_malloc(BUFSIZE);
 		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
@@ -459,8 +461,11 @@ prompt_for_password(void)
 	if (have_passwd) {
 		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
 	} else {
-		if (buf != NULL)
-			simple_prompt("Password: ", buf, BUFSIZE, false);
+		if (buf != NULL) {
+			do {
+				simple_prompt("Password: ", buf, BUFSIZE, false);
+			} while (strlen(buf) == 0);
+		}
 		have_passwd = true;
 		passwdbuf = pgut_malloc(BUFSIZE);
 		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
@@ -470,7 +475,9 @@ prompt_for_password(void)
 		buf = pgut_malloc(BUFSIZE);
 		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
 	} else {
-		buf = simple_prompt("Password: ", false);
+		do {
+			buf = simple_prompt("Password: ", false);
+		} while (strlen(buf) == 0);
 		have_passwd = true;
 		passwdbuf = pgut_malloc(BUFSIZE);
 		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
@@ -500,7 +507,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 		passwd = prompt_for_password();
 		initStringInfo(&add_pass);
 		appendStringInfoString(&add_pass, info);
-		appendStringInfo(&add_pass, " password=%s ", passwd);
+		appendStringInfo(&add_pass, " password='%s' ", passwd);
 	}
 	else
 	{
@@ -552,7 +559,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			else
 	 			initStringInfo(&add_pass);
 			appendStringInfoString(&add_pass, info);
-			appendStringInfo(&add_pass, " password=%s ", passwd);
+			appendStringInfo(&add_pass, " password='%s' ", passwd);
 			continue;
 		}
 
