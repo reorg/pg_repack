@@ -10,6 +10,10 @@
 #include "postgres_fe.h"
 #include "libpq/pqsignal.h"
 
+#if PG_VERSION_NUM >= 140000
+#include "common/string.h" /* for simple_prompt */
+#endif
+
 #include <limits.h>
 #include <sys/stat.h>
 #include <time.h>
@@ -342,7 +346,7 @@ parse_time(const char *value, time_t *time)
 	char		junk[2];
 
 	/* tmp = replace( value, !isalnum, ' ' ) */
-	tmp = pgut_malloc(strlen(value) + + 1);
+	tmp = pgut_malloc(strlen(value) + 1);
 	len = 0;
 	for (i = 0; value[i]; i++)
 		tmp[len++] = (IsAlnum(value[i]) ? value[i] : ' ');
@@ -450,13 +454,23 @@ prompt_for_password(void)
 		passwdbuf = pgut_malloc(BUFSIZE);
 		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
 	}
-#else
+#elif PG_VERSION_NUM < 140000
 	buf = pgut_malloc(BUFSIZE);
 	if (have_passwd) {
 		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
 	} else {
 		if (buf != NULL)
 			simple_prompt("Password: ", buf, BUFSIZE, false);
+		have_passwd = true;
+		passwdbuf = pgut_malloc(BUFSIZE);
+		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
+	}
+#else
+	if (have_passwd) {
+		buf = pgut_malloc(BUFSIZE);
+		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
+	} else {
+		buf = simple_prompt("Password: ", false);
 		have_passwd = true;
 		passwdbuf = pgut_malloc(BUFSIZE);
 		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
@@ -548,8 +562,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 
 		ereport(elevel,
 			(errcode(E_PG_CONNECT),
-			 errmsg("could not connect to database with \"%s\": %s",
-				info, PQerrorMessage(conn))));
+			 errmsg("could not connect to database: %s", PQerrorMessage(conn))));
 		PQfinish(conn);
 		return NULL;
 	}
@@ -1151,7 +1164,7 @@ on_interrupt(void)
 	pgutConn   *c;
 	int			save_errno = errno;
 
-	/* Set interruped flag */
+	/* Set interrupted flag */
 	interrupted = true;
 
 	if (in_cleanup)
