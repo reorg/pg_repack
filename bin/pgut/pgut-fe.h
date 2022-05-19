@@ -57,7 +57,7 @@ typedef struct worker_conns
 
 
 
-extern char	   *dbname;
+extern const char  *dbname;
 extern char	   *host;
 extern char	   *port;
 extern char	   *username;

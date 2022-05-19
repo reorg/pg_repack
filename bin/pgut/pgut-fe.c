@@ -9,6 +9,7 @@
 
 #define FRONTEND
 #include "pgut-fe.h"
+#include "common/username.h"
 
 #ifdef HAVE_GETOPT_H
 #include <getopt.h>
@@ -16,7 +17,7 @@
 #include <getopt_long.h>
 #endif
 
-char	   *dbname = NULL;
+const char *dbname = NULL;
 char	   *host = NULL;
 char	   *port = NULL;
 char	   *username = NULL;
@@ -33,8 +34,6 @@ worker_conns workers   = {
 
 
 static bool parse_pair(const char buffer[], char key[], char value[]);
-static char *get_username(void);
-
 
 /*
  * Set up worker conns which will be used for concurrent index rebuilds.
@@ -638,39 +637,6 @@ option_find(int c, pgut_option opts1[], pgut_option opts2[])
 	return NULL;	/* not found */
 }
 
-/*
- * Returns the current user name.
- */
-static char *
-get_username(void)
-{
-	char *ret;
-
-#ifndef WIN32
-	struct passwd *pw;
-
-	pw = getpwuid(geteuid());
-	ret = (pw ? pw->pw_name : NULL);
-#else
-	static char username[128];	/* remains after function execute */
-	DWORD		len = sizeof(username) - 1;
-
-	if (GetUserNameA(username, &len))
-		ret = username;
-	else
-	{
-		_dosmaperr(GetLastError());
-		ret = NULL;
-	}
-#endif
-
-	if (ret == NULL)
-		ereport(ERROR,
-			(errcode_errno(),
-			 errmsg("could not get current user name: ")));
-	return ret;
-}
-
 static int
 option_has_arg(char type)
 {
@@ -787,7 +753,7 @@ pgut_getopt(int argc, char **argv, pgut_option options[])
 	(void) (dbname ||
 	(dbname = getenv("PGDATABASE")) ||
 	(dbname = getenv("PGUSER")) ||
-	(dbname = get_username()));
+	(dbname = get_user_name_or_exit(PROGRAM_NAME)));
 
 	return optind;
 }
