@@ -28,7 +28,7 @@ NOTICE:
 * Target table must have a PRIMARY KEY, or at least a UNIQUE total index on a
   NOT NULL column.
 
-.. _pg_repack: http://reorg.github.com/pg_repack
+.. _pg_repack: https://reorg.github.io/pg_repack
 .. _CLUSTER: http://www.postgresql.org/docs/current/static/sql-cluster.html
 .. _VACUUM FULL: VACUUM_
 .. _VACUUM: http://www.postgresql.org/docs/current/static/sql-vacuum.html
@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13
+    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13, 14
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -356,7 +356,7 @@ ERROR: program 'pg_repack V1' does not match database library 'pg_repack V2'
     database; if they are what expected you may need to repeat pg_repack
     installation.
 
-ERROR: extension 'pg_repack V1' required, found extension 'pg_repack V2'
+ERROR: extension 'pg_repack V1' required, found 'pg_repack V2'
     The SQL extension found in the database does not match the version
     required by the pg_repack program.
 
@@ -465,6 +465,10 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 
 Releases
 --------
+
+* pg_repack 1.4.7
+
+  * Added support for PostgreSQL 14
 
 * pg_repack 1.4.6
 
@@ -587,4 +591,3 @@ See Also
 
 * `clusterdb <http://www.postgresql.org/docs/current/static/app-clusterdb.html>`__
 * `vacuumdb <http://www.postgresql.org/docs/current/static/app-vacuumdb.html>`__
-

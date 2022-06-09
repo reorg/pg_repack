@@ -14,13 +14,10 @@ sudo apt-get remove -y libpq5
 
 # Match libpq and server-dev packages
 # See https://github.com/reorg/pg_repack/issues/63
-sudo sed -i "s/main[[:space:]]*$/main ${PGVER}/" \
-    /etc/apt/sources.list.d/pgdg.list
+sudo sh -c 'echo "deb [arch=amd64] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main ${PGVER}" > /etc/apt/sources.list.d/pgdg.list'
 
-if [ "$PGTESTING" != "" ]; then
-    sudo sed -i "s/xenial-pgdg/xenial-pgdg-testing/" \
-        /etc/apt/sources.list.d/pgdg.list
-fi
+# Import the repository signing key:
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
 
 sudo apt-get update
 
@@ -30,6 +27,11 @@ sudo apt-get update
 if [[ "$PGVER" = "9.4" ]]; then
     sudo apt-get install -y "libpq5=${PGVER}*" "libpq-dev=${PGVER}*"
     sudo apt-mark hold libpq5
+fi
+
+# missing build dependency by postgresql-server-dev
+if [[ "$PGVER" -ge "14" ]]; then
+    sudo apt-get install -y liblz4-dev
 fi
 
 if ! sudo apt-get install -y \
