@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13, 14
+    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13, 14, 15
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -465,6 +465,12 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 
 Releases
 --------
+
+* pg_repack 1.4.8
+
+  * Added support for PostgreSQL 15
+  * Fixed --parent-table on declarative partitioned tables (issue #288)
+  * Removed connection info from error log (issue #285)
 
 * pg_repack 1.4.7
 
