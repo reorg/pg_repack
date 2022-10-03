@@ -23,7 +23,7 @@ jobs:
         run: pg-start ${{ matrix.pg }}
 
       - name: Install build-dependencies
-        run: apt-get install -y liblz4-dev libreadline-dev zlib1g-dev
+        run: apt-get install -y liblz4-dev libreadline-dev zlib1g-dev libzstd-dev
 
       - name: Check out the repo
         uses: actions/checkout@v2
