@@ -25,3 +25,11 @@ CREATE TABLE issue3_5 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_5_idx ON issue3_5 (col1 DESC NULLS FIRST, col2 COLLATE "POSIX" DESC);
 SELECT repack.get_order_by('issue3_5_idx'::regclass::oid, 'issue3_5'::regclass::oid);
 \! pg_repack --dbname=contrib_regression --table=issue3_5
+
+--
+-- pg_repack issue #321
+--
+CREATE TABLE issue321 (col1 int NOT NULL, col2 text NOT NULL);
+CREATE UNIQUE INDEX issue321_idx ON issue321 (col1);
+SELECT repack.get_order_by('issue321_idx'::regclass::oid, 1);
+SELECT repack.get_order_by(1, 1);
