@@ -466,6 +466,10 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.4.9 (unreleased)
+
+  * Fixed crash in ``get_order_by()`` using invalid relations (issue #321)
+
 * pg_repack 1.4.8
 
   * Added support for PostgreSQL 15
