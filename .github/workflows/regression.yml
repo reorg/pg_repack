@@ -26,7 +26,7 @@ jobs:
         run: apt-get install -y liblz4-dev libreadline-dev zlib1g-dev libzstd-dev
 
       - name: Check out the repo
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Put pg_repack on PATH
         run: echo "$PWD/bin" >> $GITHUB_PATH
