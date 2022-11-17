@@ -217,7 +217,7 @@ static bool preliminary_checks(char *errbuf, size_t errsize);
 static bool is_requested_relation_exists(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by, const char *where_clause);
 static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize, const char *where_clause);
-static void repack_one_table(repack_table *table, const char *order_by, const char *where_clause);
+static void repack_one_table(repack_table *table, const char *order_by);
 static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
 static void repack_cleanup(bool fatal, const repack_table *table);
@@ -403,7 +403,7 @@ main(int argc, char *argv[])
 		}
 		else
 		{
-			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)), where_clause)
+			if (!repack_one_database(orderby, errbuf, sizeof(errbuf), where_clause))
 				ereport(ERROR,
 					(errcode(ERROR), errmsg("%s failed with error: %s", PROGRAM_NAME, errbuf)));
 		}
