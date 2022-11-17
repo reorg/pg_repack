@@ -948,7 +948,6 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
         /* soft delete recognition */
         appendStringInfoString(&copy_sql, " WHERE ");
         appendStringInfoString(&copy_sql, "deleted_at IS NULL");
-//        table.create_table = sql.data;
 
         if (!orderby)
 
