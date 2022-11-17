@@ -215,9 +215,9 @@ static bool is_superuser(void);
 static void check_tablespace(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
 static bool is_requested_relation_exists(char *errbuf, size_t errsize);
-static void repack_all_databases(const char *order_by);
-static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
-static void repack_one_table(repack_table *table, const char *order_by);
+static void repack_all_databases(const char *order_by, const char *where_clause);
+static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize, const char *where_clause);
+static void repack_one_table(repack_table *table, const char *order_by, const char *where_clause);
 static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
 static void repack_cleanup(bool fatal, const repack_table *table);
@@ -248,6 +248,7 @@ static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
+static char				*where_clause = NULL;
 static char				*tablespace = NULL;
 static bool				moveidx = false;
 static SimpleStringList	r_index = {NULL, NULL};
@@ -282,6 +283,7 @@ static pgut_option options[] =
 	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
+    { 's', 'w', "where-clause", &where_clause },
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
@@ -397,11 +399,11 @@ main(int argc, char *argv[])
 				ereport(ERROR,
 					(errcode(EINVAL),
 					 errmsg("cannot repack specific schema(s) in all databases")));
-			repack_all_databases(orderby);
+			repack_all_databases(orderby, where_clause);
 		}
 		else
 		{
-			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)))
+			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)), where_clause)
 				ereport(ERROR,
 					(errcode(ERROR), errmsg("%s failed with error: %s", PROGRAM_NAME, errbuf)));
 		}
@@ -691,7 +693,7 @@ cleanup:
  * Call repack_one_database for each database.
  */
 static void
-repack_all_databases(const char *orderby)
+repack_all_databases(const char *orderby, const char *where_clause)
 {
 	PGresult   *result;
 	int			i;
@@ -715,7 +717,7 @@ repack_all_databases(const char *orderby)
 		elog(INFO, "repacking database \"%s\"", dbname);
 		if (!dryrun)
 		{
-			ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
+			ret = repack_one_database(orderby, errbuf, sizeof(errbuf), where_clause);
 			if (!ret)
 				elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
 		}
@@ -747,7 +749,7 @@ getoid(PGresult *res, int row, int col)
  * Call repack_one_table for the target tables or each table in a database.
  */
 static bool
-repack_one_database(const char *orderby, char *errbuf, size_t errsize)
+repack_one_database(const char *orderby, char *errbuf, size_t errsize, const char *where_clause)
 {
 	bool					ret = false;
 	PGresult			   *res = NULL;
