@@ -951,11 +951,11 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize, const cha
 		appendStringInfoString(&copy_sql, table.copy_data);
 
         /* soft delete recognition */
-        appendStringInfoString(&copy_sql, " WHERE ");
-        appendStringInfoString(&copy_sql, "deleted_at IS NULL");
-
+        if (where_clause) {
+            appendStringInfoString(&copy_sql, " WHERE ");
+            appendStringInfoString(&copy_sql, where_clause);
+        }
         if (!orderby)
-
 		{
 			if (ckey != NULL)
 			{
