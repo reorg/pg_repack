@@ -283,7 +283,7 @@ static pgut_option options[] =
 	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
-    { 's', 'w', "where-clause", &where_clause },
+    { 's', 'X', "where-clause", &where_clause },
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
