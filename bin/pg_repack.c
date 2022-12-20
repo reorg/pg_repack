@@ -426,12 +426,11 @@ bool
 check_systemtables()
 
 {
-	PGresult 				*query_result = NULL;
-	int 					num;
-	SimpleStringListCell   	*cell;
-	StringInfoData			sql;
-	int						iparam = 0;
-
+	PGresult	*query_result = NULL;
+	int	num;
+	SimpleStringListCell	*cell;
+	StringInfoData	sql;
+	int	iparam = 0;
 
 	num =  simple_string_list_size(table_list);
 
@@ -439,7 +438,6 @@ check_systemtables()
 
 	appendStringInfoString(&sql, "select 1 from pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace where n.nspname IN ('pg_catalog','information_schema') AND c.oid IN (");
 
-	
 	for (cell = table_list.head; cell; cell = cell->next)
 	{
 		appendStringInfo(&sql, "'%s'::regclass::oid", cell->val);
@@ -450,17 +448,15 @@ check_systemtables()
 
 	appendStringInfoString(&sql,")");
 
-
 	query_result = execute_elevel(sql.data,0,NULL, DEBUG2);
 		
 	if (PQresultStatus(query_result) == PGRES_TUPLES_OK)
+	{
+		if (PQntuples(query_result) >= 1)
 		{
-			
-			if (PQntuples(query_result) >= 1)
-				{
-						return true;
-				}
+			return true;
 		}
+	}
 
 	CLEARPGRES(query_result); 
 
