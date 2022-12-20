@@ -211,6 +211,7 @@ typedef struct repack_table
 
 static bool is_superuser(void);
 static void check_tablespace(void);
+static bool check_systemtables(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
 static bool is_requested_relation_exists(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by);
@@ -421,6 +422,51 @@ is_superuser(void)
 	return false;
 }
 
+bool
+check_systemtables()
+
+{
+	PGresult 				*query_result = NULL;
+	int 					num;
+	SimpleStringListCell   	*cell;
+	StringInfoData			sql;
+	int						iparam = 0;
+
+
+	num =  simple_string_list_size(table_list);
+
+	initStringInfo(&sql);
+
+	appendStringInfoString(&sql, "select 1 from pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace where n.nspname IN ('pg_catalog','information_schema') AND c.oid IN (");
+
+	
+	for (cell = table_list.head; cell; cell = cell->next)
+	{
+		appendStringInfo(&sql, "'%s'::regclass::oid", cell->val);
+		iparam++;
+		if (iparam < num)
+			appendStringInfoChar(&sql, ',');
+	}
+
+	appendStringInfoString(&sql,")");
+
+
+	query_result = execute_elevel(sql.data,0,NULL, DEBUG2);
+		
+	if (PQresultStatus(query_result) == PGRES_TUPLES_OK)
+		{
+			
+			if (PQntuples(query_result) >= 1)
+				{
+						return true;
+				}
+		}
+
+	CLEARPGRES(query_result); 
+
+	return false;
+}
+
 /*
  * Check if the tablespace requested exists.
  *
@@ -484,6 +530,12 @@ preliminary_checks(char *errbuf, size_t errsize){
 		if (errbuf)
 			snprintf(errbuf, errsize, "You must be a superuser to use %s",
 					 PROGRAM_NAME);
+		goto cleanup;
+	}
+
+	if (check_systemtables()) {
+		if (errbuf)
+			snprintf(errbuf, errsize, "For System Tables Use VACUUM FULL.");
 		goto cleanup;
 	}
 
