@@ -809,7 +809,52 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
 	Datum	datum = SPI_getbinval(tuple, desc, column, &isnull);
 	return isnull ? InvalidOid : DatumGetObjectId(datum);
 }
+/*
+This function helps us to find all the columns of a table are having
+PLAIN storage, If all are PLAIN returns TRUE , If not FALSE.
 
+This function helps to run repack on tables who have storage columns plain.
+In repack_swap(PG_FUNCTION_ARGS)
+*/
+static bool
+is_allplainstorage(const char *table_name,const char *schema_name)
+{
+	uint32 		records;
+
+	repack_init();
+	
+	execute_with_format(SPI_OK_SELECT,
+		"SELECT "
+			"1 AS val "
+		"FROM "
+		" (  SELECT "
+				"  ( SELECT COUNT(column_name) "
+						"FROM information_schema.columns "
+						" WHERE table_schema = '%s' "
+						" AND table_name = '%s' "
+				" ) = COUNT(attstorage) AS equal "
+				"FROM "
+					" pg_attribute att "
+					" JOIN pg_class tbl ON tbl.oid = att.attrelid "
+					" JOIN pg_namespace ns ON tbl.relnamespace = ns.oid "
+				"WHERE "
+					" tbl.relname = '%s' "
+				" AND ns.nspname = '%s' "
+					" AND att.attstorage = 'p' "
+					" AND att.attnum > 0 "
+					" AND NOT att.attisdropped "
+			") cs "
+		" WHERE  equal IS TRUE",
+		schema_name,table_name,table_name, schema_name);
+	records = SPI_processed;
+	SPI_finish();
+
+	if (records == 1)
+	{
+			return true;
+	}
+	return false;
+}
 /**
  * @fn      Datum repack_swap(PG_FUNCTION_ARGS)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
@@ -922,7 +967,7 @@ repack_swap(PG_FUNCTION_ARGS)
 	}
 
 	/* swap names for toast tables and toast indexes */
-	if (reltoastrelid1 == InvalidOid)
+	if ((reltoastrelid1 == InvalidOid) && (!is_allplainstorage(relname,nspname)) )
 	{
 		if (reltoastidxid1 != InvalidOid ||
 			reltoastrelid2 != InvalidOid ||
@@ -931,7 +976,7 @@ repack_swap(PG_FUNCTION_ARGS)
 				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
 		/* do nothing */
 	}
-	else if (reltoastrelid2 == InvalidOid)
+	else if ( (reltoastrelid2 == InvalidOid) && (!is_allplainstorage(relname,nspname)) )
 	{
 		char	name[NAMEDATALEN];
 
