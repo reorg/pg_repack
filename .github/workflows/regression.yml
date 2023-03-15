@@ -1,0 +1,45 @@
+name: make installcheck
+on: [push, pull_request]
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        pg:
+          - 15
+          - 14
+          - 13
+          - 12
+          - 11
+          - 10
+
+    name: PostgreSQL ${{ matrix.pg }}
+    runs-on: ubuntu-latest
+    container: pgxn/pgxn-tools
+    steps:
+
+      - name: Start PostgreSQL ${{ matrix.pg }}
+        run: pg-start ${{ matrix.pg }}
+
+      - name: Install build-dependencies
+        run: apt-get install -y liblz4-dev libreadline-dev zlib1g-dev libzstd-dev
+
+      - name: Check out the repo
+        uses: actions/checkout@v3
+
+      - name: Put pg_repack on PATH
+        run: echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Create testts directory
+        run: sudo -u postgres mkdir /tmp/testts
+
+      - name: Create testts tablespace
+        run: sudo -u postgres psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
+
+      - name: Test on PostgreSQL ${{ matrix.pg }}
+        run: pg-build-test
+
+      - name: Show regression.diffs
+        if: ${{ failure() }}
+        run: cat regress/regression.diffs

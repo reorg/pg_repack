@@ -591,22 +591,26 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 
 	for (cell = table_list.head; cell; cell = cell->next)
 	{
-		appendStringInfo(&sql, "($%d)", iparam + 1);
+		appendStringInfo(&sql, "($%d, 'r')", iparam + 1);
 		params[iparam++] = cell->val;
 		if (iparam < num_relations)
 			appendStringInfoChar(&sql, ',');
 	}
 	for (cell = parent_table_list.head; cell; cell = cell->next)
 	{
-		appendStringInfo(&sql, "($%d)", iparam + 1);
+		appendStringInfo(&sql, "($%d, 'p')", iparam + 1);
 		params[iparam++] = cell->val;
 		if (iparam < num_relations)
 			appendStringInfoChar(&sql, ',');
 	}
 	appendStringInfoString(&sql,
-		") AS given_t(r)"
-		" WHERE NOT EXISTS("
-		"  SELECT FROM repack.tables WHERE relid=to_regclass(given_t.r) )"
+		") AS given_t(r,kind) WHERE"
+		/* regular --table relation or inherited --parent-table */
+		" NOT EXISTS("
+		"  SELECT FROM repack.tables WHERE relid=to_regclass(given_t.r))"
+		/* declarative partitioned --parent-table */
+		" AND NOT EXISTS("
+		"  SELECT FROM pg_catalog.pg_class c WHERE c.oid=to_regclass(given_t.r) AND c.relkind = given_t.kind AND given_t.kind = 'p')"
 	);
 
 	/* double check the parameters array is sane */

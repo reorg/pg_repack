@@ -373,6 +373,9 @@ get_relation_name(Oid relid)
 	char   *strver;
 	int ver;
 
+	if (!OidIsValid(nsp))
+		elog(ERROR, "table name not found for OID %u", relid);
+
 	/* Get the version of the running server (PG_VERSION_NUM would return
 	 * the version we compiled the extension with) */
 	strver = GetConfigOptionByName("server_version_num", NULL

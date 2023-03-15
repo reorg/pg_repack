@@ -51,3 +51,12 @@ SELECT repack.get_order_by('issue3_5_idx'::regclass::oid, 'issue3_5'::regclass::
 
 \! pg_repack --dbname=contrib_regression --table=issue3_5
 INFO: repacking table "public.issue3_5"
+--
+-- pg_repack issue #321
+--
+CREATE TABLE issue321 (col1 int NOT NULL, col2 text NOT NULL);
+CREATE UNIQUE INDEX issue321_idx ON issue321 (col1);
+SELECT repack.get_order_by('issue321_idx'::regclass::oid, 1);
+ERROR:  table name not found for OID 1
+SELECT repack.get_order_by(1, 1);
+ERROR:  cache lookup failed for index 1

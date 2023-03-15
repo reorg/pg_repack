@@ -2,7 +2,7 @@
    "name": "pg_repack",
    "abstract": "PostgreSQL module for data reorganization",
    "description": "Reorganize tables in PostgreSQL databases with minimal locks",
-   "version": "1.4.7",
+   "version": "1.4.8",
    "maintainer": [
        "Beena Emerson <memissemerson@gmail.com>",
        "Josh Kupershmidt <schmiddy@gmail.com>",
@@ -15,7 +15,7 @@
    "provides": {
       "pg_repack": {
          "file": "lib/pg_repack.sql",
-         "version": "1.4.7",
+         "version": "1.4.8",
          "abstract": "Reorganize tables in PostgreSQL databases with minimal locks"
       }
    },
