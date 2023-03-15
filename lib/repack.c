@@ -810,38 +810,6 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
 	return isnull ? InvalidOid : DatumGetObjectId(datum);
 }
 
-/*
-This function helps us find if all the columns of a table are having
-PLAIN storage. If all are PLAIN returns TRUE. Otherwise — FALSE.
-This function helps to run repack on tables who have storage columns plain.
-In repack_swap(PG_FUNCTION_ARGS)
-*/
-static bool
-all_fields_have_plain_storage(const char *table_name, const char *schema_name)
-{
-	uint32	records;
-
-	repack_init();
-
-	execute_with_format(SPI_OK_SELECT,
-			    "select 1 "
-			    "from (select count(*) as total, "
-			    "		  count(case when attstorage = 'p' then 1 end) as plain "
-			    "	   from pg_attribute att "
-			    "        join pg_class c on c.oid = att.attrelid "
-			    "	     join pg_namespace n on c.relnamespace = n.oid "
-			    "	   where n.nspname = '%s' "
-			    "	     and c.relname = '%s' "
-			    "	     and att.attnum > 0) as t "
-			    "where total > 0 "
-			    "  and total = plain",
-			    schema_name, table_name);
-	records = SPI_processed;
-	SPI_finish();
-
-	return records == 1;
-}
-
 /**
  * @fn      Datum repack_swap(PG_FUNCTION_ARGS)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
@@ -954,16 +922,31 @@ repack_swap(PG_FUNCTION_ARGS)
 	}
 
 	/* swap names for toast tables and toast indexes */
-	if ((reltoastrelid1 == InvalidOid) && (!all_fields_have_plain_storage(relname, nspname)))
+	if (reltoastrelid1 == InvalidOid && reltoastrelid2 == InvalidOid)
 	{
 		if (reltoastidxid1 != InvalidOid ||
-			reltoastrelid2 != InvalidOid ||
 			reltoastidxid2 != InvalidOid)
 			elog(ERROR, "repack_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
 				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
 		/* do nothing */
 	}
-	else if ((reltoastrelid2 == InvalidOid) && (!all_fields_have_plain_storage(relname, nspname)))
+	else if (reltoastrelid1 == InvalidOid)
+	{
+		char	name[NAMEDATALEN];
+
+		if (reltoastidxid1 != InvalidOid ||
+			reltoastidxid2 == InvalidOid)
+			elog(ERROR, "repack_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
+				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
+
+		/* rename Y to X */
+		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid);
+		RENAME_REL(reltoastrelid2, name);
+		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid);
+		RENAME_INDEX(reltoastidxid2, name);
+		CommandCounterIncrement();
+	}
+	else if (reltoastrelid2 == InvalidOid)
 	{
 		char	name[NAMEDATALEN];
 
