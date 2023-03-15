@@ -810,6 +810,38 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
 	return isnull ? InvalidOid : DatumGetObjectId(datum);
 }
 
+/*
+This function helps us find if all the columns of a table are having
+PLAIN storage. If all are PLAIN returns TRUE. Otherwise — FALSE.
+This function helps to run repack on tables who have storage columns plain.
+In repack_swap(PG_FUNCTION_ARGS)
+*/
+static bool
+all_fields_have_plain_storage(const char *table_name, const char *schema_name)
+{
+	uint32	records;
+
+	repack_init();
+
+	execute_with_format(SPI_OK_SELECT,
+			    "select 1 "
+			    "from (select count(*) as total, "
+			    "		  count(case when attstorage = 'p' then 1 end) as plain "
+			    "	   from pg_attribute att "
+			    "        join pg_class c on c.oid = att.attrelid "
+			    "	     join pg_namespace n on c.relnamespace = n.oid "
+			    "	   where n.nspname = '%s' "
+			    "	     and c.relname = '%s' "
+			    "	     and att.attnum > 0) as t "
+			    "where total > 0 "
+			    "  and total = plain",
+			    schema_name, table_name);
+	records = SPI_processed;
+	SPI_finish();
+
+	return records == 1;
+}
+
 /**
  * @fn      Datum repack_swap(PG_FUNCTION_ARGS)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
@@ -922,7 +954,7 @@ repack_swap(PG_FUNCTION_ARGS)
 	}
 
 	/* swap names for toast tables and toast indexes */
-	if (reltoastrelid1 == InvalidOid)
+	if ((reltoastrelid1 == InvalidOid) && (!all_fields_have_plain_storage(relname, nspname)))
 	{
 		if (reltoastidxid1 != InvalidOid ||
 			reltoastrelid2 != InvalidOid ||
@@ -931,7 +963,7 @@ repack_swap(PG_FUNCTION_ARGS)
 				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
 		/* do nothing */
 	}
-	else if (reltoastrelid2 == InvalidOid)
+	else if ((reltoastrelid2 == InvalidOid) && (!all_fields_have_plain_storage(relname, nspname)))
 	{
 		char	name[NAMEDATALEN];
 
