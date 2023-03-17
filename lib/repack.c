@@ -922,14 +922,29 @@ repack_swap(PG_FUNCTION_ARGS)
 	}
 
 	/* swap names for toast tables and toast indexes */
-	if (reltoastrelid1 == InvalidOid)
+	if (reltoastrelid1 == InvalidOid && reltoastrelid2 == InvalidOid)
 	{
 		if (reltoastidxid1 != InvalidOid ||
-			reltoastrelid2 != InvalidOid ||
 			reltoastidxid2 != InvalidOid)
 			elog(ERROR, "repack_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
 				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
 		/* do nothing */
+	}
+	else if (reltoastrelid1 == InvalidOid)
+	{
+		char	name[NAMEDATALEN];
+
+		if (reltoastidxid1 != InvalidOid ||
+			reltoastidxid2 == InvalidOid)
+			elog(ERROR, "repack_swap : unexpected toast relations (T1=%u, I1=%u, T2=%u, I2=%u",
+				reltoastrelid1, reltoastidxid1, reltoastrelid2, reltoastidxid2);
+
+		/* rename Y to X */
+		snprintf(name, NAMEDATALEN, "pg_toast_%u", oid);
+		RENAME_REL(reltoastrelid2, name);
+		snprintf(name, NAMEDATALEN, "pg_toast_%u_index", oid);
+		RENAME_INDEX(reltoastidxid2, name);
+		CommandCounterIncrement();
 	}
 	else if (reltoastrelid2 == InvalidOid)
 	{
