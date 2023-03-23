@@ -469,6 +469,7 @@ Releases
 * pg_repack 1.4.9 (unreleased)
 
   * Fixed crash in ``get_order_by()`` using invalid relations (issue #321)
+  * Added support for tables that have been previously rewritten with `VACUUM FULL` and use storage=plain for all columns (issue #313)
 
 * pg_repack 1.4.8
 

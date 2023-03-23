@@ -84,6 +84,10 @@ CREATE TABLE tbl_with_mod_column_storage (
 ALTER TABLE tbl_with_mod_column_storage ALTER c SET STORAGE MAIN;
 
 CREATE TABLE tbl_order (c int primary key);
+
+CREATE TABLE tbl_storage_plain (c1 int primary key, c2 text);
+ALTER TABLE tbl_storage_plain ALTER COLUMN c1 SET STORAGE PLAIN;
+ALTER TABLE tbl_storage_plain ALTER COLUMN c2 SET STORAGE PLAIN;
 --
 -- insert data
 --
@@ -140,3 +144,4 @@ INSERT INTO tbl_order SELECT generate_series(50, 1, -1);
 SELECT * FROM tbl_with_dropped_column;
 SELECT * FROM view_for_dropped_column;
 SELECT * FROM tbl_with_dropped_toast;
+VACUUM FULL tbl_storage_plain;
