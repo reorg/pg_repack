@@ -240,6 +240,7 @@ static bool sqlstate_equals(PGresult *res, const char *state)
 
 static bool				analyze = true;
 static bool				alldb = false;
+static bool				ignore_transactions = false;
 static bool				noorder = false;
 static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
@@ -269,6 +270,7 @@ utoa(unsigned int value, char *buffer)
 static pgut_option options[] =
 {
 	{ 'b', 'a', "all", &alldb },
+	{ 'b', 'X', "ignore-transactions", &ignore_transactions },
 	{ 'l', 't', "table", &table_list },
 	{ 'l', 'I', "parent-table", &parent_table_list },
 	{ 'l', 'c', "schema", &schema_list },
@@ -1565,6 +1567,15 @@ repack_one_table(repack_table *table, const char *orderby)
 		res = execute(SQL_XID_ALIVE, 1, params);
 		num = PQntuples(res);
 
+		/* display a warning if there are still one or more transactions
+		 * alive, but continue
+		 */
+		 if (ignore_transactions)
+		 {
+			elog(NOTICE, "There are %d transactions waiting to finish, but skipping.", num);
+			break;
+		}
+
 		if (num > 0)
 		{
 			/* Wait for old transactions.
@@ -2355,4 +2366,5 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
 	printf("  -C, --exclude-extension   don't repack tables which belong to specific extension\n");
+	printf("  -X, --ignore-transactions don't wait for running transactions (use with care)\n");
 }
