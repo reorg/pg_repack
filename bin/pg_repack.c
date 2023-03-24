@@ -211,6 +211,7 @@ typedef struct repack_table
 
 static bool is_superuser(void);
 static void check_tablespace(void);
+static bool check_systemtables(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
 static bool is_requested_relation_exists(char *errbuf, size_t errsize);
 static void repack_all_databases(const char *order_by);
@@ -421,6 +422,47 @@ is_superuser(void)
 	return false;
 }
 
+bool
+check_systemtables()
+
+{
+	PGresult	*query_result = NULL;
+	int	num;
+	SimpleStringListCell	*cell;
+	StringInfoData	sql;
+	int	iparam = 0;
+
+	num =  simple_string_list_size(table_list);
+
+	initStringInfo(&sql);
+
+	appendStringInfoString(&sql, "select 1 from pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace where n.nspname IN ('pg_catalog','information_schema') AND c.oid IN (");
+
+	for (cell = table_list.head; cell; cell = cell->next)
+	{
+		appendStringInfo(&sql, "'%s'::regclass::oid", cell->val);
+		iparam++;
+		if (iparam < num)
+			appendStringInfoChar(&sql, ',');
+	}
+
+	appendStringInfoString(&sql,")");
+
+	query_result = execute_elevel(sql.data,0,NULL, DEBUG2);
+		
+	if (PQresultStatus(query_result) == PGRES_TUPLES_OK)
+	{
+		if (PQntuples(query_result) >= 1)
+		{
+			return true;
+		}
+	}
+
+	CLEARPGRES(query_result); 
+
+	return false;
+}
+
 /*
  * Check if the tablespace requested exists.
  *
@@ -484,6 +526,12 @@ preliminary_checks(char *errbuf, size_t errsize){
 		if (errbuf)
 			snprintf(errbuf, errsize, "You must be a superuser to use %s",
 					 PROGRAM_NAME);
+		goto cleanup;
+	}
+
+	if (check_systemtables()) {
+		if (errbuf)
+			snprintf(errbuf, errsize, "For System Tables Use VACUUM FULL.");
 		goto cleanup;
 	}
 
@@ -1280,7 +1328,7 @@ repack_one_table(repack_table *table, const char *orderby)
 		return;
 
 	/* push repack_cleanup_callback() on stack to clean temporary objects */
-	pgut_atexit_push(repack_cleanup_callback, &table->target_oid);
+	pgut_atexit_push(repack_cleanup_callback, table);
 
 	/*
 	 * 1. Setup advisory lock and trigger on main table.
@@ -1970,7 +2018,8 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 void
 repack_cleanup_callback(bool fatal, void *userdata)
 {
-	Oid			target_table = *(Oid *) userdata;
+	repack_table *table = (repack_table *) userdata;
+	Oid			target_table = table->target_oid;
 	const char *params[2];
 	char		buffer[12];
 	char		num_buff[12];
@@ -1985,7 +2034,16 @@ repack_cleanup_callback(bool fatal, void *userdata)
 		 * so just use an unconditional reconnect().
 		 */
 		reconnect(ERROR);
+
+		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
+		{
+			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup callback",
+				 table->target_name);
+		}
+
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		command("COMMIT", 0, NULL);
 		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
 }
@@ -2015,7 +2073,16 @@ repack_cleanup(bool fatal, const repack_table *table)
 		/* do cleanup */
 		params[0] = utoa(table->target_oid, buffer);
 		params[1] =  utoa(temp_obj_num, num_buff);
+
+		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
+		{
+			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup",
+				 table->target_name);
+		}
+
 		command("SELECT repack.repack_drop($1, $2)", 2, params);
+		command("COMMIT", 0, NULL);
 		temp_obj_num = 0; /* reset temporary object counter after cleanup */
 	}
 }
