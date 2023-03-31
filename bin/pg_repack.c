@@ -1990,6 +1990,7 @@ repack_cleanup_callback(bool fatal, void *userdata)
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
 		{
+			pgut_rollback(connection);
 			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup callback",
 				 table->target_name);
 		}
@@ -2029,6 +2030,7 @@ repack_cleanup(bool fatal, const repack_table *table)
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
 		{
+			pgut_rollback(connection);
 			elog(ERROR, "lock_exclusive() failed in connection for %s during cleanup",
 				 table->target_name);
 		}
