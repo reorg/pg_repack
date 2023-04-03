@@ -207,6 +207,7 @@ pg_repackもしくはpg_reorgの古いバージョンからのアップグレー
     -i, --index=INDEX         move only the specified index
     -x, --only-indexes        move only indexes of the specified table
     -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
+    -L, --lock-wait-max=SECS  lock statement max wait time
     -D, --no-kill-backend     don't kill other backends when timed out
     -Z, --no-analyze          don't analyze at end
     -k, --no-superuser-check  skip superuser checks in client
