@@ -123,6 +123,7 @@ Options:
   -Z, --no-analyze          don't analyze at end
   -k, --no-superuser-check  skip superuser checks in client
   -C, --exclude-extension   don't repack tables which belong to specific extension
+  -X, --ignore-transactions don't wait for running transactions (use with care)
 
 Connection options:
   -d, --dbname=DBNAME       database to connect
@@ -223,6 +224,12 @@ Reorg Options
 ``-C``, ``--exclude-extension``
     Skip tables that belong to the specified extension(s). Some extensions
     may heavily depend on such tables at planning time etc.
+
+``-X``, ``--ignore-transactions``
+    Proceed without waiting for running transactions to finish.
+    Default behavior might not be desired on busy databases with
+    long-running transactions
+
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
