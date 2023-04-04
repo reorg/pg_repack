@@ -1325,8 +1325,8 @@ repack_one_table(repack_table *table, const char *orderby)
 		const char *indexdef;
 		indexdef = getstr(indexres, j, 0);
 		if (error_on_invalid_index) {
-			elog(ERROR, "Invalid index: %s", indexdef);
-			return;
+			elog(WARNING, "Invalid index: %s", indexdef);
+			goto cleanup;
 		} else {
 			elog(WARNING, "skipping invalid index: %s", indexdef);
 		}
