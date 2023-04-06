@@ -243,6 +243,7 @@ static bool				alldb = false;
 static bool				noorder = false;
 static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
+static SimpleStringList	exclude_table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
 static char				*tablespace = NULL;
@@ -256,6 +257,7 @@ static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
+static int				throttle_time = 0;      /* in seconds */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -285,6 +287,8 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
+	{ 'l', 'q', "exclude-table", &exclude_table_list },
+	{ 'i', 'r', "throttling", &throttle_time },
 	{ 0 },
 };
 
@@ -1249,6 +1253,15 @@ repack_one_table(repack_table *table, const char *orderby)
 	bool            table_init = false;
 
 	initStringInfo(&sql);
+	/* Skip table if user ignore it */
+	for (SimpleStringListCell* cell = exclude_table_list.head; cell; cell = cell->next)
+	{
+		if ( strcmp(cell->val, table->target_name) == 0 )
+		{
+			elog(INFO, "skipping table \"%s\"", table->target_name);
+			return;
+		}
+	}
 
 	elog(INFO, "repacking table \"%s\"", table->target_name);
 
@@ -1668,6 +1681,13 @@ cleanup:
 	 */
 	if ((!ret) && table_init)
 		repack_cleanup(false, table);
+
+	if (throttle_time > 0)
+	{
+		elog(INFO, "sleep for %d seconds", throttle_time);
+		sleep(throttle_time);
+	}
+
 }
 
 /* Kill off any concurrent DDL (or any transaction attempting to take
@@ -2362,6 +2382,7 @@ pgut_help(bool details)
 	printf("  -a, --all                 repack all databases\n");
 	printf("  -t, --table=TABLE         repack specific table only\n");
 	printf("  -I, --parent-table=TABLE  repack specific parent table and its inheritors\n");
+	printf("  -q, --exclude-table=TABLE repack exclude specific table and its inheritors\n");
 	printf("  -c, --schema=SCHEMA       repack tables in specific schema only\n");
 	printf("  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace\n");
 	printf("  -S, --moveidx             move repacked indexes to TBLSPC too\n");
@@ -2376,4 +2397,5 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze          don't analyze at end\n");
 	printf("  -k, --no-superuser-check  skip superuser checks in client\n");
 	printf("  -C, --exclude-extension   don't repack tables which belong to specific extension\n");
+	printf("  -r, --throttling=<sec>    sleep for n seconds between tables\n");
 }
