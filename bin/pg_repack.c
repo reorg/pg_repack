@@ -256,6 +256,7 @@ static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
+static bool 			error_on_invalid_index = false; /* don't repack when invalid index is found */
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -285,6 +286,7 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
+	{ 'b', 'F', "error-on-invalid-index", &error_on_invalid_index },
 	{ 0 },
 };
 
@@ -1310,7 +1312,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	indexparams[1] = moveidx ? tablespace : NULL;
 
 	/* First, just display a warning message for any invalid indexes
-	 * which may be on the table (mostly to match the behavior of 1.1.8).
+	 * which may be on the table (mostly to match the behavior of 1.1.8),
+	 * if --error-on-invalid-index is not set
 	 */
 	indexres = execute(
 		"SELECT pg_get_indexdef(indexrelid)"
@@ -1321,7 +1324,12 @@ repack_one_table(repack_table *table, const char *orderby)
 	{
 		const char *indexdef;
 		indexdef = getstr(indexres, j, 0);
-		elog(WARNING, "skipping invalid index: %s", indexdef);
+		if (error_on_invalid_index) {
+			elog(WARNING, "Invalid index: %s", indexdef);
+			goto cleanup;
+		} else {
+			elog(WARNING, "skipping invalid index: %s", indexdef);
+		}
 	}
 
 	indexres = execute(
