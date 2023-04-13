@@ -212,6 +212,7 @@ pg_repackもしくはpg_reorgの古いバージョンからのアップグレー
     -k, --no-superuser-check      skip superuser checks in client
     -C, --exclude-extension       don't repack tables which belong to specific extension
     -F, --error-on-invalid-index  don't repack when invalid index is found
+        --switch-threshold        switch tables when that many tuples are left to catchup
   
   Connection options:
     -d, --dbname=DBNAME           database to connect
