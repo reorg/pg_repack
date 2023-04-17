@@ -442,7 +442,7 @@ prompt_for_password(void)
 	static char *passwdbuf;
 	static bool have_passwd = false;
 
-#define BUFSIZE 100
+#define BUFSIZE 1024
 
 #if PG_VERSION_NUM < 100000
 	if (have_passwd) {
