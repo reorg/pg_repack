@@ -7,7 +7,9 @@
        "Beena Emerson <memissemerson@gmail.com>",
        "Josh Kupershmidt <schmiddy@gmail.com>",
        "Masahiko Sawada <sawada.mshk@gmail.com>",
-       "Daniele Varrazzo <daniele.varrazzo@gmail.com>"
+       "Daniele Varrazzo <daniele.varrazzo@gmail.com>",
+       "Artur Zakirov <zaartur@gmail.com>",
+       "Andreas Scherbaum <andreas@scherbaum.la>"
     ],
    "tags": [ "bloat", "maintenance", "vacuum", "cluster" ],
    "release_status": "stable",
