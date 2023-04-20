@@ -51,7 +51,7 @@ const char *PROGRAM_VERSION = "unknown";
 /* Once we get down to seeing fewer than this many tuples in the
  * log table, we'll say that we're ready to perform the switch.
  */
-#define MIN_TUPLES_BEFORE_SWITCH	20
+#define SWITCH_THRESHOLD_DEFAULT	100
 
 /* poll() or select() timeout, in seconds */
 #define POLL_TIMEOUT    3
@@ -257,6 +257,7 @@ static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 static bool 			error_on_invalid_index = false; /* don't repack when invalid index is found */
+static int				switch_threshold = SWITCH_THRESHOLD_DEFAULT;
 
 /* buffer should have at least 11 bytes */
 static char *
@@ -287,6 +288,7 @@ static pgut_option options[] =
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
 	{ 'b', 2, "error-on-invalid-index", &error_on_invalid_index },
+	{ 'i', 1, "switch-threshold", &switch_threshold },
 	{ 0 },
 };
 
@@ -1566,12 +1568,12 @@ repack_one_table(repack_table *table, const char *orderby)
 		/* We'll keep applying tuples from the log table in batches
 		 * of APPLY_COUNT, until applying a batch of tuples
 		 * (via LIMIT) results in our having applied
-		 * MIN_TUPLES_BEFORE_SWITCH or fewer tuples. We don't want to
+		 * switch_threshold or fewer tuples. We don't want to
 		 * get stuck repetitively applying some small number of tuples
 		 * from the log table as inserts/updates/deletes may be
 		 * constantly coming into the original table.
 		 */
-		if (num > MIN_TUPLES_BEFORE_SWITCH)
+		if (num > switch_threshold)
 			continue;	/* there might be still some tuples, repeat. */
 
 		/* old transactions still alive ? */
@@ -2391,4 +2393,5 @@ pgut_help(bool details)
 	printf("  -k, --no-superuser-check      skip superuser checks in client\n");
 	printf("  -C, --exclude-extension       don't repack tables which belong to specific extension\n");
 	printf("      --error-on-invalid-index  don't repack tables which belong to specific extension\n");
+	printf("      --switch-threshold    switch tables when that many tuples are left to catchup\n");
 }
