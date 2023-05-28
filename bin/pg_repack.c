@@ -243,6 +243,7 @@ static bool				alldb = false;
 static bool				noorder = false;
 static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
+static SimpleStringList exclude_table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
 static char				*tablespace = NULL;
@@ -287,6 +288,7 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
+	{ 'l', 'X', "exclude-table", &exclude_table_list },
 	{ 'b', 2, "error-on-invalid-index", &error_on_invalid_index },
 	{ 'i', 1, "switch-threshold", &switch_threshold },
 	{ 0 },
@@ -333,6 +335,9 @@ main(int argc, char *argv[])
 		else if (only_indexes && exclude_extension_list.head)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot specify --only-indexes (-x) and --exclude-extension (-C)")));
+		else if ((only_indexes || r_index.head) && exclude_table_list.head)
+            ereport(ERROR, (errcode(EINVAL),
+                errmsg("cannot specify --only-indexes (-x) or --index (-i) with --exclude-table (-X)")));
 		else if (alldb)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack specific index(es) in all databases")));
@@ -357,10 +362,15 @@ main(int argc, char *argv[])
 	}
 	else
 	{
-		if (schema_list.head && (table_list.head || parent_table_list.head))
+		if (schema_list.head && (table_list.head || parent_table_list.head || exclude_table_list.head))
 			ereport(ERROR,
 				(errcode(EINVAL),
-				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
+				 errmsg("cannot repack/exclude specific table(s) in schema, use schema.table notation instead")));
+
+		if (exclude_table_list.head && (table_list.head || parent_table_list.head || exclude_extension_list.head))
+			ereport(ERROR,
+				(errcode(EINVAL),
+					errmsg("cannot specify --exclude-table (-X) along with --table (-t), --parent-table (-I) and --exclude-extension (-C)")));
 
 		if (exclude_extension_list.head && table_list.head)
 			ereport(ERROR,
@@ -385,6 +395,10 @@ main(int argc, char *argv[])
 				ereport(ERROR,
 					(errcode(EINVAL),
 					 errmsg("cannot repack specific schema(s) in all databases")));
+			if (exclude_table_list.head)
+                ereport(ERROR,
+					(errcode(EINVAL),
+						errmsg("cannot exclude specific tables(s) in all databases")));
 			repack_all_databases(orderby);
 		}
 		else
@@ -579,7 +593,8 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 	SimpleStringListCell   *cell;
 
 	num_relations = simple_string_list_size(parent_table_list) +
-					simple_string_list_size(table_list);
+					simple_string_list_size(table_list)+
+					simple_string_list_size(exclude_table_list);
 
 	/* nothing was implicitly requested, so nothing to do here */
 	if (num_relations == 0)
@@ -594,6 +609,13 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 	appendStringInfoString(&sql, "SELECT r FROM (VALUES ");
 
 	for (cell = table_list.head; cell; cell = cell->next)
+	{
+		appendStringInfo(&sql, "($%d, 'r')", iparam + 1);
+		params[iparam++] = cell->val;
+		if (iparam < num_relations)
+			appendStringInfoChar(&sql, ',');
+	}
+	for (cell = exclude_table_list.head; cell; cell = cell->next)
 	{
 		appendStringInfo(&sql, "($%d, 'r')", iparam + 1);
 		params[iparam++] = cell->val;
@@ -749,18 +771,21 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 							num_tables,
 							num_schemas,
 							num_params,
-							num_excluded_extensions;
+							num_excluded_extensions,
+							num_excluded_tables;
 
 	num_parent_tables = simple_string_list_size(parent_table_list);
 	num_tables = simple_string_list_size(table_list);
 	num_schemas = simple_string_list_size(schema_list);
 	num_excluded_extensions = simple_string_list_size(exclude_extension_list);
+	num_excluded_tables = simple_string_list_size(exclude_table_list);
 
 	/* 1st param is the user-specified tablespace */
 	num_params = num_excluded_extensions +
 				 num_parent_tables +
 				 num_tables +
-				 num_schemas + 1;
+				 num_schemas +
+				 num_excluded_tables + 1;
 	params = pgut_malloc(num_params * sizeof(char *));
 
 	initStringInfo(&sql);
@@ -833,6 +858,20 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			params[iparam++] = cell->val;
 			if (cell->next)
 				appendStringInfoString(&sql, ", ");
+		}
+		appendStringInfoString(&sql, ")");
+	}
+	else if (num_excluded_tables)
+	{
+		appendStringInfoString(&sql, "(");
+		for (cell = exclude_table_list.head; cell; cell = cell->next)
+		{
+			/* Construct exclude table name placeholders to be used by PQexecParams */
+			appendStringInfo(&sql, "relid <> $%d::regclass", iparam + 1);
+			params[iparam++] = cell->val;
+			elog(INFO, "skipping table \"%s\"", cell->val);
+			if (cell->next)
+				appendStringInfoString(&sql, " AND ");
 		}
 		appendStringInfoString(&sql, ")");
 	}
@@ -2392,6 +2431,7 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze              don't analyze at end\n");
 	printf("  -k, --no-superuser-check      skip superuser checks in client\n");
 	printf("  -C, --exclude-extension       don't repack tables which belong to specific extension\n");
+	printf("  -X, --exclude-table           don't repack specific table\n");
 	printf("      --error-on-invalid-index  don't repack tables which belong to specific extension\n");
-	printf("      --switch-threshold    switch tables when that many tuples are left to catchup\n");
+	printf("      --switch-threshold    	switch tables when that many tuples are left to catchup\n");
 }
