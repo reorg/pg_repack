@@ -123,6 +123,8 @@ Options:
   -Z, --no-analyze              don't analyze at end
   -k, --no-superuser-check      skip superuser checks in client
   -C, --exclude-extension       don't repack tables which belong to specific extension
+  -X, --exclude-table           don't repack specific table
+  -Y, --exclude-parent-table    don't repack specific table and its inheritors
       --error-on-invalid-index  don't repack when invalid index is found
       --switch-threshold        switch tables when that many tuples are left to catchup
 
@@ -226,6 +228,14 @@ Reorg Options
     Skip tables that belong to the specified extension(s). Some extensions
     may heavily depend on such tables at planning time etc.
 
+``-X``, ``--exclude-table``
+    Skip the specified table(s) only to repack. Multiple tables may be skipped by
+    writing multiple ``-X`` switches.
+
+``-Y``, ``--exclude-parent-table``
+    Skip the specified parent table(s) and its inheritors to repack. Multiple tables 
+    may be skipped by writing multiple ``-Y`` switches.
+
 ``--switch-threshold``
     Switch tables when that many tuples are left in log table.
     This setting can be used to avoid the inability to catchup with write-heavy tables.
@@ -325,6 +335,16 @@ Move all indexes of table ``foo`` to tablespace ``tbs``::
 Move the specified index to tablespace ``tbs``::
 
     $ pg_repack -d test --index idx --tablespace tbs
+
+Skip the specified table(s) to repack ``foo`` in schema ``schema`` in 
+the database ``test``::
+
+    $ pg_repack -d test -X schema.foo
+
+Skip the specified parent table(s) and its inheritors to repack ``foo`` in 
+schema ``schema`` in the database ``test``::
+
+    $ pg_repack -d test -Y schema.foo
 
 
 Diagnostics
