@@ -373,6 +373,11 @@ main(int argc, char *argv[])
 			ereport(ERROR,
 				(errcode(EINVAL),
 					errmsg("cannot specify --exclude-table (-X) along with --table (-t), --parent-table (-I) and --exclude-extension (-C)")));
+		
+		if (exclude_parent_table_list.head && (table_list.head || parent_table_list.head || exclude_extension_list.head))
+			ereport(ERROR,
+				(errcode(EINVAL),
+					errmsg("cannot specify --exclude-parent-table (-Y) along with --table (-t), --parent-table (-I) and --exclude-extension (-C)")));
 
 		if (exclude_extension_list.head && table_list.head)
 			ereport(ERROR,
