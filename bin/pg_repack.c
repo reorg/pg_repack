@@ -2471,7 +2471,7 @@ pgut_help(bool details)
 	printf("  -k, --no-superuser-check      skip superuser checks in client\n");
 	printf("  -C, --exclude-extension       don't repack tables which belong to specific extension\n");
 	printf("  -X, --exclude-table           don't repack specific table\n");
-	printf("  -Y, --exclude-parent-table    don't repack specific table and its inheritors\n");
+	printf("  -Y, --exclude-parent-table    don't repack specific parent table and its inheritors\n");
 	printf("      --error-on-invalid-index  don't repack tables which belong to specific extension\n");
 	printf("      --switch-threshold    	switch tables when that many tuples are left to catchup\n");
 }
