@@ -542,10 +542,9 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			return conn;
 		}
 
-		if (conn && PQconnectionNeedsPassword(conn) && prompt != NO)
+		if (conn && PQconnectionNeedsPassword(conn) && !passwd && prompt != NO)
 		{
 			PQfinish(conn);
-			free(passwd);
 			passwd = prompt_for_password();
 			if (add_pass.data != NULL)
 	 			resetStringInfo(&add_pass);
@@ -682,7 +681,7 @@ pgut_command(PGconn* conn, const char *query, int nParams, const char **params)
 {
 	PGresult	   *res;
 	ExecStatusType	code;
-	
+
 	res = pgut_execute(conn, query, nParams, params);
 	code = PQresultStatus(res);
 	PQclear(res);
