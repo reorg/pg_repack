@@ -548,10 +548,9 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			return conn;
 		}
 
-		if (conn && PQconnectionNeedsPassword(conn) && prompt != NO)
+		if (conn && PQconnectionNeedsPassword(conn) && !passwd && prompt != NO)
 		{
 			PQfinish(conn);
-			free(passwd);
 			passwd = prompt_for_password();
 			if (add_pass.data != NULL)
 	 			resetStringInfo(&add_pass);
