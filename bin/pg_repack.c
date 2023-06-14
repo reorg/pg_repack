@@ -888,13 +888,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	}
 
 	num = PQntuples(res);
-	/* Issue#260 Fix: show warning for invalid schema, but only when only 1 schema is provided. */
-	/* If other valid schemas are provided, do not show warning for any invalid ones. */
-        if (num == 0) {
-		   ereport(WARNING,
-                                (errcode(E_PG_COMMAND),
-                                 errmsg("No relations found.")));
-        }
+
 	for (i = 0; i < num; i++)
 	{
 		repack_table	table;
