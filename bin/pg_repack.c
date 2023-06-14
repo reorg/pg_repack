@@ -231,7 +231,7 @@ static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_UNDEFINED_FUNCTION		"42883"
-#define SQLSTATE_QUERY_CANCELED			"57014"
+#define SQLSTATE_LOCK_NOT_AVAILABLE		"55P03"
 
 static bool sqlstate_equals(PGresult *res, const char *state)
 {
@@ -1800,7 +1800,7 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 
 		/* wait for a while to lock the table. */
 		wait_msec = Min(1000, i * 100);
-		printfStringInfo(&sql, "SET LOCAL statement_timeout = %d", wait_msec);
+		printfStringInfo(&sql, "SET LOCAL lock_timeout = %d", wait_msec);
 		pgut_command(conn, sql.data, 0, NULL);
 
 		printfStringInfo(&sql, "LOCK TABLE %s IN ACCESS SHARE MODE", target_name);
@@ -1810,7 +1810,7 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 			CLEARPGRES(res);
 			break;
 		}
-		else if (sqlstate_equals(res, SQLSTATE_QUERY_CANCELED))
+		else if (sqlstate_equals(res, SQLSTATE_LOCK_NOT_AVAILABLE))
 		{
 			/* retry if lock conflicted */
 			CLEARPGRES(res);
@@ -1828,7 +1828,7 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 	}
 
 	termStringInfo(&sql);
-	pgut_command(conn, "RESET statement_timeout", 0, NULL);
+	pgut_command(conn, "RESET lock_timeout", 0, NULL);
 	return ret;
 }
 
@@ -1941,7 +1941,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 
 		/* wait for a while to lock the table. */
 		wait_msec = Min(1000, i * 100);
-		snprintf(sql, lengthof(sql), "SET LOCAL statement_timeout = %d", wait_msec);
+		snprintf(sql, lengthof(sql), "SET LOCAL lock_timeout = %d", wait_msec);
 		pgut_command(conn, sql, 0, NULL);
 
 		res = pgut_execute_elevel(conn, lock_query, 0, NULL, DEBUG2);
@@ -1950,7 +1950,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 			CLEARPGRES(res);
 			break;
 		}
-		else if (sqlstate_equals(res, SQLSTATE_QUERY_CANCELED))
+		else if (sqlstate_equals(res, SQLSTATE_LOCK_NOT_AVAILABLE))
 		{
 			/* retry if lock conflicted */
 			CLEARPGRES(res);
@@ -1970,7 +1970,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		}
 	}
 
-	pgut_command(conn, "RESET statement_timeout", 0, NULL);
+	pgut_command(conn, "RESET lock_timeout", 0, NULL);
 	return ret;
 }
 
