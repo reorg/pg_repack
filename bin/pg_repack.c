@@ -364,10 +364,15 @@ main(int argc, char *argv[])
 	}
 	else
 	{
-		if (schema_list.head && (table_list.head || parent_table_list.head || exclude_table_list.head || exclude_parent_table_list.head ))
+		if (schema_list.head && (table_list.head || parent_table_list.head ))
 			ereport(ERROR,
 				(errcode(EINVAL),
-				 errmsg("cannot repack/exclude specific table(s) in schema, use schema.table notation instead")));
+				 errmsg("cannot repack specific table(s) in schema, use schema.table notation instead")));
+
+		if (schema_list.head && ( exclude_table_list.head || exclude_parent_table_list.head ))
+			ereport(ERROR,
+				(errcode(EINVAL),
+				 errmsg("cannot exclude specific table(s) in schema, use schema.table notation instead")));
 
 		if (exclude_table_list.head && (table_list.head || parent_table_list.head || exclude_extension_list.head))
 			ereport(ERROR,
