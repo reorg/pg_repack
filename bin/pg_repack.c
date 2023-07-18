@@ -289,8 +289,8 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
-	{ 'l', 'X', "exclude-table", &exclude_table_list },
-	{ 'l', 'Y', "exclude-parent-table", &exclude_parent_table_list },
+	{ 'l', 4, "exclude-table", &exclude_table_list },
+	{ 'l', 3, "exclude-parent-table", &exclude_parent_table_list },
 	{ 'b', 2, "error-on-invalid-index", &error_on_invalid_index },
 	{ 'i', 1, "switch-threshold", &switch_threshold },
 	{ 0 },
@@ -2480,8 +2480,8 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze              don't analyze at end\n");
 	printf("  -k, --no-superuser-check      skip superuser checks in client\n");
 	printf("  -C, --exclude-extension       don't repack tables which belong to specific extension\n");
-	printf("  -X, --exclude-table           don't repack specific table\n");
-	printf("  -Y, --exclude-parent-table    don't repack specific parent table and its inheritors\n");
+	printf("      --exclude-table           don't repack specific table\n");
+	printf("      --exclude-parent-table    don't repack specific parent table and its inheritors\n");
 	printf("      --error-on-invalid-index  don't repack tables which belong to specific extension\n");
 	printf("      --switch-threshold    	switch tables when that many tuples are left to catchup\n");
 }
