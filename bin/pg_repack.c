@@ -339,7 +339,7 @@ main(int argc, char *argv[])
 				errmsg("cannot specify --only-indexes (-x) and --exclude-extension (-C)")));
 		else if ((only_indexes || r_index.head) && exclude_table_list.head)
             ereport(ERROR, (errcode(EINVAL),
-                errmsg("cannot specify --only-indexes (-x) or --index (-i) with --exclude-table (-X)")));
+                errmsg("cannot specify --only-indexes (-x) or --index (-i) with --exclude-table")));
 		else if (alldb)
 			ereport(ERROR, (errcode(EINVAL),
 				errmsg("cannot repack specific index(es) in all databases")));
@@ -377,12 +377,12 @@ main(int argc, char *argv[])
 		if (exclude_table_list.head && (table_list.head || parent_table_list.head || exclude_extension_list.head))
 			ereport(ERROR,
 				(errcode(EINVAL),
-					errmsg("cannot specify --exclude-table (-X) along with --table (-t), --parent-table (-I) and --exclude-extension (-C)")));
+					errmsg("cannot specify --exclude-table along with --table (-t), --parent-table (-I) and --exclude-extension (-C)")));
 		
 		if (exclude_parent_table_list.head && (table_list.head || parent_table_list.head || exclude_extension_list.head))
 			ereport(ERROR,
 				(errcode(EINVAL),
-					errmsg("cannot specify --exclude-parent-table (-Y) along with --table (-t), --parent-table (-I) and --exclude-extension (-C)")));
+					errmsg("cannot specify --exclude-parent-table along with --table (-t), --parent-table (-I) and --exclude-extension (-C)")));
 
 		if (exclude_extension_list.head && table_list.head)
 			ereport(ERROR,
