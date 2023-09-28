@@ -228,6 +228,7 @@ static bool advisory_lock(PGconn *conn, const char *relid);
 static bool lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact);
 static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
+static void append_order_by_command(StringInfoData *command, const char *orderby, const char *ckey);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_UNDEFINED_FUNCTION		"42883"
@@ -941,36 +942,26 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		appendStringInfoString(&sql, tablespace);
 		appendStringInfoString(&sql, create_table_2);
 
-		/* Always append WITH NO DATA to CREATE TABLE SQL*/
-		appendStringInfoString(&sql, " WITH NO DATA");
-		table.create_table = sql.data;
-
-		/* Craft Copy SQL */
-		initStringInfo(&copy_sql);
-		appendStringInfoString(&copy_sql, table.copy_data);
-		if (!orderby)
-
+		/*
+		 * We need to split the copying of data into the new table into
+		 * separate commands if we need any per-column storage settings.
+		 * Otherwise use just "create table as"
+		 */
+		if (table.alter_col_storage)
 		{
-			if (ckey != NULL)
-			{
-				/* CLUSTER mode */
-				appendStringInfoString(&copy_sql, " ORDER BY ");
-				appendStringInfoString(&copy_sql, ckey);
-			}
+			appendStringInfoString(&sql, " WITH NO DATA");
+			table.create_table = sql.data;
 
-			/* else, VACUUM FULL mode (non-clustered tables) */
+			/* Craft Copy SQL */
+			initStringInfo(&copy_sql);
+			appendStringInfoString(&copy_sql, table.copy_data);
+			append_order_by_command(&copy_sql, orderby, ckey);
+			table.copy_data = copy_sql.data;
+		} else {
+			append_order_by_command(&sql, orderby, ckey);
+			table.create_table = sql.data;
+			table.copy_data = NULL;
 		}
-		else if (!orderby[0])
-		{
-			/* VACUUM FULL mode (for clustered tables too), do nothing */
-		}
-		else
-		{
-			/* User specified ORDER BY */
-			appendStringInfoString(&copy_sql, " ORDER BY ");
-			appendStringInfoString(&copy_sql, orderby);
-		}
-		table.copy_data = copy_sql.data;
 
 		repack_one_table(&table, orderby);
 	}
@@ -982,6 +973,33 @@ cleanup:
 	termStringInfo(&sql);
 	free(params);
 	return ret;
+}
+
+static void
+append_order_by_command(StringInfoData *command, const char *orderby, const char *ckey)
+{
+	if (!orderby)
+
+	{
+		if (ckey != NULL)
+		{
+			/* CLUSTER mode */
+			appendStringInfoString(command, " ORDER BY ");
+			appendStringInfoString(command, ckey);
+		}
+
+		/* else, VACUUM FULL mode (non-clustered tables) */
+	}
+	else if (!orderby[0])
+	{
+		/* VACUUM FULL mode (for clustered tables too), do nothing */
+	}
+	else
+	{
+		/* User specified ORDER BY */
+		appendStringInfoString(command, " ORDER BY ");
+		appendStringInfoString(command, orderby);
+	}
 }
 
 static int
@@ -1268,7 +1286,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "create_trigger    : %s", table->create_trigger);
 	elog(DEBUG2, "enable_trigger    : %s", table->enable_trigger);
 	elog(DEBUG2, "create_table      : %s", table->create_table);
-	elog(DEBUG2, "copy_data         : %s", table->copy_data);
+	elog(DEBUG2, "copy_data         : %s", table->copy_data ? table->copy_data : "(skipped)");
 	elog(DEBUG2, "alter_col_storage : %s", table->alter_col_storage ?
 		 table->alter_col_storage : "(skipped)");
 	elog(DEBUG2, "drop_columns      : %s", table->drop_columns ? table->drop_columns : "(skipped)");
@@ -1533,7 +1551,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	command(table->create_table, 0, NULL);
 	if (table->alter_col_storage)
 		command(table->alter_col_storage, 0, NULL);
-	command(table->copy_data, 0, NULL);
+	if (table->copy_data)
+		command(table->copy_data, 0, NULL);
 	temp_obj_num++;
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
 	if (table->drop_columns)
