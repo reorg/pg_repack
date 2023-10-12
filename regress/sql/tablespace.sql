@@ -5,6 +5,10 @@ SET client_min_messages = warning;
 --
 -- Note: in order to pass this test you must create a tablespace called 'testts'
 --
+-- Test tablespace creation example:
+--   $ sudo -u postgres mkdir -p /tmp/testts && chmod 0700 /tmp/testts
+--   $ sudo -u postgres psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
+--
 
 SELECT spcname FROM pg_tablespace WHERE spcname = 'testts';
 -- If the query above failed you must create the 'testts' tablespace;
@@ -147,3 +151,7 @@ ORDER BY relname;
 
 --using --indexes-only and --index option together
 \! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --index=testts1_pkey
+
+-- cleanup
+DROP TABLE testts1;
+

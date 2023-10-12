@@ -33,7 +33,7 @@ jobs:
         run: echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Create testts directory
-        run: sudo -u postgres mkdir /tmp/testts
+        run: sudo -u postgres mkdir -p /tmp/testts && chmod 0700 /tmp/testts
 
       - name: Create testts tablespace
         run: sudo -u postgres psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
@@ -44,3 +44,10 @@ jobs:
       - name: Show regression.diffs
         if: ${{ failure() }}
         run: cat regress/regression.diffs
+
+      - name: Remove tests tablespace
+        run: sudo -u postgres psql -c "DROP TABLESPACE testts"
+
+      - name: Remove testts directory
+        run: sudo -u postgres rm -rf /tmp/testts
+
