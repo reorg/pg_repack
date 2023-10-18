@@ -17,7 +17,7 @@ INTVERSION := $(shell echo $$(($$(echo $(VERSION).0 | sed 's/\([[:digit:]]\{1,\}
 # Test suite
 #
 
-REGRESS := init-extension repack-setup repack-run error-on-invalid-idx after-schema repack-check nosuper tablespace get_order_by
+REGRESS := init-extension repack-setup repack-run error-on-invalid-idx after-schema repack-check nosuper tablespace get_order_by trigger
 
 USE_PGXS = 1	# use pgxs if not in contrib directory
 PGXS := $(shell $(PG_CONFIG) --pgxs)
