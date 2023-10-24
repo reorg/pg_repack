@@ -24,9 +24,14 @@ $$
 $$
 LANGUAGE sql STABLE STRICT SET search_path to 'pg_catalog';
 
-CREATE FUNCTION repack.get_index_columns(oid, text) RETURNS text AS
+-- Get a comma-separated column list of the index.
+--
+-- Columns are quoted as literals because they are going to be passed to
+-- the `repack_trigger` function as text arguments. `repack_trigger` will quote
+-- them as identifiers later.
+CREATE FUNCTION repack.get_index_columns(oid) RETURNS text AS
 $$
-  SELECT coalesce(string_agg(quote_literal(attname), $2), '')
+  SELECT coalesce(string_agg(quote_literal(attname), ', '), '')
     FROM pg_attribute,
          (SELECT indrelid,
                  indkey,
@@ -97,7 +102,7 @@ $$
   SELECT 'CREATE TRIGGER repack_trigger' ||
          ' AFTER INSERT OR DELETE OR UPDATE ON ' || repack.oid2text($1) ||
          ' FOR EACH ROW EXECUTE PROCEDURE repack.repack_trigger(' ||
-         repack.get_index_columns($2, ', ') || ')';
+         repack.get_index_columns($2) || ')';
 $$
 LANGUAGE sql STABLE STRICT;
 

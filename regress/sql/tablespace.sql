@@ -41,6 +41,13 @@ SELECT regexp_replace(
 FROM pg_index i join pg_class c ON c.oid = indexrelid
 WHERE indrelid = 'testts1'::regclass ORDER BY relname;
 
+-- Test that a tablespace is quoted as an identifier
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, 'foo bar', false),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+
 -- can move the tablespace from default
 \! pg_repack --dbname=contrib_regression --no-order --table=testts1 --tablespace testts
 
