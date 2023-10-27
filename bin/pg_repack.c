@@ -194,6 +194,7 @@ typedef struct repack_table
 	const char	   *create_trigger;	/* CREATE TRIGGER repack_trigger */
 	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER repack_trigger */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT WITH NO DATA*/
+	const char	   *dest_tablespace; /* Destination tablespace */
 	const char	   *copy_data;		/* INSERT INTO */
 	const char	   *alter_col_storage;	/* ALTER TABLE ALTER COLUMN SET STORAGE */
 	const char	   *drop_columns;	/* ALTER TABLE DROP COLUMNs */
@@ -893,9 +894,6 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	{
 		repack_table	table;
 		StringInfoData	copy_sql;
-		const char *create_table_1;
-		const char *create_table_2;
-		const char *tablespace;
 		const char *ckey;
 		int			c = 0;
 
@@ -919,9 +917,8 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.create_trigger = getstr(res, i, c++);
 		table.enable_trigger = getstr(res, i, c++);
 
-		create_table_1 = getstr(res, i, c++);
-		tablespace = getstr(res, i, c++);	/* to be clobbered */
-		create_table_2 = getstr(res, i, c++);
+		table.create_table = getstr(res, i, c++);
+		getstr(res, i, c++);	/* tablespace_orig is clobbered */
 		table.copy_data = getstr(res, i , c++);
 		table.alter_col_storage = getstr(res, i, c++);
 		table.drop_columns = getstr(res, i, c++);
@@ -933,17 +930,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.sql_delete = getstr(res, i, c++);
 		table.sql_update = getstr(res, i, c++);
 		table.sql_pop = getstr(res, i, c++);
-		tablespace = getstr(res, i, c++);
-
-		/* Craft CREATE TABLE SQL */
-		resetStringInfo(&sql);
-		appendStringInfoString(&sql, create_table_1);
-		appendStringInfoString(&sql, tablespace);
-		appendStringInfoString(&sql, create_table_2);
-
-		/* Always append WITH NO DATA to CREATE TABLE SQL*/
-		appendStringInfoString(&sql, " WITH NO DATA");
-		table.create_table = sql.data;
+		table.dest_tablespace = getstr(res, i, c++);
 
 		/* Craft Copy SQL */
 		initStringInfo(&copy_sql);
@@ -1268,6 +1255,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "create_trigger    : %s", table->create_trigger);
 	elog(DEBUG2, "enable_trigger    : %s", table->enable_trigger);
 	elog(DEBUG2, "create_table      : %s", table->create_table);
+	elog(DEBUG2, "dest_tablespace   : %s", table->dest_tablespace);
 	elog(DEBUG2, "copy_data         : %s", table->copy_data);
 	elog(DEBUG2, "alter_col_storage : %s", table->alter_col_storage ?
 		 table->alter_col_storage : "(skipped)");
@@ -1530,7 +1518,9 @@ repack_one_table(repack_table *table, const char *orderby)
 	 * Before copying data to the target table, we need to set the column storage
 	 * type if its storage type has been changed from the type default.
 	 */
-	command(table->create_table, 0, NULL);
+	params[0] = utoa(table->target_oid, buffer);
+	params[1] = table->dest_tablespace;
+	command(table->create_table, 2, params);
 	if (table->alter_col_storage)
 		command(table->alter_col_storage, 0, NULL);
 	command(table->copy_data, 0, NULL);

@@ -66,6 +66,19 @@ WHERE indrelid = 'testts1'::regclass ORDER BY relname;
  CREATE INDEX CONCURRENTLY index_OID ON testts1 USING btree (id) WITH (fillfactor='80') TABLESPACE foo
 (3 rows)
 
+-- Test that a tablespace is quoted as an identifier
+SELECT regexp_replace(
+    repack.repack_indexdef(indexrelid, 'testts1'::regclass, 'foo bar', false),
+    '_[0-9]+', '_OID', 'g')
+FROM pg_index i join pg_class c ON c.oid = indexrelid
+WHERE indrelid = 'testts1'::regclass ORDER BY relname;
+                                             regexp_replace                                              
+---------------------------------------------------------------------------------------------------------
+ CREATE INDEX index_OID ON repack.table_OID USING btree (id) TABLESPACE "foo bar" WHERE (id > 0)
+ CREATE UNIQUE INDEX index_OID ON repack.table_OID USING btree (id) TABLESPACE "foo bar"
+ CREATE INDEX index_OID ON repack.table_OID USING btree (id) WITH (fillfactor='80') TABLESPACE "foo bar"
+(3 rows)
+
 -- can move the tablespace from default
 \! pg_repack --dbname=contrib_regression --no-order --table=testts1 --tablespace testts
 INFO: repacking table "public.testts1"

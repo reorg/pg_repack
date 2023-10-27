@@ -145,9 +145,11 @@ repack_version(PG_FUNCTION_ARGS)
  * @fn      Datum repack_trigger(PG_FUNCTION_ARGS)
  * @brief   Insert a operation log into log-table.
  *
- * repack_trigger(sql)
+ * repack_trigger(column1, ..., columnN)
  *
- * @param	sql	SQL to insert a operation log into log-table.
+ * @param	column1		A column of the table in primary key/unique index.
+ * ...
+ * @param	columnN		A column of the table in primary key/unique index.
  */
 Datum
 repack_trigger(PG_FUNCTION_ARGS)
@@ -158,7 +160,8 @@ repack_trigger(PG_FUNCTION_ARGS)
 	Datum			values[2];
 	bool			nulls[2] = { 0, 0 };
 	Oid				argtypes[2];
-	const char	   *sql;
+	Oid				relid;
+	StringInfo		sql;
 
 	/* authority check */
 	must_be_superuser("repack_trigger");
@@ -167,11 +170,12 @@ repack_trigger(PG_FUNCTION_ARGS)
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
 		!TRIGGER_FIRED_AFTER(trigdata->tg_event) ||
 		!TRIGGER_FIRED_FOR_ROW(trigdata->tg_event) ||
-		trigdata->tg_trigger->tgnargs != 1)
+		trigdata->tg_trigger->tgnargs < 1)
 		elog(ERROR, "repack_trigger: invalid trigger call");
 
+	relid = RelationGetRelid(trigdata->tg_relation);
+
 	/* retrieve parameters */
-	sql = trigdata->tg_trigger->tgargs[0];
 	desc = RelationGetDescr(trigdata->tg_relation);
 	argtypes[0] = argtypes[1] = trigdata->tg_relation->rd_rel->reltype;
 
@@ -200,8 +204,17 @@ repack_trigger(PG_FUNCTION_ARGS)
 		values[1] = copy_tuple(tuple, desc);
 	}
 
-	/* INSERT INTO repack.log VALUES ($1, $2) */
-	execute_with_args(SPI_OK_INSERT, sql, 2, argtypes, values, nulls);
+	/* prepare INSERT query */
+	sql = makeStringInfo();
+	appendStringInfo(sql, "INSERT INTO repack.log_%d(pk, row) "
+		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(", relid);
+	appendStringInfo(sql, "$1.%s", quote_identifier(trigdata->tg_trigger->tgargs[0]));
+	for (int i = 1; i < trigdata->tg_trigger->tgnargs; ++i)
+		appendStringInfo(sql, ", $1.%s", quote_identifier(trigdata->tg_trigger->tgargs[i]));
+	appendStringInfo(sql, ")::repack.pk_%d) END, $2)", relid);
+
+	/* execute the INSERT query */
+	execute_with_args(SPI_OK_INSERT, sql->data, 2, argtypes, values, nulls);
 
 	SPI_finish();
 
@@ -794,7 +807,7 @@ repack_indexdef(PG_FUNCTION_ARGS)
 	/* specify the new tablespace or the original one if any */
 	if (tablespace || stmt.tablespace)
 		appendStringInfo(&str, " TABLESPACE %s",
-			(tablespace ? NameStr(*tablespace) : stmt.tablespace));
+			(tablespace ? quote_identifier(NameStr(*tablespace)) : stmt.tablespace));
 
 	if (stmt.where)
 		appendStringInfo(&str, " WHERE %s", stmt.where);

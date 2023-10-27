@@ -24,9 +24,14 @@ $$
 $$
 LANGUAGE sql STABLE STRICT SET search_path to 'pg_catalog';
 
-CREATE FUNCTION repack.get_index_columns(oid, text) RETURNS text AS
+-- Get a comma-separated column list of the index.
+--
+-- Columns are quoted as literals because they are going to be passed to
+-- the `repack_trigger` function as text arguments. `repack_trigger` will quote
+-- them as identifiers later.
+CREATE FUNCTION repack.get_index_columns(oid) RETURNS text AS
 $$
-  SELECT coalesce(string_agg(quote_ident(attname), $2), '')
+  SELECT coalesce(string_agg(quote_literal(attname), ', '), '')
     FROM pg_attribute,
          (SELECT indrelid,
                  indkey,
@@ -42,6 +47,37 @@ LANGUAGE sql STABLE STRICT;
 CREATE FUNCTION repack.get_order_by(oid, oid) RETURNS text AS
 'MODULE_PATHNAME', 'repack_get_order_by'
 LANGUAGE C STABLE STRICT;
+
+CREATE FUNCTION repack.create_log_table(oid) RETURNS void AS
+$$
+BEGIN
+    EXECUTE 'CREATE TABLE repack.log_' || $1 ||
+            ' (id bigserial PRIMARY KEY,' ||
+            ' pk repack.pk_' || $1 || ',' ||
+            ' row ' || repack.oid2text($1) || ')';
+END
+$$
+LANGUAGE plpgsql;
+
+CREATE FUNCTION repack.create_table(oid, name) RETURNS void AS
+$$
+BEGIN
+    EXECUTE 'CREATE TABLE repack.table_' || $1 ||
+            ' WITH (' || repack.get_storage_param($1) || ') ' ||
+            ' TABLESPACE ' || quote_ident($2) ||
+            ' AS SELECT ' || repack.get_columns_for_create_as($1) ||
+            ' FROM ONLY ' || repack.oid2text($1) || ' WITH NO DATA';
+END
+$$
+LANGUAGE plpgsql;
+
+CREATE FUNCTION repack.create_index_type(oid, oid) RETURNS void AS
+$$
+BEGIN
+    EXECUTE repack.get_create_index_type($1, 'repack.pk_' || $2);
+END
+$$
+LANGUAGE plpgsql;
 
 CREATE FUNCTION repack.get_create_index_type(oid, name) RETURNS text AS
 $$
@@ -66,10 +102,7 @@ $$
   SELECT 'CREATE TRIGGER repack_trigger' ||
          ' AFTER INSERT OR DELETE OR UPDATE ON ' || repack.oid2text($1) ||
          ' FOR EACH ROW EXECUTE PROCEDURE repack.repack_trigger(' ||
-         '''INSERT INTO repack.log_' || $1 || '(pk, row) VALUES(' ||
-         ' CASE WHEN $1 IS NULL THEN NULL ELSE (ROW($1.' ||
-         repack.get_index_columns($2, ', $1.') || ')::repack.pk_' ||
-         $1 || ') END, $2)'')';
+         repack.get_index_columns($2) || ')';
 $$
 LANGUAGE sql STABLE STRICT;
 
@@ -240,13 +273,12 @@ CREATE VIEW repack.tables AS
          N.nspname AS schemaname,
          PK.indexrelid AS pkid,
          CK.indexrelid AS ckid,
-         repack.get_create_index_type(PK.indexrelid, 'repack.pk_' || R.oid) AS create_pktype,
-         'CREATE TABLE repack.log_' || R.oid || ' (id bigserial PRIMARY KEY, pk repack.pk_' || R.oid || ', row ' || repack.oid2text(R.oid) || ')' AS create_log,
+         'SELECT repack.create_index_type(' || PK.indexrelid || ',' || R.oid || ')' AS create_pktype,
+         'SELECT repack.create_log_table(' || R.oid || ')' AS create_log,
          repack.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
          repack.get_enable_trigger(R.oid) as enable_trigger,
-         'CREATE TABLE repack.table_' || R.oid || ' WITH (' || repack.get_storage_param(R.oid) || ') TABLESPACE '  AS create_table_1,
-         coalesce(quote_ident(S.spcname), 'pg_default') as tablespace_orig,
-         ' AS SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS create_table_2,
+         'SELECT repack.create_table($1, $2)' AS create_table,
+         coalesce(S.spcname, S2.spcname) AS tablespace_orig,
          'INSERT INTO repack.table_' || R.oid || ' SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS copy_data,
          repack.get_alter_col_storage(R.oid) AS alter_col_storage,
          repack.get_drop_columns(R.oid, 'repack.table_' || R.oid) AS drop_columns,
@@ -270,6 +302,10 @@ CREATE VIEW repack.tables AS
                 ON R.oid = CK.indrelid
          LEFT JOIN pg_namespace N ON N.oid = R.relnamespace
          LEFT JOIN pg_tablespace S ON S.oid = R.reltablespace
+         CROSS JOIN (SELECT S2.spcname
+             FROM pg_catalog.pg_database D
+             JOIN pg_catalog.pg_tablespace S2 ON S2.oid = D.dattablespace
+             WHERE D.datname = current_database()) S2
    WHERE R.relkind = 'r'
      AND R.relpersistence = 'p'
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
@@ -281,7 +317,8 @@ LANGUAGE C STABLE;
 
 CREATE FUNCTION repack.repack_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'repack_trigger'
-LANGUAGE C VOLATILE STRICT SECURITY DEFINER;
+LANGUAGE C VOLATILE STRICT SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.conflicted_triggers(oid) RETURNS SETOF name AS
 $$
