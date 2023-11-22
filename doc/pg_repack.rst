@@ -475,8 +475,14 @@ Releases
 
 * pg_repack 1.4.9 (unreleased)
 
+  * Added support for PostgreSQL 16
+  * Fix possible SQL injection (issue #368)
+  * Support longer password length (issue #357)
+  * Fixed infinite loop on empty password (issue #354)
+  * Added ``--switch-threshold`` option (issue #347)
   * Fixed crash in ``get_order_by()`` using invalid relations (issue #321)
   * Added support for tables that have been previously rewritten with `VACUUM FULL` and use storage=plain for all columns (issue #313)
+  * More careful locks acquisition (issue #298)
 
 * pg_repack 1.4.8
 
