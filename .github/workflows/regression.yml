@@ -12,14 +12,11 @@ jobs:
           - 14
           - 13
           - 12
-          - 11
-          - 10
 
     name: PostgreSQL ${{ matrix.pg }}
     runs-on: ubuntu-latest
     container: pgxn/pgxn-tools
     steps:
-
       - name: Start PostgreSQL ${{ matrix.pg }}
         run: pg-start ${{ matrix.pg }}
 
@@ -31,12 +28,6 @@ jobs:
 
       - name: Put pg_repack on PATH
         run: echo "$PWD/bin" >> $GITHUB_PATH
-
-      - name: Create testts directory
-        run: sudo -u postgres mkdir /tmp/testts
-
-      - name: Create testts tablespace
-        run: sudo -u postgres psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
 
       - name: Test on PostgreSQL ${{ matrix.pg }}
         run: pg-build-test
