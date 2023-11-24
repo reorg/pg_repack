@@ -5,6 +5,8 @@ SET client_min_messages = warning;
 --
 -- Note: in order to pass this test you must create a tablespace called 'testts'
 --
+SET allow_in_place_tablespaces = true;
+CREATE TABLESPACE testts LOCATION '';
 
 SELECT spcname FROM pg_tablespace WHERE spcname = 'testts';
 -- If the query above failed you must create the 'testts' tablespace;
