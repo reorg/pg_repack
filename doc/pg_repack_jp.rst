@@ -62,8 +62,10 @@ pg_repackでは再編成する方法として次のものが選択できます�
   ------------
   
   PostgreSQL versions
-      PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16
-  
+      PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16.
+
+      PostgreSQL 9.4 and before it are not supported.
+
   Disks
       Performing a full-table repack requires free disk space about twice as
       large as the target table(s) and its indexes. For example, if the total
