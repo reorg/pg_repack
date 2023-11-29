@@ -14,6 +14,8 @@ jobs:
           - 12
           - 11
           - 10
+          - 9.6
+          - 9.5
 
     name: PostgreSQL ${{ matrix.pg }}
     runs-on: ubuntu-latest

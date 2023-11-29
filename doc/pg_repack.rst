@@ -40,7 +40,9 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16
+    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16.
+
+    PostgreSQL 9.4 and before it are not supported.
 
 Disks
     Performing a full-table repack requires free disk space about twice as
