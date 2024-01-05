@@ -1229,20 +1229,22 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	/*
 	 * Swap relfrozenxid and relminmxid, as they must be consistent with the data
 	 */
-	swaptemp = relform1->relfrozenxid;
-	relform1->relfrozenxid = relform2->relfrozenxid;
-	relform2->relfrozenxid = swaptempxid;
+	if (relform1->relkind != RELKIND_INDEX)
+	{
+		swaptempxid = relform1->relfrozenxid;
+		relform1->relfrozenxid = relform2->relfrozenxid;
+		relform2->relfrozenxid = swaptempxid;
 
-#if PG_VERSION_NUM >= 90300
-	swaptemp = relform1->relminmxid;
-	relform1->relminmxid = relform2->relminmxid;
-	relform2->relminmxid = swaptempxid;
-#endif
+		swaptempxid = relform1->relminmxid;
+		relform1->relminmxid = relform2->relminmxid;
+		relform2->relminmxid = swaptempxid;
+	}
 
 	/* swap size statistics too, since new rel has freshly-updated stats */
 	{
 		int32		swap_pages;
 		float4		swap_tuples;
+		int32		swap_allvisible;
 
 		swap_pages = relform1->relpages;
 		relform1->relpages = relform2->relpages;
@@ -1252,11 +1254,9 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 		relform1->reltuples = relform2->reltuples;
 		relform2->reltuples = swap_tuples;
 
-#if PG_VERSION_NUM >= 90200
-		swap_pages = relform1->relallvisible;
+		swap_allvisible = relform1->relallvisible;
 		relform1->relallvisible = relform2->relallvisible;
-		relform2->relallvisible = swap_pages;
-#endif
+		relform2->relallvisible = swap_allvisible;
 	}
 
 	indstate = CatalogOpenIndexes(relRelation);
