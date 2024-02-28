@@ -41,6 +41,13 @@ Indexes:
 Indexes:
     "tbl_only_pkey_pkey" PRIMARY KEY, btree (col1)
 
+\d tbl_incl_pkey
+                     Table "public.tbl_incl_pkey"
+ Column |            Type             | Collation | Nullable | Default 
+--------+-----------------------------+-----------+----------+---------
+ col1   | integer                     |           |          | 
+ col2   | timestamp without time zone |           |          | 
+
 \d tbl_with_dropped_column
       Table "public.tbl_with_dropped_column"
  Column |  Type   | Collation | Nullable | Default 

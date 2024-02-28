@@ -12,6 +12,7 @@ WARNING: Invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badinde
 INFO: repacking table "public.tbl_cluster"
 INFO: repacking table "public.tbl_gistkey"
 INFO: repacking table "public.tbl_idxopts"
+INFO: repacking table "public.tbl_incl_pkey"
 INFO: repacking table "public.tbl_only_pkey"
 INFO: repacking table "public.tbl_order"
 INFO: repacking table "public.tbl_storage_plain"

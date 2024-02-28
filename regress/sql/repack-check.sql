@@ -3,6 +3,7 @@ SET client_min_messages = warning;
 SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster ORDER BY 1, 2;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
+SELECT * FROM tbl_incl_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;
 
 SET enable_seqscan = on;
