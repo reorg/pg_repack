@@ -155,3 +155,19 @@ SELECT relname, spcname
 FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
 WHERE relname ~ '^testts1'
 ORDER BY relname;
+
+--check quote_ident() with "test ts" tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace="test ts" --moveidx
+
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+
+--check quote_ident() with "test""ts" tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace="test\"ts" --moveidx
+
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
