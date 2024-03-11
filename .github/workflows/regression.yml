@@ -35,10 +35,13 @@ jobs:
         run: echo "$PWD/bin" >> $GITHUB_PATH
 
       - name: Create testts directory
-        run: sudo -u postgres mkdir /tmp/testts
+        run: sudo -u postgres mkdir /tmp/testts /tmp/1testts
 
       - name: Create testts tablespace
         run: sudo -u postgres psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
+
+      - name: Create 1testts tablespace
+        run: sudo -u postgres psql -c "CREATE TABLESPACE 1testts LOCATION '/tmp/1testts'"
 
       - name: Test on PostgreSQL ${{ matrix.pg }}
         run: pg-build-test
