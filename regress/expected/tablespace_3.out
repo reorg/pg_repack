@@ -245,3 +245,48 @@ ORDER BY relname;
 --using --indexes-only and --index option together
 \! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --index=testts1_pkey
 ERROR: cannot specify --index (-i) and --table (-t)
+--check quote_ident() with 1testts tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace=1testts --moveidx
+INFO: repacking table "public.testts1"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+       relname       | spcname 
+---------------------+---------
+ testts1             | 1testts
+ testts1_partial_idx | 1testts
+ testts1_pkey        | 1testts
+ testts1_with_idx    | 1testts
+(4 rows)
+
+--check quote_ident() with "test ts" tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace="test ts" --moveidx
+INFO: repacking table "public.testts1"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+       relname       | spcname 
+---------------------+---------
+ testts1             | test ts
+ testts1_partial_idx | test ts
+ testts1_pkey        | test ts
+ testts1_with_idx    | test ts
+(4 rows)
+
+--check quote_ident() with "test""ts" tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace="test\"ts" --moveidx
+INFO: repacking table "public.testts1"
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+       relname       | spcname 
+---------------------+---------
+ testts1             | test"ts
+ testts1_partial_idx | test"ts
+ testts1_pkey        | test"ts
+ testts1_with_idx    | test"ts
+(4 rows)
+

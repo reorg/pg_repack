@@ -783,7 +783,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		"SELECT t.*,"
 		" coalesce(v.tablespace, t.tablespace_orig) as tablespace_dest"
 		" FROM repack.tables t, "
-		" (VALUES (quote_ident($1::text))) as v (tablespace)"
+		" (VALUES ($1::text)) as v (tablespace)"
 		" WHERE ");
 
 	params[iparam++] = tablespace;
