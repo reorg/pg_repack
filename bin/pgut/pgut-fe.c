@@ -62,7 +62,7 @@ setup_workers(int num_workers)
  		if (username && username[0])
  			appendStringInfo(&buf, "user=%s ", username);
  		if (password && password[0])
- 			appendStringInfo(&buf, "password=%s ", password);
+ 			appendStringInfo(&buf, "password='%s' ", password);
 
  		if (workers.conns == NULL)
  		{
@@ -168,7 +168,7 @@ reconnect(int elevel)
 	if (username && username[0])
 		appendStringInfo(&buf, "user=%s ", username);
 	if (password && password[0])
-		appendStringInfo(&buf, "password=%s ", password);
+		appendStringInfo(&buf, "password='%s' ", password);
 
 	connection = pgut_connect(buf.data, prompt_password, elevel);
 	conn2      = pgut_connect(buf.data, prompt_password, elevel);

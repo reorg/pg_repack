@@ -506,7 +506,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 		passwd = prompt_for_password();
 		initStringInfo(&add_pass);
 		appendStringInfoString(&add_pass, info);
-		appendStringInfo(&add_pass, " password=%s ", passwd);
+		appendStringInfo(&add_pass, " password='%s' ", passwd);
 	}
 	else
 	{
@@ -557,7 +557,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			else
 	 			initStringInfo(&add_pass);
 			appendStringInfoString(&add_pass, info);
-			appendStringInfo(&add_pass, " password=%s ", passwd);
+			appendStringInfo(&add_pass, " password='%s' ", passwd);
 			continue;
 		}
 
