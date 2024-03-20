@@ -7,12 +7,15 @@ jobs:
       fail-fast: false
       matrix:
         pg:
+          - 16
           - 15
           - 14
           - 13
           - 12
           - 11
           - 10
+          - 9.6
+          - 9.5
 
     name: PostgreSQL ${{ matrix.pg }}
     runs-on: ubuntu-latest
@@ -31,11 +34,8 @@ jobs:
       - name: Put pg_repack on PATH
         run: echo "$PWD/bin" >> $GITHUB_PATH
 
-      - name: Create testts directory
-        run: sudo -u postgres mkdir /tmp/testts
-
-      - name: Create testts tablespace
-        run: sudo -u postgres psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
+      - name: Create tablespaces
+        run: bash regress/create_tablespaces.sh
 
       - name: Test on PostgreSQL ${{ matrix.pg }}
         run: pg-build-test

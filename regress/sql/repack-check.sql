@@ -3,6 +3,7 @@ SET client_min_messages = warning;
 SELECT col1, to_char("time", 'YYYY-MM-DD HH24:MI:SS'), ","")" FROM tbl_cluster ORDER BY 1, 2;
 SELECT * FROM tbl_only_ckey ORDER BY 1;
 SELECT * FROM tbl_only_pkey ORDER BY 1;
+SELECT * FROM tbl_incl_pkey ORDER BY 1;
 SELECT * FROM tbl_gistkey ORDER BY 1;
 
 SET enable_seqscan = on;
@@ -168,3 +169,8 @@ CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
 \! pg_repack --dbname=contrib_regression --table=parent_a --parent-table=parent_b --only-indexes
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes
+
+--
+-- Switch threshold
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --switch-threshold 200

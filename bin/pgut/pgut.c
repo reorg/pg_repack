@@ -442,7 +442,11 @@ prompt_for_password(void)
 	static char *passwdbuf;
 	static bool have_passwd = false;
 
-#define BUFSIZE 100
+#if PG_VERSION_NUM >= 140000
+	static size_t passwd_size = 0;
+#endif
+
+#define BUFSIZE 1024
 
 #if PG_VERSION_NUM < 100000
 	if (have_passwd) {
@@ -467,13 +471,15 @@ prompt_for_password(void)
 	}
 #else
 	if (have_passwd) {
-		buf = pgut_malloc(BUFSIZE);
-		memcpy(buf, passwdbuf, sizeof(char)*BUFSIZE);
+		buf = pgut_malloc(passwd_size);
+		memcpy(buf, passwdbuf, sizeof(char) * passwd_size);
 	} else {
 		buf = simple_prompt("Password: ", false);
+		passwd_size = strlen(buf) + 1;
 		have_passwd = true;
-		passwdbuf = pgut_malloc(BUFSIZE);
-		memcpy(passwdbuf, buf, sizeof(char)*BUFSIZE);
+
+		passwdbuf = pgut_malloc(passwd_size);
+		memcpy(passwdbuf, buf, sizeof(char) * passwd_size);
 	}
 #endif
 
@@ -542,10 +548,9 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			return conn;
 		}
 
-		if (conn && PQconnectionNeedsPassword(conn) && prompt != NO)
+		if (conn && PQconnectionNeedsPassword(conn) && !passwd && prompt != NO)
 		{
 			PQfinish(conn);
-			free(passwd);
 			passwd = prompt_for_password();
 			if (add_pass.data != NULL)
 	 			resetStringInfo(&add_pass);
@@ -682,7 +687,7 @@ pgut_command(PGconn* conn, const char *query, int nParams, const char **params)
 {
 	PGresult	   *res;
 	ExecStatusType	code;
-	
+
 	res = pgut_execute(conn, query, nParams, params);
 	code = PQresultStatus(res);
 	PQclear(res);

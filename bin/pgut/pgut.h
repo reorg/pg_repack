@@ -51,7 +51,7 @@ extern const char  *PROGRAM_ISSUES;
 extern bool		interrupted;
 extern int		pgut_log_level;
 extern int		pgut_abort_level;
-extern bool		pgut_echo;	
+extern bool		pgut_echo;
 
 extern void pgut_init(int argc, char **argv);
 extern void pgut_atexit_push(pgut_atexit_callback callback, void *userdata);

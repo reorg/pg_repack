@@ -84,6 +84,8 @@ execute_with_args(int expected, const char *src, int nargs, Oid argtypes[], Datu
 	int		i;
 	char	c_nulls[FUNC_MAX_ARGS];
 
+    	memset(c_nulls, 0, sizeof(c_nulls));
+
 	for (i = 0; i < nargs; i++)
 		c_nulls[i] = (nulls[i] ? 'n' : ' ');
 

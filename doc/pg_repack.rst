@@ -40,7 +40,9 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.4, 9.5, 9.6, 10, 11, 12, 13, 14, 15
+    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16.
+
+    PostgreSQL 9.4 and before it are not supported.
 
 Disks
     Performing a full-table repack requires free disk space about twice as
@@ -106,37 +108,39 @@ Usage
 The following options can be specified in ``OPTIONS``.
 
 Options:
-  -a, --all                 repack all databases
-  -t, --table=TABLE         repack specific table only
-  -I, --parent-table=TABLE  repack specific parent table and its inheritors
-  -c, --schema=SCHEMA       repack tables in specific schema only
-  -s, --tablespace=TBLSPC   move repacked tables to a new tablespace
-  -S, --moveidx             move repacked indexes to *TBLSPC* too
-  -o, --order-by=COLUMNS    order by columns instead of cluster keys
-  -n, --no-order            do vacuum full instead of cluster
-  -N, --dry-run             print what would have been repacked and exit
-  -j, --jobs=NUM            Use this many parallel jobs for each table
-  -i, --index=INDEX         move only the specified index
-  -x, --only-indexes        move only indexes of the specified table
-  -T, --wait-timeout=SECS   timeout to cancel other backends on conflict
-  -D, --no-kill-backend     don't kill other backends when timed out
-  -Z, --no-analyze          don't analyze at end
-  -k, --no-superuser-check  skip superuser checks in client
-  -C, --exclude-extension   don't repack tables which belong to specific extension
+  -a, --all                     repack all databases
+  -t, --table=TABLE             repack specific table only
+  -I, --parent-table=TABLE      repack specific parent table and its inheritors
+  -c, --schema=SCHEMA           repack tables in specific schema only
+  -s, --tablespace=TBLSPC       move repacked tables to a new tablespace
+  -S, --moveidx                 move repacked indexes to *TBLSPC* too
+  -o, --order-by=COLUMNS        order by columns instead of cluster keys
+  -n, --no-order                do vacuum full instead of cluster
+  -N, --dry-run                 print what would have been repacked and exit
+  -j, --jobs=NUM                Use this many parallel jobs for each table
+  -i, --index=INDEX             move only the specified index
+  -x, --only-indexes            move only indexes of the specified table
+  -T, --wait-timeout=SECS       timeout to cancel other backends on conflict
+  -D, --no-kill-backend         don't kill other backends when timed out
+  -Z, --no-analyze              don't analyze at end
+  -k, --no-superuser-check      skip superuser checks in client
+  -C, --exclude-extension       don't repack tables which belong to specific extension
+      --error-on-invalid-index  don't repack when invalid index is found
+      --switch-threshold        switch tables when that many tuples are left to catchup
 
 Connection options:
-  -d, --dbname=DBNAME       database to connect
-  -h, --host=HOSTNAME       database server host or socket directory
-  -p, --port=PORT           database server port
-  -U, --username=USERNAME   user name to connect as
-  -w, --no-password         never prompt for password
-  -W, --password            force password prompt
+  -d, --dbname=DBNAME           database to connect
+  -h, --host=HOSTNAME           database server host or socket directory
+  -p, --port=PORT               database server port
+  -U, --username=USERNAME       user name to connect as
+  -w, --no-password             never prompt for password
+  -W, --password                force password prompt
 
 Generic options:
-  -e, --echo                echo queries
-  -E, --elevel=LEVEL        set output message level
-  --help                    show this help, then exit
-  --version                 output version information, then exit
+  -e, --echo                    echo queries
+  -E, --elevel=LEVEL            set output message level
+  --help                        show this help, then exit
+  --version                     output version information, then exit
 
 
 Reorg Options
@@ -197,13 +201,14 @@ Reorg Options
     with the ``--table`` or ``--parent-table`` options.
 
 ``-T SECS``, ``--wait-timeout=SECS``
-    pg_repack needs to take an exclusive lock at the end of the
-    reorganization.  This setting controls how many seconds pg_repack will
-    wait to acquire this lock. If the lock cannot be taken after this duration
-    and ``--no-kill-backend`` option is not specified, pg_repack will forcibly
-    cancel the conflicting queries. If you are using PostgreSQL version 8.4
-    or newer, pg_repack will fall back to using pg_terminate_backend() to
-    disconnect any remaining backends after twice this timeout has passed.
+    pg_repack needs to take one exclusive lock at the beginning as well as one
+    exclusive lock at the end of the repacking process. This setting controls
+    how many seconds pg_repack will wait to acquire this lock. If the lock
+    cannot be taken after this duration and ``--no-kill-backend`` option is
+    not specified, pg_repack will forcibly cancel the conflicting queries.
+    If you are using PostgreSQL version 8.4 or newer, pg_repack will fall
+    back to using pg_terminate_backend() to disconnect any remaining
+    backends after twice this timeout has passed.
     The default is 60 seconds.
 
 ``-D``, ``--no-kill-backend``
@@ -222,6 +227,10 @@ Reorg Options
 ``-C``, ``--exclude-extension``
     Skip tables that belong to the specified extension(s). Some extensions
     may heavily depend on such tables at planning time etc.
+
+``--switch-threshold``
+    Switch tables when that many tuples are left in log table.
+    This setting can be used to avoid the inability to catchup with write-heavy tables.
 
 Connection Options
 ^^^^^^^^^^^^^^^^^^
@@ -466,9 +475,16 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
-* pg_repack 1.4.9 (unreleased)
+* pg_repack 1.5.0
 
+  * Added support for PostgreSQL 16
+  * Fix possible SQL injection (issue #368)
+  * Support longer password length (issue #357)
+  * Fixed infinite loop on empty password (issue #354)
+  * Added ``--switch-threshold`` option (issue #347)
   * Fixed crash in ``get_order_by()`` using invalid relations (issue #321)
+  * Added support for tables that have been previously rewritten with `VACUUM FULL` and use storage=plain for all columns (issue #313)
+  * More careful locks acquisition (issue #298)
 
 * pg_repack 1.4.8
 

@@ -1,0 +1,82 @@
+--
+-- tables schema after running repack
+--
+\d tbl_cluster
+            Table "public.tbl_cluster"
+ Column |            Type             | Modifiers 
+--------+-----------------------------+-----------
+ col1   | integer                     | not null
+ time   | timestamp without time zone | 
+ ,")    | text                        | not null
+Indexes:
+    "tbl_cluster_pkey" PRIMARY KEY, btree (","")", col1) WITH (fillfactor='75')
+    ",") cluster" btree ("time", length(","")"), ","")" text_pattern_ops) WITH (fillfactor='75') CLUSTER
+
+\d tbl_gistkey
+  Table "public.tbl_gistkey"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ id     | integer | not null
+ c      | circle  | 
+Indexes:
+    "tbl_gistkey_pkey" PRIMARY KEY, btree (id)
+    "cidx_circle" gist (c) CLUSTER
+
+\d tbl_only_ckey
+           Table "public.tbl_only_ckey"
+ Column |            Type             | Modifiers 
+--------+-----------------------------+-----------
+ col1   | integer                     | 
+ col2   | timestamp without time zone | 
+ ,")    | text                        | 
+Indexes:
+    "cidx_only_ckey" btree (col2, ","")") CLUSTER
+
+\d tbl_only_pkey
+ Table "public.tbl_only_pkey"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ col1   | integer | not null
+ ,")    | text    | 
+Indexes:
+    "tbl_only_pkey_pkey" PRIMARY KEY, btree (col1)
+
+\d tbl_incl_pkey
+           Table "public.tbl_incl_pkey"
+ Column |            Type             | Modifiers 
+--------+-----------------------------+-----------
+ col1   | integer                     | 
+ col2   | timestamp without time zone | 
+
+\d tbl_with_dropped_column
+Table "public.tbl_with_dropped_column"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ c1     | text    | 
+ id     | integer | not null
+ c2     | text    | 
+ c3     | text    | 
+Indexes:
+    "tbl_with_dropped_column_pkey" PRIMARY KEY, btree (id) WITH (fillfactor='75') CLUSTER
+    "idx_c1c2" btree (c1, c2) WITH (fillfactor='75')
+    "idx_c2c1" btree (c2, c1)
+
+\d tbl_with_dropped_toast
+Table "public.tbl_with_dropped_toast"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ i      | integer | not null
+ j      | integer | not null
+Indexes:
+    "tbl_with_dropped_toast_pkey" PRIMARY KEY, btree (i, j) CLUSTER
+
+\d tbl_idxopts
+  Table "public.tbl_idxopts"
+ Column |  Type   | Modifiers 
+--------+---------+-----------
+ i      | integer | not null
+ t      | text    | 
+Indexes:
+    "tbl_idxopts_pkey" PRIMARY KEY, btree (i)
+    "idxopts_t" btree (t DESC NULLS LAST) WHERE t <> 'aaa'::text
+
