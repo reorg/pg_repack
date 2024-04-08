@@ -44,7 +44,7 @@ SELECT oid, relname
    AND reltoastrelid NOT IN (SELECT oid FROM pg_class WHERE relkind = 't');
 
 -- check columns options
-SELECT attname, attstattarget, attoptions
+SELECT attname, nullif(attstattarget, -1) as attstattarget, attoptions
 FROM pg_attribute
 WHERE attrelid = 'tbl_idxopts'::regclass
 AND attnum > 0
