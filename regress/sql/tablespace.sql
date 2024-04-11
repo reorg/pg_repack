@@ -147,3 +147,27 @@ ORDER BY relname;
 
 --using --indexes-only and --index option together
 \! pg_repack --dbname=contrib_regression --table=testts1 --only-indexes --index=testts1_pkey
+
+--check quote_ident() with 1testts tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace=1testts --moveidx
+
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+
+--check quote_ident() with "test ts" tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace="test ts" --moveidx
+
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;
+
+--check quote_ident() with "test""ts" tablespace
+\! pg_repack --dbname=contrib_regression --table=testts1 --tablespace="test\"ts" --moveidx
+
+SELECT relname, spcname
+FROM pg_class JOIN pg_tablespace ts ON ts.oid = reltablespace
+WHERE relname ~ '^testts1'
+ORDER BY relname;

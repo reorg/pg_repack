@@ -21,6 +21,12 @@ CREATE TABLE tbl_only_ckey (
 ) WITH (fillfactor = 70);
 CREATE INDEX cidx_only_ckey ON tbl_only_ckey (col2, ","")");
 ALTER TABLE tbl_only_ckey CLUSTER ON cidx_only_ckey;
+CREATE TABLE tbl_incl_pkey (
+	col1 int,
+	col2 timestamp
+);
+-- Covering indexes were added only in PostgreSQL 11
+ALTER TABLE tbl_incl_pkey ADD PRIMARY KEY (col1) INCLUDE (col2);
 CREATE TABLE tbl_gistkey (
 	id integer PRIMARY KEY,
 	c circle
@@ -85,6 +91,8 @@ INSERT INTO tbl_only_pkey VALUES(1, 'abc');
 INSERT INTO tbl_only_pkey VALUES(2, 'def');
 INSERT INTO tbl_only_ckey VALUES(1, '2008-01-01 00:00:00', 'abc');
 INSERT INTO tbl_only_ckey VALUES(2, '2008-02-01 00:00:00', 'def');
+INSERT INTO tbl_incl_pkey VALUES(1, '2008-01-01 00:00:00');
+INSERT INTO tbl_incl_pkey VALUES(2, '2008-02-01 00:00:00');
 INSERT INTO tbl_gistkey VALUES(1, '<(1,2),3>');
 INSERT INTO tbl_gistkey VALUES(2, '<(4,5),6>');
 INSERT INTO tbl_with_dropped_column VALUES('d1', 'c1', 2, 'd2', 'c2', 'd3');

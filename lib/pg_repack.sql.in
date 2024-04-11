@@ -247,20 +247,42 @@ $$
 LANGUAGE sql STABLE STRICT;
 
 -- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
-CREATE VIEW repack.primary_keys AS
-  SELECT indrelid, min(indexrelid) AS indexrelid
-    FROM (SELECT indrelid, indexrelid FROM pg_index
-   WHERE indisunique
-     AND indisvalid
-     AND indpred IS NULL
-     AND 0 <> ALL(indkey)
-     AND NOT EXISTS(
-           SELECT 1 FROM pg_attribute
-            WHERE attrelid = indrelid
-              AND attnum = ANY(indkey)
-              AND NOT attnotnull)
-   ORDER BY indrelid, indisprimary DESC, indnatts, indkey) tmp
-   GROUP BY indrelid;
+DO $$
+BEGIN
+    IF current_setting('server_version_num')::int >= 110000 THEN
+        CREATE VIEW repack.primary_keys AS
+          SELECT indrelid, min(indexrelid) AS indexrelid
+            FROM (SELECT indrelid, indexrelid FROM pg_index
+           WHERE indisunique
+             AND indisvalid
+             AND indpred IS NULL
+             AND 0 <> ALL(indkey)
+             AND NOT EXISTS(
+                   SELECT 1 FROM pg_attribute
+                    WHERE attrelid = indrelid
+                      -- indkey is 0-based int2vector
+                      AND attnum = ANY(indkey[0:indnkeyatts - 1])
+                      AND NOT attnotnull)
+           ORDER BY indrelid, indisprimary DESC, indnatts, indkey) tmp
+           GROUP BY indrelid;
+    ELSE
+        CREATE VIEW repack.primary_keys AS
+          SELECT indrelid, min(indexrelid) AS indexrelid
+            FROM (SELECT indrelid, indexrelid FROM pg_index
+           WHERE indisunique
+             AND indisvalid
+             AND indpred IS NULL
+             AND 0 <> ALL(indkey)
+             AND NOT EXISTS(
+                   SELECT 1 FROM pg_attribute
+                    WHERE attrelid = indrelid
+                      AND attnum = ANY(indkey)
+                      AND NOT attnotnull)
+           ORDER BY indrelid, indisprimary DESC, indnatts, indkey) tmp
+           GROUP BY indrelid;
+    END IF;
+END;
+$$;
 
 CREATE VIEW repack.tables AS
   SELECT repack.oid2text(R.oid) AS relname,

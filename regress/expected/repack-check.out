@@ -23,6 +23,13 @@ SELECT * FROM tbl_only_pkey ORDER BY 1;
     2 | def
 (2 rows)
 
+SELECT * FROM tbl_incl_pkey ORDER BY 1;
+ col1 |           col2           
+------+--------------------------
+    1 | Tue Jan 01 00:00:00 2008
+    2 | Fri Feb 01 00:00:00 2008
+(2 rows)
+
 SELECT * FROM tbl_gistkey ORDER BY 1;
  id |     c     
 ----+-----------
