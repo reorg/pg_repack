@@ -157,21 +157,9 @@ void disconnect_workers(void)
 void
 reconnect(int elevel)
 {
-	StringInfoData	buf;
 	char		   *new_password;
 
 	disconnect();
-	initStringInfo(&buf);
-	if (dbname && dbname[0])
-		appendStringInfo(&buf, "dbname=%s ", dbname);
-	if (host && host[0])
-		appendStringInfo(&buf, "host=%s ", host);
-	if (port && port[0])
-		appendStringInfo(&buf, "port=%s ", port);
-	if (username && username[0])
-		appendStringInfo(&buf, "user=%s ", username);
-	if (password && password[0])
-		appendStringInfo(&buf, "password='%s' ", password);
 
 	connection = pgut_connect(dbname, host, port, username, password, prompt_password, elevel);
 	conn2      = pgut_connect(dbname, host, port, username, password, prompt_password, elevel);
@@ -187,8 +175,6 @@ reconnect(int elevel)
 			password = pgut_strdup(new_password);
 		}
 	}
-
-	termStringInfo(&buf);
 }
 
 void
