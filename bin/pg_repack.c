@@ -310,9 +310,9 @@ main(int argc, char *argv[])
 			(errcode(EINVAL),
 			 errmsg("too many arguments")));
 
-    if(switch_threshold >= apply_count)
-        ereport(ERROR, (errcode(EINVAL),
-            errmsg("switch_threshold must be less than apply_count")));
+	if(switch_threshold >= apply_count)
+		ereport(ERROR, (errcode(EINVAL),
+			errmsg("switch_threshold must be less than apply_count")));
 
 	check_tablespace();
 
