@@ -496,34 +496,40 @@ prompt_for_password(void)
 
 
 PGconn *
-pgut_connect(const char *info, YesNo prompt, int elevel)
+pgut_connect(const char *dbname, const char *host, const char *port,
+			 const char *username, const char *password,
+			 YesNo prompt, int elevel)
 {
-	char	   *passwd;
-	StringInfoData add_pass;
+	char	   *new_password = NULL;
 
 	if (prompt == YES)
-	{
-		passwd = prompt_for_password();
-		initStringInfo(&add_pass);
-		appendStringInfoString(&add_pass, info);
-		appendStringInfo(&add_pass, " password=%s ", passwd);
-	}
-	else
-	{
-		passwd = NULL;
-		add_pass.data = NULL;
-	}
+		new_password = prompt_for_password();
 
 	/* Start the connection. Loop until we have a password if requested by backend. */
 	for (;;)
 	{
+#define PARAMS_ARRAY_SIZE	6
+
+		const char *keywords[PARAMS_ARRAY_SIZE];
+		const char *values[PARAMS_ARRAY_SIZE];
 		PGconn	   *conn;
+
 		CHECK_FOR_INTERRUPTS();
 
-		if (!passwd)
-			conn = PQconnectdb(info);
-		else
-			conn = PQconnectdb(add_pass.data);
+		keywords[0] = "host";
+		values[0] = host;
+		keywords[1] = "port";
+		values[1] = port;
+		keywords[2] = "user";
+		values[2] = username;
+		keywords[3] = "password";
+		values[3] = (new_password != NULL) ? new_password : password;
+		keywords[4] = "dbname";
+		values[4] = dbname;
+		keywords[5] = NULL;
+		values[5] = NULL;
+
+		conn = PQconnectdbParams(keywords, values, true);
 
 		if (PQstatus(conn) == CONNECTION_OK)
 		{
@@ -538,9 +544,7 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			pgut_connections = c;
 			pgut_conn_unlock();
 
-			if (add_pass.data != NULL)
-				termStringInfo(&add_pass);
-			free(passwd);
+			free(new_password);
 
 			/* Hardcode a search path to avoid injections into public or pg_temp */
 			pgut_command(conn, "SET search_path TO pg_catalog, pg_temp, public", 0, NULL);
@@ -548,22 +552,15 @@ pgut_connect(const char *info, YesNo prompt, int elevel)
 			return conn;
 		}
 
-		if (conn && PQconnectionNeedsPassword(conn) && !passwd && prompt != NO)
+		if (conn && PQconnectionNeedsPassword(conn) && !new_password && prompt != NO)
 		{
 			PQfinish(conn);
-			passwd = prompt_for_password();
-			if (add_pass.data != NULL)
-	 			resetStringInfo(&add_pass);
-			else
-	 			initStringInfo(&add_pass);
-			appendStringInfoString(&add_pass, info);
-			appendStringInfo(&add_pass, " password=%s ", passwd);
+			new_password = prompt_for_password();
+
 			continue;
 		}
 
-		if (add_pass.data != NULL)
-			termStringInfo(&add_pass);
-		free(passwd);
+		free(new_password);
 
 		ereport(elevel,
 			(errcode(E_PG_CONNECT),

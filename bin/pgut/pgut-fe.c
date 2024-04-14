@@ -44,7 +44,6 @@ static bool parse_pair(const char buffer[], char key[], char value[]);
 void
 setup_workers(int num_workers)
 {
- 	StringInfoData	buf;
  	int i;
  	PGconn *conn;
 
@@ -52,17 +51,23 @@ setup_workers(int num_workers)
 
  	if (num_workers > 1 && num_workers > workers.num_workers)
  	{
- 		initStringInfo(&buf);
- 		if (dbname && dbname[0])
- 			appendStringInfo(&buf, "dbname=%s ", dbname);
- 		if (host && host[0])
- 			appendStringInfo(&buf, "host=%s ", host);
- 		if (port && port[0])
- 			appendStringInfo(&buf, "port=%s ", port);
- 		if (username && username[0])
- 			appendStringInfo(&buf, "user=%s ", username);
- 		if (password && password[0])
- 			appendStringInfo(&buf, "password=%s ", password);
+#define PARAMS_ARRAY_SIZE	6
+
+		const char *keywords[PARAMS_ARRAY_SIZE];
+		const char *values[PARAMS_ARRAY_SIZE];
+
+		keywords[0] = "host";
+		values[0] = host;
+		keywords[1] = "port";
+		values[1] = port;
+		keywords[2] = "user";
+		values[2] = username;
+		keywords[3] = "password";
+		values[3] = password;
+		keywords[4] = "dbname";
+		values[4] = dbname;
+		keywords[5] = NULL;
+		values[5] = NULL;
 
  		if (workers.conns == NULL)
  		{
@@ -86,11 +91,11 @@ setup_workers(int num_workers)
 			 * XXX: could use PQconnectStart() and PQconnectPoll() to
 			 * open these connections in non-blocking manner.
 			 */
- 			conn = PQconnectdb(buf.data);
- 			if (PQstatus(conn) == CONNECTION_OK)
- 			{
- 				workers.conns[i] = conn;
- 			}
+			conn = PQconnectdbParams(keywords, values, true);
+			if (PQstatus(conn) == CONNECTION_OK)
+			{
+				workers.conns[i] = conn;
+			}
 			else
 			{
 				elog(WARNING, "Unable to set up worker conn #%d: %s", i,
@@ -113,10 +118,8 @@ setup_workers(int num_workers)
 		/* In case we bailed out of setting up all workers, record
 		 * how many successful worker conns we actually have.
 		 */
- 		workers.num_workers = i;
-
- 		termStringInfo(&buf);
- 	}
+		workers.num_workers = i;
+	}
 }
 
 /* Disconnect all our worker conns. */
@@ -154,24 +157,12 @@ void disconnect_workers(void)
 void
 reconnect(int elevel)
 {
-	StringInfoData	buf;
 	char		   *new_password;
 
 	disconnect();
-	initStringInfo(&buf);
-	if (dbname && dbname[0])
-		appendStringInfo(&buf, "dbname=%s ", dbname);
-	if (host && host[0])
-		appendStringInfo(&buf, "host=%s ", host);
-	if (port && port[0])
-		appendStringInfo(&buf, "port=%s ", port);
-	if (username && username[0])
-		appendStringInfo(&buf, "user=%s ", username);
-	if (password && password[0])
-		appendStringInfo(&buf, "password=%s ", password);
 
-	connection = pgut_connect(buf.data, prompt_password, elevel);
-	conn2      = pgut_connect(buf.data, prompt_password, elevel);
+	connection = pgut_connect(dbname, host, port, username, password, prompt_password, elevel);
+	conn2      = pgut_connect(dbname, host, port, username, password, prompt_password, elevel);
 
 	/* update password */
 	if (connection)
@@ -184,8 +175,6 @@ reconnect(int elevel)
 			password = pgut_strdup(new_password);
 		}
 	}
-
-	termStringInfo(&buf);
 }
 
 void
