@@ -127,7 +127,7 @@ SELECT oid, relname
 (0 rows)
 
 -- check columns options
-SELECT attname, attstattarget, attoptions
+SELECT attname, nullif(attstattarget, -1) as attstattarget, attoptions
 FROM pg_attribute
 WHERE attrelid = 'tbl_idxopts'::regclass
 AND attnum > 0
@@ -135,7 +135,7 @@ ORDER BY attnum;
  attname | attstattarget |    attoptions     
 ---------+---------------+-------------------
  i       |             1 | 
- t       |            -1 | {n_distinct=-0.5}
+ t       |               | {n_distinct=-0.5}
 (2 rows)
 
 --
