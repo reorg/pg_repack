@@ -341,6 +341,11 @@ INFO: repacking index "public.child_b_2_pkey"
 INFO: repacking indexes of "public.parent_b"
 INFO: repacking index "public.parent_b_pkey"
 --
+-- Apply count
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --apply-count 1234
+INFO: repacking table "public.tbl_cluster"
+--
 -- Switch threshold
 --
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --switch-threshold 200

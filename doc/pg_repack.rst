@@ -126,6 +126,7 @@ Options:
   -k, --no-superuser-check      skip superuser checks in client
   -C, --exclude-extension       don't repack tables which belong to specific extension
       --error-on-invalid-index  don't repack when invalid index is found
+      --apply-count             number of tuples to apply in one trasaction during replay
       --switch-threshold        switch tables when that many tuples are left to catchup
 
 Connection options:

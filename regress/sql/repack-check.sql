@@ -171,6 +171,10 @@ CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
 \! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes
 
 --
+-- Apply count
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --apply-count 1234
+--
 -- Switch threshold
 --
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --switch-threshold 200
