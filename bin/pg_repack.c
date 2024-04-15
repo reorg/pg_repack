@@ -43,10 +43,10 @@ const char *PROGRAM_VERSION = "unknown";
 
 
 /*
- * APPLY_COUNT: Number of applied logs per transaction. Larger values
+ * APPLY_COUNT_DEFAULT: Number of applied logs per transaction. Larger values
  * could be faster, but will be long transactions in the REDO phase.
  */
-#define APPLY_COUNT		1000
+#define APPLY_COUNT_DEFAULT		1000
 
 /* Once we get down to seeing fewer than this many tuples in the
  * log table, we'll say that we're ready to perform the switch.
@@ -258,6 +258,7 @@ static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 static bool 			error_on_invalid_index = false; /* don't repack when invalid index is found */
+static int				apply_count = APPLY_COUNT_DEFAULT;
 static int				switch_threshold = SWITCH_THRESHOLD_DEFAULT;
 
 /* buffer should have at least 11 bytes */
@@ -288,7 +289,8 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
-	{ 'b', 2, "error-on-invalid-index", &error_on_invalid_index },
+	{ 'b', 3, "error-on-invalid-index", &error_on_invalid_index },
+	{ 'i', 2, "apply-count", &apply_count },
 	{ 'i', 1, "switch-threshold", &switch_threshold },
 	{ 0 },
 };
@@ -307,6 +309,10 @@ main(int argc, char *argv[])
 		ereport(ERROR,
 			(errcode(EINVAL),
 			 errmsg("too many arguments")));
+
+	if(switch_threshold >= apply_count)
+		ereport(ERROR, (errcode(EINVAL),
+			errmsg("switch_threshold must be less than apply_count")));
 
 	check_tablespace();
 
@@ -1547,10 +1553,10 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	for (;;)
 	{
-		num = apply_log(connection, table, APPLY_COUNT);
+		num = apply_log(connection, table, apply_count);
 
 		/* We'll keep applying tuples from the log table in batches
-		 * of APPLY_COUNT, until applying a batch of tuples
+		 * of apply_count, until applying a batch of tuples
 		 * (via LIMIT) results in our having applied
 		 * switch_threshold or fewer tuples. We don't want to
 		 * get stuck repetitively applying some small number of tuples
@@ -2377,5 +2383,6 @@ pgut_help(bool details)
 	printf("  -k, --no-superuser-check      skip superuser checks in client\n");
 	printf("  -C, --exclude-extension       don't repack tables which belong to specific extension\n");
 	printf("      --error-on-invalid-index  don't repack tables which belong to specific extension\n");
-	printf("      --switch-threshold    switch tables when that many tuples are left to catchup\n");
+	printf("      --apply-count             number of tuples to apply in one transaction during replay\n");
+	printf("      --switch-threshold        switch tables when that many tuples are left to catchup\n");
 }
