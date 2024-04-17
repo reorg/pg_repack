@@ -4,17 +4,10 @@ on: [push, pull_request]
 jobs:
   test:
     strategy:
-      fail-fast: false
       matrix:
-        pg:
-          - 15
-          - 14
-          - 13
-          - 12
-          - 11
-          - 10
+        pg: [16, 15, 14, 13, 12, 11, 10]
+    name: 🐘 PostgreSQL ${{ matrix.pg }}
 
-    name: PostgreSQL ${{ matrix.pg }}
     runs-on: ubuntu-latest
     container: pgxn/pgxn-tools
     steps:

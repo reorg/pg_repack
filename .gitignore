@@ -1,9 +1,28 @@
-# Global excludes across all subdirectories
+# Object files
 *.o
+*.ko
+*.obj
+*.elf
+
+# Libraries
+*.lib
+*.a
+
+# Shared objects (inc. Windows DLLs)
+*.dll
 *.so
-*.bc
-regress/regression.diffs
-regress/regression.out
-regress/results/
-dist/*.zip
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.app
+*.i*86
+*.x86_64
+*.hex
+*.swp
+temp
+results
+bench/benchmarks
+regression.*
 lib/exports.list
