@@ -229,6 +229,7 @@ static bool advisory_lock(PGconn *conn, const char *relid);
 static bool lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact);
 static bool kill_ddl(PGconn *conn, Oid relid, bool terminate);
 static bool lock_access_share(PGconn *conn, Oid relid, const char *target_name);
+static void append_order_by_command(StringInfoData *command, const char *orderby, const char *ckey);
 
 #define SQLSTATE_INVALID_SCHEMA_NAME	"3F000"
 #define SQLSTATE_UNDEFINED_FUNCTION		"42883"
@@ -787,7 +788,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	/* acquire target tables */
 	appendStringInfoString(&sql,
 		"SELECT t.*,"
-		" coalesce(v.tablespace, t.tablespace_orig) as tablespace_dest"
+		" quote_ident(coalesce(v.tablespace, t.tablespace_orig)) as tablespace_dest"
 		" FROM repack.tables t, "
 		" (VALUES ($1::text)) as v (tablespace)"
 		" WHERE ");
@@ -899,6 +900,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	for (i = 0; i < num; i++)
 	{
 		repack_table	table;
+		StringInfoData	create_sql;
 		StringInfoData	copy_sql;
 		const char *ckey;
 		int			c = 0;
@@ -938,32 +940,37 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.sql_pop = getstr(res, i, c++);
 		table.dest_tablespace = getstr(res, i, c++);
 
-		/* Craft Copy SQL */
+		/* Craft Create_Table and Copy SQLs */
+		initStringInfo(&create_sql);
+		printfStringInfo(&create_sql, table.create_table, table.dest_tablespace);
+
+		/*
+		 * We need to split the copying of data into the new table into
+		 * separate commands if we need any per-column storage settings.
+		 * Otherwise use just "create table as"
+		 */
 		initStringInfo(&copy_sql);
-		appendStringInfoString(&copy_sql, table.copy_data);
-		if (!orderby)
 
+		/* if columns are altered */
+		if (table.alter_col_storage)
 		{
-			if (ckey != NULL)
-			{
-				/* CLUSTER mode */
-				appendStringInfoString(&copy_sql, " ORDER BY ");
-				appendStringInfoString(&copy_sql, ckey);
-			}
+			/* no data in CREATE TABLE */
+			appendStringInfoString(&create_sql, " WITH NO DATA");
 
-			/* else, VACUUM FULL mode (non-clustered tables) */
+			/* add ORDER BY in copy data */
+			appendStringInfoString(&copy_sql, table.copy_data);
+			append_order_by_command(&copy_sql, orderby, ckey);
+			table.copy_data = copy_sql.data;
+
+		} else {
+
+			/* copy all data in CREATE TABLE AS with ORDER BY
+			 * allowing parallel SELECT executions */
+			append_order_by_command(&create_sql, orderby, ckey);
+			table.copy_data = NULL;
 		}
-		else if (!orderby[0])
-		{
-			/* VACUUM FULL mode (for clustered tables too), do nothing */
-		}
-		else
-		{
-			/* User specified ORDER BY */
-			appendStringInfoString(&copy_sql, " ORDER BY ");
-			appendStringInfoString(&copy_sql, orderby);
-		}
-		table.copy_data = copy_sql.data;
+
+		table.create_table = create_sql.data;
 
 		repack_one_table(&table, orderby);
 	}
@@ -975,6 +982,33 @@ cleanup:
 	termStringInfo(&sql);
 	free(params);
 	return ret;
+}
+
+static void
+append_order_by_command(StringInfoData *command, const char *orderby, const char *ckey)
+{
+	if (!orderby)
+
+	{
+		if (ckey != NULL)
+		{
+			/* CLUSTER mode */
+			appendStringInfoString(command, " ORDER BY ");
+			appendStringInfoString(command, ckey);
+		}
+
+		/* else, VACUUM FULL mode (non-clustered tables) */
+	}
+	else if (!orderby[0])
+	{
+		/* VACUUM FULL mode (for clustered tables too), do nothing */
+	}
+	else
+	{
+		/* User specified ORDER BY */
+		appendStringInfoString(command, " ORDER BY ");
+		appendStringInfoString(command, orderby);
+	}
 }
 
 static int
@@ -1524,12 +1558,11 @@ repack_one_table(repack_table *table, const char *orderby)
 	 * Before copying data to the target table, we need to set the column storage
 	 * type if its storage type has been changed from the type default.
 	 */
-	params[0] = utoa(table->target_oid, buffer);
-	params[1] = table->dest_tablespace;
-	command(table->create_table, 2, params);
+	command(table->create_table, 0, NULL);
 	if (table->alter_col_storage)
 		command(table->alter_col_storage, 0, NULL);
-	command(table->copy_data, 0, NULL);
+	if (table->copy_data)
+		command(table->copy_data, 0, NULL);
 	temp_obj_num++;
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
 	if (table->drop_columns)
