@@ -2297,7 +2297,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			res = execute_elevel("SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)"
 								 " FROM pg_class c JOIN pg_namespace n on n.oid = c.relnamespace"
 								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
-								 "   AND c.relkind != 'p'"
+								 "   AND c.relkind = 'r'"
 								 " ORDER BY n.nspname, c.relname",
 								 1, params, DEBUG2);
 

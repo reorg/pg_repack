@@ -182,10 +182,17 @@ CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
 --
 -- partitioned table check
 --
-CREATE TABLE partitioned_a(val integer primary key) PARTITION BY RANGE (val);
+CREATE TABLE partitioned_a(val integer NOT NULL) PARTITION BY RANGE (val);
 CREATE TABLE partition_a_1 PARTITION OF partitioned_a FOR VALUES FROM (0) TO (1000);
 CREATE TABLE partition_a_2 PARTITION OF partitioned_a FOR VALUES FROM (1000) TO (2000);
-CREATE TABLE partition_a_default PARTITION OF partitioned_a DEFAULT
+-- Create indexes separately to support Postgres 10 which doesn't support
+-- indexes on a partitioned table itself
+CREATE UNIQUE INDEX partition_a_1_val_idx ON partition_a_1 (val);
+CREATE UNIQUE INDEX partition_a_2_val_idx ON partition_a_2 (val);
+-- These statements will fail on Postgres 10
+CREATE UNIQUE INDEX partitioned_a_val_idx ON ONLY partitioned_a (val);
+ALTER INDEX partitioned_a_val_idx ATTACH PARTITION partition_a_1_val_idx;
+ALTER INDEX partitioned_a_val_idx ATTACH PARTITION partition_a_2_val_idx;
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=partitioned_a
 -- => OK
