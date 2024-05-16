@@ -171,6 +171,15 @@ CREATE TABLE child_b_2(val integer primary key) INHERITS(parent_b);
 \! pg_repack --dbname=contrib_regression --parent-table=parent_a --parent-table=parent_b --only-indexes
 
 --
+-- Apply count
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --apply-count 1234
+--
+-- Switch threshold
+--
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --switch-threshold 200
+
+--
 -- partitioned table check
 --
 CREATE TABLE partitioned_a(val integer primary key) PARTITION BY RANGE (val);
@@ -185,12 +194,3 @@ CREATE TABLE partition_a_default PARTITION OF partitioned_a DEFAULT
 \! pg_repack --dbname=contrib_regression --parent-table=partitioned_a --parent-table=parent_a
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=partitioned_a --parent-table=parent_a --only-indexes
-
---
--- Apply count
---
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster --apply-count 1234
---
--- Switch threshold
---
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster --switch-threshold 200
