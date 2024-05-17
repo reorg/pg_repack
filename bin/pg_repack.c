@@ -2285,11 +2285,21 @@ repack_all_indexes(char *errbuf, size_t errsize)
 
 			params[0] = cell->val;
 
-			/* find children of this parent table */
+			/*
+			 * Find children of this parent table.
+			 *
+			 * The query returns fully qualified table names of all children and
+			 * the parent table. If the parent table is a declaratively
+			 * partitioned table then it isn't included into the result. It
+			 * doesn't make sense to repack indexes of a declaratively partitioned
+			 * table.
+			 */
 			res = execute_elevel("SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)"
 								 " FROM pg_class c JOIN pg_namespace n on n.oid = c.relnamespace"
 								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
-								 " ORDER BY n.nspname, c.relname", 1, params, DEBUG2);
+								 "   AND c.relkind = 'r'"
+								 " ORDER BY n.nspname, c.relname",
+								 1, params, DEBUG2);
 
 			if (PQresultStatus(res) != PGRES_TUPLES_OK)
 			{
