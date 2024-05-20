@@ -189,6 +189,7 @@ typedef struct repack_table
 	Oid				target_tidx;	/* target: toast index OID */
 	Oid				pkid;			/* target: PK OID */
 	Oid				ckid;			/* target: CK OID */
+	Oid				temp_oid;		/* temp: OID */
 	const char	   *create_pktype;	/* CREATE TYPE pk */
 	const char	   *create_log;		/* CREATE TABLE log */
 	const char	   *create_trigger;	/* CREATE TRIGGER repack_trigger */
@@ -1537,6 +1538,14 @@ repack_one_table(repack_table *table, const char *orderby)
 	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
 
+	/* Get OID of the temp table */
+	printfStringInfo(&sql, "SELECT 'repack.table_%u'::regclass::oid",
+					 table->target_oid);
+	res = execute(sql.data, 0, NULL);
+	table->temp_oid = getoid(res, 0, 0);
+	Assert(OidIsValid(table->temp_oid));
+	CLEARPGRES(res);
+
 	/*
 	 * 3. Create indexes on temp table.
 	 */
@@ -1609,6 +1618,20 @@ repack_one_table(repack_table *table, const char *orderby)
 	{
 		elog(WARNING, "lock_exclusive() failed in conn2 for %s",
 			 table->target_name);
+		goto cleanup;
+	}
+
+	/*
+	 * Acquire AccessExclusiveLock on the temp table to prevent concurrent
+	 * operations during swapping relations.
+	 */
+	printfStringInfo(&sql, "LOCK TABLE repack.table_%u IN ACCESS EXCLUSIVE MODE",
+					 table->target_oid);
+	if (!(lock_exclusive(conn2, utoa(table->temp_oid, buffer),
+						 sql.data, false)))
+	{
+		elog(WARNING, "lock_exclusive() failed in conn2 for table_%u",
+			 table->target_oid);
 		goto cleanup;
 	}
 
