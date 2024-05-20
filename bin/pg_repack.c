@@ -1753,7 +1753,8 @@ kill_ddl(PGconn *conn, Oid relid, bool terminate)
 /*
  * Try to acquire an ACCESS SHARE table lock, avoiding deadlocks and long
  * waits by killing off other sessions which may be stuck trying to obtain
- * an ACCESS EXCLUSIVE lock.
+ * an ACCESS EXCLUSIVE lock. This function assumes that the transaction
+ * on "conn" already started.
  *
  * Arguments:
  *
@@ -1776,6 +1777,8 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 		time_t		duration;
 		PGresult   *res;
 		int			wait_msec;
+
+		pgut_command(conn, "SAVEPOINT repack_sp1", 0, NULL);
 
 		duration = time(NULL) - start;
 
@@ -1810,7 +1813,7 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 		{
 			/* retry if lock conflicted */
 			CLEARPGRES(res);
-			pgut_rollback(conn);
+			pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
 			continue;
 		}
 		else
