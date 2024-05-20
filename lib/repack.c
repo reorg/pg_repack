@@ -1189,7 +1189,6 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	Form_pg_class relform1,
 				relform2;
 	Oid			swaptemp;
-	TransactionId swaptempxid;
 	CatalogIndexState indstate;
 
 	/* We need writable copies of both pg_class tuples. */
@@ -1231,13 +1230,16 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	 */
 	if (relform1->relkind != RELKIND_INDEX)
 	{
-		swaptempxid = relform1->relfrozenxid;
+		TransactionId frozenxid;
+		MultiXactId	minmxid;
+	
+		frozenxid = relform1->relfrozenxid;
 		relform1->relfrozenxid = relform2->relfrozenxid;
-		relform2->relfrozenxid = swaptempxid;
+		relform2->relfrozenxid = frozenxid;
 
-		swaptempxid = relform1->relminmxid;
+		minmxid = relform1->relminmxid;
 		relform1->relminmxid = relform2->relminmxid;
-		relform2->relminmxid = swaptempxid;
+		relform2->relminmxid = minmxid;
 	}
 
 	/* swap size statistics too, since new rel has freshly-updated stats */
