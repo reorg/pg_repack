@@ -911,6 +911,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		c++; // Skip schemaname
 		table.pkid = getoid(res, i, c++);
 		table.ckid = getoid(res, i, c++);
+		table.temp_oid = InvalidOid; /* filled after creating the temp table */
 
 		if (table.pkid == 0) {
 			ereport(WARNING,
