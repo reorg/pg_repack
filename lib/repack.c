@@ -901,6 +901,24 @@ repack_swap(PG_FUNCTION_ARGS)
 		CommandCounterIncrement();
 	}
 
+	/*
+	 * Sanity check if both relations are locked in access exclusive mode
+	 * before swapping these files.
+	 */
+#if PG_VERSION_NUM >= 120000
+	{
+		LOCKTAG	tag;
+
+		SET_LOCKTAG_RELATION(tag, MyDatabaseId, oid);
+		if (!LockHeldByMe(&tag, AccessExclusiveLock))
+			elog(ERROR, "must hold access exclusive lock on table \"%s\"", relname);
+
+		SET_LOCKTAG_RELATION(tag, MyDatabaseId, oid2);
+		if (!LockHeldByMe(&tag, AccessExclusiveLock))
+			elog(ERROR, "must hold access exclusive lock on table \"table_%u\"", oid);
+	}
+#endif
+
 	/* swap tables. */
 	swap_heap_or_index_files(oid, oid2);
 	CommandCounterIncrement();
