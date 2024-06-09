@@ -40,7 +40,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16.
+    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16, 17.
 
     PostgreSQL 9.4 and before it are not supported.
 
@@ -475,6 +475,19 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 
 Releases
 --------
+
+* pg_repack 1.5.1
+
+  * Added support for PostgreSQL 17
+  * Fix wrong OID format type in repack_trigger (issue #380)
+  * Fix check of NOT NULL by repack.primary_keys (issue #282)
+  * Fixed processing of tablespace names requiring quoted identifiers (issue #386)
+  * Replace ``PQconnectdb()`` by ``PQconnectdbParams()`` (issue #382)
+  * Added ``--apply-count`` option (issue #392)
+  * Do not include a declaratively partitioned table with option ``--only-indexes`` (issue #389)
+  * Fix possible two vacuums concurrently processing the same relfilenode (issue #399)
+  * Use savepoints when retrying to take AccessShareLock (issue #383)
+  * Fix swap of relfrozenxid, relfrozenxid and relallvisible (issue #377, #157)
 
 * pg_repack 1.5.0
 
