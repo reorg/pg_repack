@@ -121,6 +121,7 @@ Options:
   -i, --index=INDEX             move only the specified index
   -x, --only-indexes            move only indexes of the specified table
   -T, --wait-timeout=SECS       timeout to cancel other backends on conflict
+  -m, --max-lock-timeout=MS     max millisecond timeout for a strong lock attempt
   -D, --no-kill-backend         don't kill other backends when timed out
   -Z, --no-analyze              don't analyze at end
   -k, --no-superuser-check      skip superuser checks in client
@@ -211,6 +212,20 @@ Reorg Options
     back to using pg_terminate_backend() to disconnect any remaining
     backends after twice this timeout has passed.
     The default is 60 seconds.
+
+``-m MS``, ``--max-lock-timeout=MS``
+    When attempting to take an exclusive lock, pg_repack sets a short timeout
+    for the lock command and makes repeated attempts to get the lock. This
+    avoids blocking all access to the table for up to ``--wait-timeout``
+    seconds if a long-running query is in the way. The lock timeout is
+    increased with each attempt, up to maximum of ``--max-lock-timeout``
+    milliseconds.
+    The default is 1000, i.e. 1 second.
+    If you want to avoid undue delay to queries on timescales much less than 1
+    second, setting a lower ``--max-lock-timeout`` will help. It comes at the
+    cost of making each lock attempt less likely to succeed, which may cause
+    the pg_repack run to take much longer.
+    Currently, values larger than 1000 are not supported.
 
 ``-D``, ``--no-kill-backend``
     Skip to repack table if the lock cannot be taken for duration specified
