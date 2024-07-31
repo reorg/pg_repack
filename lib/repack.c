@@ -905,7 +905,12 @@ repack_swap(PG_FUNCTION_ARGS)
 	 * Sanity check if both relations are locked in access exclusive mode
 	 * before swapping these files.
 	 */
-#if PG_VERSION_NUM >= 120000
+#if PG_VERSION_NUM >= 170000
+	if (! CheckRelationOidLockedByMe(oid, AccessExclusiveLock, true))
+		elog(ERROR, "must hold access exclusive lock on table \"%s\"", relname);
+	if (! CheckRelationOidLockedByMe(oid2, AccessExclusiveLock, true))
+		elog(ERROR, "must hold access exclusive lock on table \"table_%u\"", oid);
+#elif PG_VERSION_NUM >= 120000
 	{
 		LOCKTAG	tag;
 
