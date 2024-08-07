@@ -59,17 +59,15 @@ END
 $$
 LANGUAGE plpgsql;
 
-CREATE FUNCTION repack.create_table(oid, name) RETURNS void AS
+CREATE FUNCTION repack.create_table(oid) RETURNS text AS
 $$
-BEGIN
-    EXECUTE 'CREATE TABLE repack.table_' || $1 ||
+    SELECT  'CREATE TABLE repack.table_' || $1 ||
             ' WITH (' || repack.get_storage_param($1) || ') ' ||
-            ' TABLESPACE ' || quote_ident($2) ||
+            ' TABLESPACE %s' ||
             ' AS SELECT ' || repack.get_columns_for_create_as($1) ||
-            ' FROM ONLY ' || repack.oid2text($1) || ' WITH NO DATA';
-END
+            ' FROM ONLY ' || repack.oid2text($1);
 $$
-LANGUAGE plpgsql;
+LANGUAGE sql STABLE STRICT;
 
 CREATE FUNCTION repack.create_index_type(oid, oid) RETURNS void AS
 $$
@@ -299,7 +297,7 @@ CREATE VIEW repack.tables AS
          'SELECT repack.create_log_table(' || R.oid || ')' AS create_log,
          repack.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
          repack.get_enable_trigger(R.oid) as enable_trigger,
-         'SELECT repack.create_table($1, $2)'::text AS create_table,
+         repack.create_table(R.oid)::text AS create_table,
          coalesce(S.spcname, S2.spcname) AS tablespace_orig,
          'INSERT INTO repack.table_' || R.oid || ' SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS copy_data,
          repack.get_alter_col_storage(R.oid) AS alter_col_storage,
