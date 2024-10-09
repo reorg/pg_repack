@@ -2419,7 +2419,7 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze              don't analyze at end\n");
 	printf("  -k, --no-superuser-check      skip superuser checks in client\n");
 	printf("  -C, --exclude-extension       don't repack tables which belong to specific extension\n");
-	printf("      --error-on-invalid-index  don't repack tables which belong to specific extension\n");
+	printf("      --error-on-invalid-index  don't repack when invalid index is found\n");
 	printf("      --apply-count             number of tuples to apply in one transaction during replay\n");
 	printf("      --switch-threshold        switch tables when that many tuples are left to catchup\n");
 }
