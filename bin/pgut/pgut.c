@@ -1235,9 +1235,12 @@ call_atexit_callbacks(bool fatal)
 {
 	pgut_atexit_item  *item;
 
-	for (item = pgut_atexit_stack; item; item = item->next)
+	item = pgut_atexit_stack;
+	while (item != NULL)
 	{
+		pgut_atexit_stack = pgut_atexit_stack->next;
 		item->callback(fatal, item->userdata);
+		item = pgut_atexit_stack;
 	}
 }
 
