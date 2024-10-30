@@ -102,10 +102,20 @@ static void swap_heap_or_index_files(Oid r1, Oid r2);
 
 /* check access authority */
 static void
-must_be_superuser(const char *func)
+must_be_owner(Oid relId)
 {
-	if (!superuser())
-		elog(ERROR, "must be superuser to use %s function", func);
+#if PG_VERSION_NUM >= 160000
+	if (!object_ownercheck(RelationRelationId, relId, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relId)),
+					   get_rel_name(relId));
+#elif PG_VERSION_NUM >= 110000
+	if (!pg_class_ownercheck(relId, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relId)),
+					   get_rel_name(relId));
+#else
+	if (!pg_class_ownercheck(relId, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS, get_rel_name(relId));
+#endif
 }
 
 
@@ -162,9 +172,6 @@ repack_trigger(PG_FUNCTION_ARGS)
 	Oid				argtypes[2];
 	Oid				relid;
 	StringInfo		sql;
-
-	/* authority check */
-	must_be_superuser("repack_trigger");
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
@@ -258,9 +265,6 @@ repack_apply(PG_FUNCTION_ARGS)
 	StringInfoData		sql_pop;
 
 	initStringInfo(&sql_pop);
-
-	/* authority check */
-	must_be_superuser("repack_apply");
 
 	/* connect to SPI manager */
 	repack_init();
@@ -859,7 +863,7 @@ repack_swap(PG_FUNCTION_ARGS)
 	Oid				owner2;
 
 	/* authority check */
-	must_be_superuser("repack_swap");
+	must_be_owner(oid);
 
 	/* connect to SPI manager */
 	repack_init();
@@ -1060,7 +1064,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	}
 
 	/* authority check */
-	must_be_superuser("repack_drop");
+	must_be_owner(oid);
 
 	/* connect to SPI manager */
 	repack_init();
@@ -1413,7 +1417,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	HeapTuple          tuple;
 
 	/* authority check */
-	must_be_superuser("repack_index_swap");
+	must_be_owner(orig_idx_oid);
 
 	/* connect to SPI manager */
 	repack_init();

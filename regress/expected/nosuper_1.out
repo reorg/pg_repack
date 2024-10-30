@@ -14,4 +14,19 @@ ERROR: pg_repack failed with error: You must be a superuser to use pg_repack
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
 ERROR: pg_repack failed with error: ERROR:  permission denied for schema repack
+LINE 1: select repack.version(), repack.version_sql()
+               ^
+GRANT ALL ON ALL TABLES IN SCHEMA repack TO nosuper;
+GRANT USAGE ON SCHEMA repack TO nosuper;
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
+INFO: repacking table "public.tbl_cluster"
+ERROR: query failed: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+DETAIL: query was: RESET lock_timeout
+ERROR: query failed: ERROR:  current transaction is aborted, commands ignored until end of transaction block
+DETAIL: query was: RESET lock_timeout
+ERROR:  permission denied for relation tbl_cluster
+ERROR:  permission denied for relation tbl_cluster
+REVOKE ALL ON ALL TABLES IN SCHEMA repack FROM nosuper;
+REVOKE USAGE ON SCHEMA repack FROM nosuper;
 DROP ROLE IF EXISTS nosuper;
