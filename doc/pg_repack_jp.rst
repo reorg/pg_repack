@@ -41,7 +41,8 @@ pg_repackでは再編成する方法として次のものが選択できます�
 
 .. NOTICE:
   
-  * Only superusers can use the utility.
+  * Only superusers or owners of tables and indexes can use the utility. To run
+    pg_repack as an owner you need to use the option `--no-superuser-check`.
   * Target table must have a PRIMARY KEY, or at least a UNIQUE total index on a
     NOT NULL column.
 
