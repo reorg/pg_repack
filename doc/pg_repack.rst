@@ -478,6 +478,11 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 Releases
 --------
 
+* pg_repack 1.5.2
+
+  * Allow to run pg_repack by non-superusers (issue/pull request #431)
+  * Make ``--error-on-invalid-index`` the default behavior (issue #422)
+
 * pg_repack 1.5.1
 
   * Added support for PostgreSQL 17
