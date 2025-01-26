@@ -222,6 +222,7 @@ static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
 static void repack_cleanup(bool fatal, const repack_table *table);
 static void repack_cleanup_callback(bool fatal, void *userdata);
+static void repack_cleanup_index(bool fatal, void *userdata);
 static bool rebuild_indexes(const repack_table *table);
 
 static char *getstr(PGresult *res, int row, int col);
@@ -2079,6 +2080,39 @@ repack_cleanup(bool fatal, const repack_table *table)
 }
 
 /*
+ * Cleanup temporary objects, created during index repacking (with option
+ * --index-only), on error.
+ */
+static void
+repack_cleanup_index(bool fatal, void *userdata)
+{
+	StringInfoData sql, sql_drop;
+	PGresult   *index_details = (PGresult *) userdata;
+	char	   *schema_name;
+	int			num;
+
+	schema_name = getstr(index_details, 0, 5);
+	num = PQntuples(index_details);
+
+	initStringInfo(&sql);
+	initStringInfo(&sql_drop);
+
+	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY IF EXISTS ");
+	appendStringInfo(&sql, "\"%s\".",  schema_name);
+
+	for (int i = 0; i < num; i++)
+	{
+		Oid			index = getoid(index_details, i, 1);
+
+		resetStringInfo(&sql_drop);
+		appendStringInfo(&sql_drop, "%s\"index_%u\"", sql.data, index);
+		command(sql_drop.data, 0, NULL);
+	}
+	termStringInfo(&sql_drop);
+	termStringInfo(&sql);
+}
+
+/*
  * Indexes of a table are repacked.
  */
 static bool
@@ -2086,7 +2120,7 @@ repack_table_indexes(PGresult *index_details)
 {
 	bool				ret = false;
 	PGresult			*res = NULL, *res2 = NULL;
-	StringInfoData		sql, sql_drop;
+	StringInfoData		sql;
 	char				buffer[2][12];
 	const char			*create_idx, *schema_name, *table_name, *params[3];
 	Oid					table, index;
@@ -2116,6 +2150,8 @@ repack_table_indexes(PGresult *index_details)
 	if (!advisory_lock(connection, params[1]))
 		ereport(ERROR, (errcode(EINVAL),
 			errmsg("Unable to obtain advisory lock on \"%s\"", table_name)));
+
+	pgut_atexit_push(repack_cleanup_index, index_details);
 
 	for (i = 0; i < num; i++)
 	{
@@ -2241,30 +2277,16 @@ repack_table_indexes(PGresult *index_details)
 	pgut_command(connection, "COMMIT", 0, NULL);
 	ret = true;
 
-drop_idx:
-	resetStringInfo(&sql);
-	initStringInfo(&sql_drop);
-	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY ");
-	appendStringInfo(&sql, "\"%s\".",  schema_name);
+	pgut_atexit_pop(repack_cleanup_index, index_details);
 
-	for (i = 0; i < num; i++)
-	{
-		index = getoid(index_details, i, 1);
-		if (repacked_indexes[i])
-		{
-			initStringInfo(&sql_drop);
-			appendStringInfo(&sql_drop, "%s\"index_%u\"", sql.data, index);
-			command(sql_drop.data, 0, NULL);
-		}
-		else
-			elog(INFO, "Skipping drop of index_%u", index);
-	}
-	termStringInfo(&sql_drop);
-	termStringInfo(&sql);
+drop_idx:
+	if (num_repacked > 0)
+		repack_cleanup_index(false, index_details);
 
 done:
 	CLEARPGRES(res);
 	free(repacked_indexes);
+	termStringInfo(&sql);
 
 	return ret;
 }
