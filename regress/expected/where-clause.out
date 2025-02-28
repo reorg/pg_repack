@@ -1,0 +1,100 @@
+SET client_min_messages = warning;
+-- Create a test table with some data
+CREATE TABLE tbl_where_clause (
+    id int PRIMARY KEY,
+    value text,
+    active boolean,
+    "column with space" text
+);
+-- Insert some test data
+INSERT INTO tbl_where_clause VALUES (1, 'one', true, 'one');
+INSERT INTO tbl_where_clause VALUES (2, 'two', true, 'two');
+INSERT INTO tbl_where_clause VALUES (3, 'three', false, 'three');
+INSERT INTO tbl_where_clause VALUES (4, 'four', false, 'four');
+INSERT INTO tbl_where_clause VALUES (5, 'five', true, 'five');
+-- Check initial data
+SELECT * FROM tbl_where_clause ORDER BY id;
+ id | value | active | column with space 
+----+-------+--------+-------------------
+  1 | one   | t      | one
+  2 | two   | t      | two
+  3 | three | f      | three
+  4 | four  | f      | four
+  5 | five  | t      | five
+(5 rows)
+
+-- Run pg_repack with where clause to only repack active rows
+INFO: repacking table "public.tbl_where_clause"
+-- Verify data after repack
+SELECT * FROM tbl_where_clause ORDER BY id;
+ id | value | active | column with space 
+----+-------+--------+-------------------
+  1 | one   | t      | one
+  2 | two   | t      | two
+  3 | three | f      | three
+  4 | four  | f      | four
+  5 | five  | t      | five
+(5 rows)
+
+-- Insert more data to verify the where clause worked correctly
+INSERT INTO tbl_where_clause VALUES (6, 'six', true, 'six');
+INSERT INTO tbl_where_clause VALUES (7, 'seven', false, 'seven');
+-- Run pg_repack with a different where clause
+INFO: repacking table "public.tbl_where_clause"
+-- Verify data after second repack
+SELECT * FROM tbl_where_clause ORDER BY id;
+ id | value  | active | column with space 
+----+--------+--------+-------------------
+  1 | one    | t      | one
+  2 | two    | t      | two
+  3 | three  | f      | three
+  4 | four   | f      | four
+  5 | five   | t      | five
+  6 | six    | t      | six
+  7 | seven  | f      | seven
+(7 rows)
+
+-- Test with where clause and order-by together
+INFO: repacking table "public.tbl_where_clause"
+-- Verify data after repack with order-by
+SELECT * FROM tbl_where_clause ORDER BY id;
+ id | value  | active | column with space 
+----+--------+--------+-------------------
+  1 | one    | t      | one
+  2 | two    | t      | two
+  3 | three  | f      | three
+  4 | four   | f      | four
+  5 | five   | t      | five
+  6 | six    | t      | six
+  7 | seven  | f      | seven
+(7 rows)
+
+-- Test with invalid where clause (should fail gracefully)
+ERROR: query failed: ERROR:  column "invalid_column" does not exist
+LINE 1: ...ELECT * FROM ONLY "public"."tbl_where_clause" WHERE invalid_...
+                                                             ^
+in function: pg_repack_selectivity
+
+-- Test 1: Syntax error in where clause
+ERROR: query failed: ERROR:  syntax error at or near "="
+LINE 1: ...ELECT * FROM ONLY "public"."tbl_where_clause" WHERE id === 3
+                                                                  ^
+in function: pg_repack_selectivity
+
+-- Test 2: Unclosed quotes in where clause
+ERROR: query failed: ERROR:  unterminated quoted string at or near "'unclosed"
+LINE 1: ...M ONLY "public"."tbl_where_clause" WHERE value = 'unclosed
+                                                              ^
+in function: pg_repack_selectivity
+
+-- Test 3: Type mismatch error in where clause
+ERROR: query failed: ERROR:  invalid input syntax for type integer: "not a number"
+LINE 1: ...ELECT * FROM ONLY "public"."tbl_where_clause" WHERE id = 'not...
+                                                               ^
+in function: pg_repack_selectivity
+
+-- Test 4: Column with space in name
+INFO: repacking table "public.tbl_where_clause"
+
+-- Clean up
+DROP TABLE tbl_where_clause; 

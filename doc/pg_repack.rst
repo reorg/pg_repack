@@ -170,6 +170,12 @@ Reorg Options
 ``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
     Perform an online CLUSTER ordered by the specified columns.
 
+``-X CONDITION``, ``--where-clause=CONDITION``
+    Only repack rows that satisfy the specified condition. The condition
+    is a SQL WHERE clause that is applied to the table being repacked.
+    This can be useful for selectively repacking only a portion of a table.
+    Note that the condition specifies which rows WILL remain in the table after repacking, not which rows will be deleted.
+
 ``-n``, ``--no-order``
     Perform an online VACUUM FULL.  Since version 1.2 this is the default for
     non-clustered tables.
@@ -330,6 +336,19 @@ Move all indexes of table ``foo`` to tablespace ``tbs``::
 Move the specified index to tablespace ``tbs``::
 
     $ pg_repack -d test --index idx --tablespace tbs
+
+Select only rows where id > 10 in table ``foo`` (note that the condition specifies
+which rows will remain in the table after repacking, not which rows will be deleted)::
+
+    $ pg_repack -d test --table foo --where-clause="id > 10"
+
+Select only rows where value > 100 in table ``bar`` that has a column with spaces in its name::
+
+    $ pg_repack -d test --table bar --where-clause="\"column with space\" > 100"
+
+Select only rows where create_date is within the last year::
+
+    $ pg_repack -d test --table baz --where-clause="create_date > (current_date - interval '1 year')"
 
 
 Diagnostics
