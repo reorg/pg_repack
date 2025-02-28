@@ -18,8 +18,6 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 ----+-------+--------+-------------------
   1 | one   | t      | one
   2 | two   | t      | two
-  3 | three | f      | three
-  4 | four  | f      | four
   5 | five  | t      | five
 (5 rows)
 
@@ -31,8 +29,6 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 ----+-------+--------+-------------------
   1 | one   | t      | one
   2 | two   | t      | two
-  3 | three | f      | three
-  4 | four  | f      | four
   5 | five  | t      | five
 (5 rows)
 
@@ -45,10 +41,6 @@ INFO: repacking table "public.tbl_where_clause"
 SELECT * FROM tbl_where_clause ORDER BY id;
  id | value  | active | column with space 
 ----+--------+--------+-------------------
-  1 | one    | t      | one
-  2 | two    | t      | two
-  3 | three  | f      | three
-  4 | four   | f      | four
   5 | five   | t      | five
   6 | six    | t      | six
   7 | seven  | f      | seven
@@ -60,10 +52,6 @@ INFO: repacking table "public.tbl_where_clause"
 SELECT * FROM tbl_where_clause ORDER BY id;
  id | value  | active | column with space 
 ----+--------+--------+-------------------
-  1 | one    | t      | one
-  2 | two    | t      | two
-  3 | three  | f      | three
-  4 | four   | f      | four
   5 | five   | t      | five
   6 | six    | t      | six
   7 | seven  | f      | seven
