@@ -18,6 +18,8 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 ----+-------+--------+-------------------
   1 | one   | t      | one
   2 | two   | t      | two
+  3 | three | f      | three
+  4 | four  | f      | four
   5 | five  | t      | five
 (5 rows)
 
@@ -30,7 +32,7 @@ SELECT * FROM tbl_where_clause ORDER BY id;
   1 | one   | t      | one
   2 | two   | t      | two
   5 | five  | t      | five
-(5 rows)
+(3 rows)
 
 -- Insert more data to verify the where clause worked correctly
 INSERT INTO tbl_where_clause VALUES (6, 'six', true, 'six');
@@ -44,7 +46,7 @@ SELECT * FROM tbl_where_clause ORDER BY id;
   5 | five   | t      | five
   6 | six    | t      | six
   7 | seven  | f      | seven
-(7 rows)
+(3 rows)
 
 -- Test with where clause and order-by together
 INFO: repacking table "public.tbl_where_clause"
@@ -54,14 +56,13 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 ----+--------+--------+-------------------
   5 | five   | t      | five
   6 | six    | t      | six
-  7 | seven  | f      | seven
-(7 rows)
+(2 rows)
 
 -- Test with invalid where clause (should fail gracefully)
+INFO: repacking table "public.tbl_where_clause"
 ERROR: query failed: ERROR:  column "invalid_column" does not exist
-LINE 1: ...ELECT * FROM ONLY "public"."tbl_where_clause" WHERE invalid_...
+LINE 1: ...th space" FROM ONLY public.tbl_where_clause WHERE invalid_co...
                                                              ^
-in function: pg_repack_selectivity
 
 -- Test 1: Syntax error in where clause
 ERROR: query failed: ERROR:  syntax error at or near "="
