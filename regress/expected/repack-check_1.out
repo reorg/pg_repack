@@ -362,8 +362,17 @@ CREATE UNIQUE INDEX partition_a_1_val_idx ON partition_a_1 (val);
 CREATE UNIQUE INDEX partition_a_2_val_idx ON partition_a_2 (val);
 -- These statements will fail on Postgres 10
 CREATE UNIQUE INDEX partitioned_a_val_idx ON ONLY partitioned_a (val);
+ERROR:  syntax error at or near "ONLY"
+LINE 1: CREATE UNIQUE INDEX partitioned_a_val_idx ON ONLY partitione...
+                                                     ^
 ALTER INDEX partitioned_a_val_idx ATTACH PARTITION partition_a_1_val_idx;
+ERROR:  syntax error at or near "ATTACH"
+LINE 1: ALTER INDEX partitioned_a_val_idx ATTACH PARTITION partition...
+                                          ^
 ALTER INDEX partitioned_a_val_idx ATTACH PARTITION partition_a_2_val_idx;
+ERROR:  syntax error at or near "ATTACH"
+LINE 1: ALTER INDEX partitioned_a_val_idx ATTACH PARTITION partition...
+                                          ^
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=partitioned_a
 INFO: repacking table "public.partition_a_1"

@@ -11,4 +11,13 @@ CREATE ROLE nosuper WITH LOGIN;
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
+
+GRANT ALL ON ALL TABLES IN SCHEMA repack TO nosuper;
+GRANT USAGE ON SCHEMA repack TO nosuper;
+
+-- => ERROR
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
+
+REVOKE ALL ON ALL TABLES IN SCHEMA repack FROM nosuper;
+REVOKE USAGE ON SCHEMA repack FROM nosuper;
 DROP ROLE IF EXISTS nosuper;

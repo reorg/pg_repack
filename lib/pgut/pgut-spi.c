@@ -82,7 +82,7 @@ execute_with_args(int expected, const char *src, int nargs, Oid argtypes[], Datu
 {
 	int		ret;
 	int		i;
-	char	c_nulls[FUNC_MAX_ARGS];
+	char	c_nulls[FUNC_MAX_ARGS] = {0};
 
     	memset(c_nulls, 0, sizeof(c_nulls));
 

@@ -1,17 +1,18 @@
 --
 -- do repack
 --
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-error-on-invalid-index
 INFO: repacking table "public.tbl_cluster"
-\! pg_repack --dbname=contrib_regression --table=tbl_badindex
+\! pg_repack --dbname=contrib_regression --table=tbl_badindex --no-error-on-invalid-index
 INFO: repacking table "public.tbl_badindex"
-WARNING: Invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
-\! pg_repack --dbname=contrib_regression
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
+\! pg_repack --dbname=contrib_regression --no-error-on-invalid-index
 INFO: repacking table "public.tbl_badindex"
-WARNING: Invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
+WARNING: skipping invalid index: CREATE UNIQUE INDEX idx_badindex_n ON public.tbl_badindex USING btree (n)
 INFO: repacking table "public.tbl_cluster"
 INFO: repacking table "public.tbl_gistkey"
 INFO: repacking table "public.tbl_idxopts"
+INFO: repacking table "public.tbl_incl_pkey"
 INFO: repacking table "public.tbl_only_pkey"
 INFO: repacking table "public.tbl_order"
 INFO: repacking table "public.tbl_storage_plain"

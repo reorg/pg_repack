@@ -102,10 +102,20 @@ static void swap_heap_or_index_files(Oid r1, Oid r2);
 
 /* check access authority */
 static void
-must_be_superuser(const char *func)
+must_be_owner(Oid relId)
 {
-	if (!superuser())
-		elog(ERROR, "must be superuser to use %s function", func);
+#if PG_VERSION_NUM >= 160000
+	if (!object_ownercheck(RelationRelationId, relId, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relId)),
+					   get_rel_name(relId));
+#elif PG_VERSION_NUM >= 110000
+	if (!pg_class_ownercheck(relId, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, get_relkind_objtype(get_rel_relkind(relId)),
+					   get_rel_name(relId));
+#else
+	if (!pg_class_ownercheck(relId, GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS, get_rel_name(relId));
+#endif
 }
 
 
@@ -162,9 +172,6 @@ repack_trigger(PG_FUNCTION_ARGS)
 	Oid				argtypes[2];
 	Oid				relid;
 	StringInfo		sql;
-
-	/* authority check */
-	must_be_superuser("repack_trigger");
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
@@ -258,9 +265,6 @@ repack_apply(PG_FUNCTION_ARGS)
 	StringInfoData		sql_pop;
 
 	initStringInfo(&sql_pop);
-
-	/* authority check */
-	must_be_superuser("repack_apply");
 
 	/* connect to SPI manager */
 	repack_init();
@@ -859,7 +863,7 @@ repack_swap(PG_FUNCTION_ARGS)
 	Oid				owner2;
 
 	/* authority check */
-	must_be_superuser("repack_swap");
+	must_be_owner(oid);
 
 	/* connect to SPI manager */
 	repack_init();
@@ -900,6 +904,29 @@ repack_swap(PG_FUNCTION_ARGS)
 		ATExecChangeOwner(oid2, owner1, true, AccessExclusiveLock);
 		CommandCounterIncrement();
 	}
+
+	/*
+	 * Sanity check if both relations are locked in access exclusive mode
+	 * before swapping these files.
+	 */
+#if PG_VERSION_NUM >= 170000
+	if (! CheckRelationOidLockedByMe(oid, AccessExclusiveLock, true))
+		elog(ERROR, "must hold access exclusive lock on table \"%s\"", relname);
+	if (! CheckRelationOidLockedByMe(oid2, AccessExclusiveLock, true))
+		elog(ERROR, "must hold access exclusive lock on table \"table_%u\"", oid);
+#elif PG_VERSION_NUM >= 120000
+	{
+		LOCKTAG	tag;
+
+		SET_LOCKTAG_RELATION(tag, MyDatabaseId, oid);
+		if (!LockHeldByMe(&tag, AccessExclusiveLock))
+			elog(ERROR, "must hold access exclusive lock on table \"%s\"", relname);
+
+		SET_LOCKTAG_RELATION(tag, MyDatabaseId, oid2);
+		if (!LockHeldByMe(&tag, AccessExclusiveLock))
+			elog(ERROR, "must hold access exclusive lock on table \"table_%u\"", oid);
+	}
+#endif
 
 	/* swap tables. */
 	swap_heap_or_index_files(oid, oid2);
@@ -1037,7 +1064,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	}
 
 	/* authority check */
-	must_be_superuser("repack_drop");
+	must_be_owner(oid);
 
 	/* connect to SPI manager */
 	repack_init();
@@ -1225,20 +1252,28 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 	relform1->reltoastrelid = relform2->reltoastrelid;
 	relform2->reltoastrelid = swaptemp;
 
-	/* set rel1's frozen Xid to larger one */
-	if (TransactionIdIsNormal(relform1->relfrozenxid))
+	/*
+	 * Swap relfrozenxid and relminmxid, as they must be consistent with the data
+	 */
+	if (relform1->relkind != RELKIND_INDEX)
 	{
-		if (TransactionIdFollows(relform1->relfrozenxid,
-								 relform2->relfrozenxid))
-			relform1->relfrozenxid = relform2->relfrozenxid;
-		else
-			relform2->relfrozenxid = relform1->relfrozenxid;
+		TransactionId frozenxid;
+		MultiXactId	minmxid;
+	
+		frozenxid = relform1->relfrozenxid;
+		relform1->relfrozenxid = relform2->relfrozenxid;
+		relform2->relfrozenxid = frozenxid;
+
+		minmxid = relform1->relminmxid;
+		relform1->relminmxid = relform2->relminmxid;
+		relform2->relminmxid = minmxid;
 	}
 
 	/* swap size statistics too, since new rel has freshly-updated stats */
 	{
 		int32		swap_pages;
 		float4		swap_tuples;
+		int32		swap_allvisible;
 
 		swap_pages = relform1->relpages;
 		relform1->relpages = relform2->relpages;
@@ -1247,6 +1282,10 @@ swap_heap_or_index_files(Oid r1, Oid r2)
 		swap_tuples = relform1->reltuples;
 		relform1->reltuples = relform2->reltuples;
 		relform2->reltuples = swap_tuples;
+
+		swap_allvisible = relform1->relallvisible;
+		relform1->relallvisible = relform2->relallvisible;
+		relform2->relallvisible = swap_allvisible;
 	}
 
 	indstate = CatalogOpenIndexes(relRelation);
@@ -1378,7 +1417,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	HeapTuple          tuple;
 
 	/* authority check */
-	must_be_superuser("repack_index_swap");
+	must_be_owner(orig_idx_oid);
 
 	/* connect to SPI manager */
 	repack_init();
