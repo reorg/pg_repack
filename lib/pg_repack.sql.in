@@ -64,7 +64,7 @@ $$
 BEGIN
     EXECUTE 'CREATE TABLE repack.table_' || $1 ||
             ' WITH (' || repack.get_storage_param($1) || ') ' ||
-            CASE WHEN $2 IS NULL THEN '' ELSE ' TABLESPACE ' || quote_ident($2) END ||
+            ' TABLESPACE ' || quote_ident($2) ||
             ' AS SELECT ' || repack.get_columns_for_create_as($1) ||
             ' FROM ONLY ' || repack.oid2text($1) || ' WITH NO DATA';
 END
@@ -311,8 +311,7 @@ CREATE VIEW repack.tables AS
          'INSERT INTO repack.table_' || R.oid || ' VALUES ($1.*)' AS sql_insert,
          'DELETE FROM repack.table_' || R.oid || ' WHERE ' || repack.get_compare_pkey(PK.indexrelid, '$1') AS sql_delete,
          'UPDATE repack.table_' || R.oid || ' SET ' || repack.get_assign(R.oid, '$2') || ' WHERE ' || repack.get_compare_pkey(PK.indexrelid, '$1') AS sql_update,
-         'DELETE FROM repack.log_' || R.oid || ' WHERE id IN (' AS sql_pop,
-         NULL::text AS where_clause
+         'DELETE FROM repack.log_' || R.oid || ' WHERE id IN (' AS sql_pop
     FROM pg_class R
          LEFT JOIN pg_class T ON R.reltoastrelid = T.oid
          LEFT JOIN repack.primary_keys PK
