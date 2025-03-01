@@ -210,8 +210,8 @@ static bool is_superuser(void);
 static void check_tablespace(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
 static bool is_requested_relation_exists(char *errbuf, size_t errsize);
-static void repack_all_databases(const char *order_by);
-static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
+static void repack_all_databases(const char *order_by, const char *where_clause);
+static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize, const char *where_clause);
 static void repack_one_table(repack_table *table, const char *order_by);
 static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
@@ -244,6 +244,7 @@ static SimpleStringList parent_table_list = {NULL, NULL};
 static SimpleStringList table_list = {NULL, NULL};
 static SimpleStringList schema_list = {NULL, NULL};
 static char *orderby = NULL;
+static char *where_clause = NULL;
 static char *tablespace = NULL;
 static bool moveidx = false;
 static SimpleStringList r_index = {NULL, NULL};
@@ -278,6 +279,7 @@ static pgut_option options[] =
 		{'l', 'c', "schema", &schema_list},
 		{'b', 'n', "no-order", &noorder},
 		{'b', 'N', "dry-run", &dryrun},
+		{'s', 'X', "where-clause", &where_clause},
 		{'s', 'o', "order-by", &orderby},
 		{'s', 's', "tablespace", &tablespace},
 		{'b', 'S', "moveidx", &moveidx},
@@ -392,11 +394,11 @@ int main(int argc, char *argv[])
 				ereport(ERROR,
 						(errcode(EINVAL),
 						 errmsg("cannot repack specific schema(s) in all databases")));
-			repack_all_databases(orderby);
+			repack_all_databases(orderby, where_clause);
 		}
 		else
 		{
-			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)))
+			if (!repack_one_database(orderby, errbuf, sizeof(errbuf), where_clause))
 				ereport(ERROR,
 						(errcode(ERROR), errmsg("%s failed with error: %s", PROGRAM_NAME, errbuf)));
 		}
@@ -684,7 +686,7 @@ cleanup:
  * Call repack_one_database for each database.
  */
 static void
-repack_all_databases(const char *orderby)
+repack_all_databases(const char *orderby, const char *where_clause)
 {
 	PGresult *result;
 	int i;
@@ -708,7 +710,7 @@ repack_all_databases(const char *orderby)
 		elog(INFO, "repacking database \"%s\"", dbname);
 		if (!dryrun)
 		{
-			ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
+			ret = repack_one_database(orderby, errbuf, sizeof(errbuf), where_clause);
 			if (!ret)
 				elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
 		}
@@ -740,7 +742,7 @@ getoid(PGresult *res, int row, int col)
  * Call repack_one_table for the target tables or each table in a database.
  */
 static bool
-repack_one_database(const char *orderby, char *errbuf, size_t errsize)
+repack_one_database(const char *orderby, char *errbuf, size_t errsize, const char *where_clause)
 {
 	bool ret = false;
 	PGresult *res = NULL;
@@ -937,18 +939,19 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.sql_update = getstr(res, i, c++);
 		table.sql_pop = getstr(res, i, c++);
 		table.dest_tablespace = getstr(res, i, c++);
-		table.where_clause = getstr(res, i, c++);
+		table.where_clause = where_clause;
 
 		/* Craft Copy SQL */
 		initStringInfo(&copy_sql);
 		appendStringInfoString(&copy_sql, table.copy_data);
+
+		/* soft delete recognition */
 		if (table.where_clause)
 		{
 			appendStringInfoString(&copy_sql, " WHERE ");
 			appendStringInfoString(&copy_sql, table.where_clause);
 		}
 		if (!orderby)
-
 		{
 			if (ckey != NULL)
 			{
@@ -1239,6 +1242,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	const char *indexparams[2];
 	char indexbuffer[12];
 	int j;
+	char errbuf[256];
 
 	/* appname will be "pg_repack" in normal use on 9.0+, or
 	 * "pg_regress" when run under `make installcheck`
@@ -1256,6 +1260,13 @@ repack_one_table(repack_table *table, const char *orderby)
 	initStringInfo(&sql);
 
 	elog(INFO, "repacking table \"%s\"", table->target_name);
+
+	/* Validate WHERE clause if provided */
+	if (table->where_clause && !validate_where_clause(table->target_name, table->where_clause, errbuf, sizeof(errbuf)))
+	{
+		elog(ERROR, "%s", errbuf);
+		goto cleanup;
+	}
 
 	elog(DEBUG2, "---- repack_one_table ----");
 	elog(DEBUG2, "target_name       : %s", table->target_name);
@@ -1281,9 +1292,6 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "sql_update        : %s", table->sql_update);
 	elog(DEBUG2, "sql_pop           : %s", table->sql_pop);
 	elog(DEBUG2, "where_clause      : %s", table->where_clause);
-
-	if (table->where_clause && !validate_where_clause(table->target_name, table->where_clause, errbuf, sizeof(errbuf)))
-		return;
 
 	if (dryrun)
 		return;
@@ -2450,7 +2458,6 @@ void pgut_help(bool details)
 	printf("  -x, --only-indexes                 move only indexes of the specified table\n");
 	printf("  -T, --wait-timeout=SECS            timeout to cancel other backends on conflict\n");
 	printf("  -D, --no-kill-backend              don't kill other backends when timed out\n");
-	printf("  -w, --where=WHERE_CLAUSE           delete rows when repacking using WHERE_CLAUSE\n");
 	printf("  -Z, --no-analyze                   don't analyze at end\n");
 	printf("  -k, --no-superuser-check           skip superuser checks in client\n");
 	printf("  -C, --exclude-extension            don't repack tables which belong to specific extension\n");
