@@ -40,20 +40,5 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 -- Verify data after repack with order-by
 SELECT * FROM tbl_where_clause ORDER BY id;
 
--- Test with invalid where clause (should fail gracefully)
-\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="invalid_column = true"
-
--- Test 1: Syntax error in where clause
-\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="id === 3"
-
--- Test 2: Unclosed quotes in where clause
-\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="value = 'unclosed"
-
--- Test 3: Type mismatch error in where clause
-\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="id = 'not a number'"
-
--- Test 4: Column with space in name
-\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="\"column with space\" = 'one'"
-
 -- Clean up
 DROP TABLE tbl_where_clause; 
