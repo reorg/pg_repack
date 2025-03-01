@@ -14,8 +14,8 @@ INSERT INTO tbl_where_clause VALUES (4, 'four', false, NULL);
 INSERT INTO tbl_where_clause VALUES (5, 'five', true, NULL);
 -- Check initial data
 SELECT * FROM tbl_where_clause ORDER BY id;
- id | value | active |        deleted_at        
-----+-------+--------+--------------------------
+ id | value | active | deleted_at 
+----+-------+--------+------------
   1 | one   | t      | 
   2 | two   | t      | 
   3 | three | f      | 
@@ -43,11 +43,11 @@ INSERT INTO tbl_where_clause VALUES (7, 'seven', false, NULL);
 INFO: repacking table "public.tbl_where_clause"
 -- Verify data after second repack
 SELECT * FROM tbl_where_clause ORDER BY id;
- id | value | active |        deleted_at        
-----+-------+--------+--------------------------
+ id | value | active | deleted_at 
+----+-------+--------+------------
   5 | five  | t      | 
   6 | six   | t      | 
-  7 | seven | f      | NULL
+  7 | seven | f      | 
 (3 rows)
 
 -- Test with where clause and order-by together

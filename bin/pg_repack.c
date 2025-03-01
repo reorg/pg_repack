@@ -2517,20 +2517,23 @@ validate_where_clause(PGconn *conn, const char *table_name, const char *where_cl
             {
                 const char *error_start = pg_error;
                 const char *error_prefix = "ERROR:  ";
+                const char *line_part;
                 
                 if (strncmp(error_start, error_prefix, strlen(error_prefix)) == 0)
                     error_start += strlen(error_prefix);
                 
                 /* Grab the actual error message ends (before LINE: part) */
-                const char *line_part = strstr(error_start, "LINE ");
+                line_part = strstr(error_start, "LINE ");
                 if (line_part != NULL)
                 {
                     size_t len = line_part - error_start;
+                    char *end;
+                    
                     strncpy(cleaned_error, error_start, len);
                     cleaned_error[len] = '\0'; 
                     
                     /* Trim text */
-                    char *end = cleaned_error + len - 1;
+                    end = cleaned_error + len - 1;
                     while (end > cleaned_error && (*end == ' ' || *end == '\n' || *end == '\r'))
                         *end-- = '\0';
                 }
