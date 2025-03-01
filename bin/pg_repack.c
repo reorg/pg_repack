@@ -224,6 +224,7 @@ static void repack_cleanup(bool fatal, const repack_table *table);
 static void repack_cleanup_callback(bool fatal, void *userdata);
 static void repack_cleanup_index(bool fatal, void *userdata);
 static bool rebuild_indexes(const repack_table *table);
+static bool validate_where_clause(PGconn *conn, const char *table_name, const char *where_clause, char *errbuf, size_t errsize);
 
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
@@ -946,16 +947,28 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize, const cha
 		table.sql_pop = getstr(res, i, c++);
 		table.dest_tablespace = getstr(res, i, c++);
 
+		/* Validate WHERE clause if provided */
+		if (where_clause && where_clause[0])
+		{
+			if (!validate_where_clause(connection, table.target_name, where_clause, errbuf, errsize))
+			{
+				ereport(ERROR,
+						(errcode(E_PG_COMMAND),
+						 errmsg("%s", errbuf)));
+				continue;
+			}
+		}
+		
 		/* Craft Copy SQL */
 		initStringInfo(&copy_sql);
 		appendStringInfoString(&copy_sql, table.copy_data);
 
-        /* soft delete recognition */
-        if (where_clause) {
-            appendStringInfoString(&copy_sql, " WHERE ");
-            appendStringInfoString(&copy_sql, where_clause);
-        }
-        if (!orderby)
+		/* delete rows mode */
+		if (where_clause) {
+			appendStringInfoString(&copy_sql, " WHERE ");
+			appendStringInfoString(&copy_sql, where_clause);
+		}
+		if (!orderby)
 		{
 			if (ckey != NULL)
 			{
@@ -2456,4 +2469,44 @@ pgut_help(bool details)
 	printf("      --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now\n");
 	printf("      --apply-count                  number of tuples to apply in one transaction during replay\n");
 	printf("      --switch-threshold             switch tables when that many tuples are left to catchup\n");
+}
+
+/* 
+ * Validate a WHERE clause by running EXPLAIN SELECT 1 with the clause 
+ * Returns true if the WHERE clause is valid, false otherwise
+ */
+static bool
+validate_where_clause(PGconn *conn, const char *table_name, const char *where_clause, char *errbuf, size_t errsize)
+{
+    bool valid = false;
+    PGresult *res = NULL;
+    StringInfoData sql;
+    
+    if (!where_clause || !where_clause[0])
+        return true;  /* Empty clause is considered valid */
+    
+    initStringInfo(&sql);
+    
+    /* Build EXPLAIN query to validate the WHERE clause */
+    appendStringInfo(&sql, "EXPLAIN SELECT 1 FROM %s WHERE %s", 
+                     table_name, where_clause);
+    
+    res = PQexec(conn, sql.data);
+    
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+    {
+        if (errbuf)
+            snprintf(errbuf, errsize, "invalid WHERE clause: %s", 
+                     PQerrorMessage(conn));
+        valid = false;
+    }
+    else
+    {
+        valid = true;
+    }
+    
+    CLEARPGRES(res);
+    termStringInfo(&sql);
+    
+    return valid;
 }
