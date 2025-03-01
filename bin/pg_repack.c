@@ -953,7 +953,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize, const cha
 			if (num > 1) {
 				ereport(ERROR,
 						(errcode(E_PG_COMMAND),
-						 errmsg("where-clause can only be used when repacking a single table. Found %d tables matching criteria.", num)));
+						 errmsg("where-clause can only be used when repacking a single table.")));
 				continue;
 			}
 			if (!validate_where_clause(connection, table.target_name, where_clause, errbuf, errsize))

@@ -4,23 +4,23 @@ CREATE TABLE tbl_where_clause (
     id int PRIMARY KEY,
     value text,
     active boolean,
-    "column with space" text
+    deleted_at timestamp
 );
 -- Insert some test data
-INSERT INTO tbl_where_clause VALUES (1, 'one', true, 'one');
-INSERT INTO tbl_where_clause VALUES (2, 'two', true, 'two');
-INSERT INTO tbl_where_clause VALUES (3, 'three', false, 'three');
-INSERT INTO tbl_where_clause VALUES (4, 'four', false, 'four');
-INSERT INTO tbl_where_clause VALUES (5, 'five', true, 'five');
+INSERT INTO tbl_where_clause VALUES (1, 'one', true, NULL);
+INSERT INTO tbl_where_clause VALUES (2, 'two', true, NULL);
+INSERT INTO tbl_where_clause VALUES (3, 'three', false, NULL);
+INSERT INTO tbl_where_clause VALUES (4, 'four', false, NULL);
+INSERT INTO tbl_where_clause VALUES (5, 'five', true, NULL);
 -- Check initial data
 SELECT * FROM tbl_where_clause ORDER BY id;
- id | value | active | column with space 
-----+-------+--------+-------------------
-  1 | one   | t      | one
-  2 | two   | t      | two
-  3 | three | f      | three
-  4 | four  | f      | four
-  5 | five  | t      | five
+ id | value | active |        deleted_at        
+----+-------+--------+--------------------------
+  1 | one   | t      | 
+  2 | two   | t      | 
+  3 | three | f      | 
+  4 | four  | f      | 
+  5 | five  | t      | 
 (5 rows)
 
 -- Run pg_repack with where clause to only repack active rows
@@ -28,26 +28,26 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 INFO: repacking table "public.tbl_where_clause"
 -- Verify data after repack
 SELECT * FROM tbl_where_clause ORDER BY id;
- id | value | active | column with space 
-----+-------+--------+-------------------
-  1 | one   | t      | one
-  2 | two   | t      | two
-  5 | five  | t      | five
+ id | value | active | deleted_at 
+----+-------+--------+------------
+  1 | one   | t      | 
+  2 | two   | t      | 
+  5 | five  | t      | 
 (3 rows)
 
 -- Insert more data to verify the where clause worked correctly
-INSERT INTO tbl_where_clause VALUES (6, 'six', true, 'six');
-INSERT INTO tbl_where_clause VALUES (7, 'seven', false, 'seven');
+INSERT INTO tbl_where_clause VALUES (6, 'six', true, NULL);
+INSERT INTO tbl_where_clause VALUES (7, 'seven', false, NULL);
 -- Run pg_repack with a different where clause
 \! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="id > 3"
 INFO: repacking table "public.tbl_where_clause"
 -- Verify data after second repack
 SELECT * FROM tbl_where_clause ORDER BY id;
- id | value | active | column with space 
-----+-------+--------+-------------------
-  5 | five  | t      | five
-  6 | six   | t      | six
-  7 | seven | f      | seven
+ id | value | active |        deleted_at        
+----+-------+--------+--------------------------
+  5 | five  | t      | 
+  6 | six   | t      | 
+  7 | seven | f      | NULL
 (3 rows)
 
 -- Test with where clause and order-by together
@@ -55,11 +55,25 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 INFO: repacking table "public.tbl_where_clause"
 -- Verify data after repack with order-by
 SELECT * FROM tbl_where_clause ORDER BY id;
- id | value | active | column with space 
-----+-------+--------+-------------------
-  5 | five  | t      | five
-  6 | six   | t      | six
+ id | value | active | deleted_at 
+----+-------+--------+------------
+  5 | five  | t      | 
+  6 | six   | t      | 
 (2 rows)
+
+INSERT INTO tbl_where_clause VALUES (8, 'eight', true, NULL);
+INSERT INTO tbl_where_clause VALUES (9, 'nine', false, '2023-01-04 10:00:00');
+-- Test with deleted_at is null where clause (keep only non-deleted rows)
+\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="deleted_at IS NULL"
+INFO: repacking table "public.tbl_where_clause"
+-- Verify data after repack with deleted_at IS NULL
+SELECT * FROM tbl_where_clause ORDER BY id;
+ id | value | active | deleted_at 
+----+-------+--------+------------
+  5 | five  | t      | 
+  6 | six   | t      | 
+  8 | eight | t      | 
+(3 rows)
 
 -- Test with non-existent column in where clause (should fail)
 \! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="non_existent_column = true"
@@ -69,6 +83,6 @@ ERROR: invalid WHERE clause: column "non_existent_column" does not exist
 ERROR: invalid WHERE clause: syntax error at or near "column"
 -- Test for repackaing whole database with a where clause (should fail)
 \! pg_repack --dbname=contrib_regression --where-clause="id > 3"
-ERROR: where-clause can only be used when repacking a single table. Found 40 tables matching criteria.
+ERROR: where-clause can only be used when repacking a single table.
 -- Clean up
 DROP TABLE tbl_where_clause; 
