@@ -43,5 +43,8 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 -- Test with non-existent column in where clause (should fail)
 \! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="non_existent_column = true"
 
+-- Test with special character in column name without proper quoting (should fail)
+\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="column with space = 'test'"
+
 -- Clean up
 DROP TABLE tbl_where_clause; 

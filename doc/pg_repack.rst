@@ -342,13 +342,13 @@ Move the specified index to tablespace ``tbs``::
     $ pg_repack -d test --index idx --tablespace tbs
 
 Select only rows where id > 10 in table ``foo`` (note that the condition specifies
-which rows will remain in the table after repacking, not which rows will be deleted)::
+which rows will remain in the table after repacking, not which rows will be deleted). This would delete all rows where id <= 10::
 
     $ pg_repack -d test --table foo --where-clause="id > 10"
 
-Select only rows where value > 100 in table ``bar`` that has a column with spaces in its name::
+Select only rows where value > 100 in table ``bar`` in column foo. This would delete all rows where foo <= 100::
 
-    $ pg_repack -d test --table bar --where-clause="\"column with space\" > 100"
+    $ pg_repack -d test --table bar --where-clause="foo > 100"
 
 Select only rows where create_date is within the last year::
 

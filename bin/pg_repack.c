@@ -284,7 +284,7 @@ static pgut_option options[] =
 	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
-    { 's', 'X', "where-clause", &where_clause },
+	{ 's', 'X', "where-clause", &where_clause },
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
@@ -2465,6 +2465,7 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze                   don't analyze at end\n");
 	printf("  -k, --no-superuser-check           skip superuser checks in client\n");
 	printf("  -C, --exclude-extension            don't repack tables which belong to specific extension\n");
+	printf("  -X, --where=WHERE_CLAUSE           (delete rows mode) keep only speficic rows in the table as per condition specified\n");
 	printf("      --no-error-on-invalid-index    repack even though invalid index is found\n");
 	printf("      --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now\n");
 	printf("      --apply-count                  number of tuples to apply in one transaction during replay\n");
@@ -2483,7 +2484,11 @@ validate_where_clause(PGconn *conn, const char *table_name, const char *where_cl
     StringInfoData sql;
     
     if (!where_clause || !where_clause[0])
-        return true;  /* Empty clause is considered valid */
+    {
+        if (errbuf)
+            snprintf(errbuf, errsize, "empty WHERE clause is not valid");
+        return false;  /* Empty where clause */
+    }
     
     initStringInfo(&sql);
     
@@ -2494,10 +2499,50 @@ validate_where_clause(PGconn *conn, const char *table_name, const char *where_cl
     res = PQexec(conn, sql.data);
     
     if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	/* Clean up the error message. Remove duplicate ERROR: prefix as well as remove postgres LINE: error */
     {
         if (errbuf)
-            snprintf(errbuf, errsize, "invalid WHERE clause: %s", 
-                     PQerrorMessage(conn));
+        {
+            const char *pg_error = PQerrorMessage(conn);
+            char cleaned_error[1024] = {0}; // Buffer for cleaned error message
+            
+            if (strstr(pg_error, "ERROR:") != NULL)
+            {
+                const char *error_start = pg_error;
+                const char *error_prefix = "ERROR:  ";
+                
+                if (strncmp(error_start, error_prefix, strlen(error_prefix)) == 0)
+                    error_start += strlen(error_prefix);
+                
+                /* Grab the actual error message ends (before LINE: part) */
+                const char *line_part = strstr(error_start, "LINE ");
+                if (line_part != NULL)
+                {
+                    size_t len = line_part - error_start;
+                    strncpy(cleaned_error, error_start, len);
+                    cleaned_error[len] = '\0'; 
+                    
+                    /* Trim text */
+                    char *end = cleaned_error + len - 1;
+                    while (end > cleaned_error && (*end == ' ' || *end == '\n' || *end == '\r'))
+                        *end-- = '\0';
+                }
+                else
+                {
+                    /* Edge case: No LINE: message from postgres */
+                    strncpy(cleaned_error, error_start, sizeof(cleaned_error) - 1);
+                    cleaned_error[sizeof(cleaned_error) - 1] = '\0';
+                }
+            }
+            else
+            {
+                /* Edge case: Unparsable error message, use the original message as it is*/
+                strncpy(cleaned_error, pg_error, sizeof(cleaned_error) - 1);
+                cleaned_error[sizeof(cleaned_error) - 1] = '\0';
+            }
+            
+            snprintf(errbuf, errsize, "invalid WHERE clause: %s", cleaned_error);
+        }
         valid = false;
     }
     else
