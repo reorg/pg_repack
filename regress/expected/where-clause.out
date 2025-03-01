@@ -61,5 +61,11 @@ SELECT * FROM tbl_where_clause ORDER BY id;
   6 | six   | t      | six
 (2 rows)
 
+-- Test with non-existent column in where clause (should fail)
+\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="non_existent_column = true"
+INFO: repacking table "public.tbl_where_clause"
+ERROR: invalid WHERE clause: ERROR:  column "non_existent_column" does not exist
+LINE 1: ...PLAIN SELECT 1 FROM public.tbl_where_clause WHERE non_existe...
+                                                             ^
 -- Clean up
 DROP TABLE tbl_where_clause; 

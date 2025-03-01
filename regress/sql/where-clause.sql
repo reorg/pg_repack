@@ -40,5 +40,8 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 -- Verify data after repack with order-by
 SELECT * FROM tbl_where_clause ORDER BY id;
 
+-- Test with non-existent column in where clause (should fail)
+\! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="non_existent_column = true"
+
 -- Clean up
 DROP TABLE tbl_where_clause; 
