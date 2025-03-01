@@ -46,5 +46,8 @@ SELECT * FROM tbl_where_clause ORDER BY id;
 -- Test with special character in column name without proper quoting (should fail)
 \! pg_repack --dbname=contrib_regression --table=tbl_where_clause --where-clause="column with space = 'test'"
 
+-- Test for repackaing whole database with a where clause (should fail)
+\! pg_repack --dbname=contrib_regression --where-clause="id > 3"
+
 -- Clean up
 DROP TABLE tbl_where_clause; 

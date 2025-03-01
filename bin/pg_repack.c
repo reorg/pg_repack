@@ -950,6 +950,12 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize, const cha
 		/* Validate WHERE clause if provided */
 		if (where_clause && where_clause[0])
 		{
+			if (num > 1) {
+				ereport(ERROR,
+						(errcode(E_PG_COMMAND),
+						 errmsg("where-clause can only be used when repacking a single table. Found %d tables matching criteria.", num)));
+				continue;
+			}
 			if (!validate_where_clause(connection, table.target_name, where_clause, errbuf, errsize))
 			{
 				ereport(ERROR,
@@ -2465,7 +2471,8 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze                   don't analyze at end\n");
 	printf("  -k, --no-superuser-check           skip superuser checks in client\n");
 	printf("  -C, --exclude-extension            don't repack tables which belong to specific extension\n");
-	printf("  -X, --where=WHERE_CLAUSE           (delete rows mode) keep only speficic rows in the table as per condition specified\n");
+	printf("  -X, --where=WHERE_CLAUSE           (delete rows mode) keep only specific rows in the table as per condition specified.\n");
+	printf("                                     Note: where-clause can only be used when repacking a single table\n");
 	printf("      --no-error-on-invalid-index    repack even though invalid index is found\n");
 	printf("      --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now\n");
 	printf("      --apply-count                  number of tuples to apply in one transaction during replay\n");

@@ -130,7 +130,7 @@ Options:
       --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now
       --apply-count                  number of tuples to apply in one trasaction during replay
       --switch-threshold             switch tables when that many tuples are left to catchup
-  -X, --where-clause=CONDITION       Deletion support. You can use this option to remove certain rows from the table.
+  -X CONDITION, --where-clause=CONDITION       Remove certain live rows from the table. Use this option to clean up rows that are not needed anymore.
 
 Connection options:
   -d, --dbname=DBNAME                database to connect
@@ -173,12 +173,13 @@ Reorg Options
 
 ``-X CONDITION``, ``--where-clause=CONDITION``
     Remove certain live rows from the table. Use this option to clean up rows that are not needed anymore.
-    table. The condition is a SQL WHERE clause that is applied to the table being 
+    table. The condition is a SQL where-clause that is applied to the table being 
     repacked. Note that the condition specifies which rows WILL remain in the table 
     after repacking, not which rows will be deleted.
     --where-clause="deleted_at IS NOT NULL" will lead to the repacked table removing all 
     rows where deleted_at is NULL at the time of repack start. 
-    
+    This option can only be used when repacking a single table and will fail if multiple
+    tables would be repacked.
 
 ``-n``, ``--no-order``
     Perform an online VACUUM FULL.  Since version 1.2 this is the default for
