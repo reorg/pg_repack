@@ -7,6 +7,7 @@ jobs:
       fail-fast: false
       matrix:
         pg:
+          - 18
           - 17
           - 16
           - 15
@@ -28,6 +29,10 @@ jobs:
 
       - name: Install build-dependencies
         run: apt-get install -y liblz4-dev libreadline-dev zlib1g-dev libzstd-dev
+
+      - name: Install additional build-dependencies for 18+
+        if: ${{ matrix.pg >= 18 }}
+        run: apt-get install -y libcurl4-openssl-dev
 
       - name: Check out the repo
         uses: actions/checkout@v3
