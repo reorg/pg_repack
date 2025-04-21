@@ -427,10 +427,9 @@ pg_repack cannot cluster tables by GiST indexes.
 DDL commands
 ^^^^^^^^^^^^
 
-You will not be able to perform DDL commands of the target table(s) **except**
-VACUUM or ANALYZE while pg_repack is working. pg_repack will hold an
-ACCESS SHARE lock on the target table during a full-table repack, to enforce
-this restriction.
+You will not be able to perform DDL commands of the target table(s) while
+pg_repack is working. pg_repack will hold an SHARE UPDATE EXCLUSIVE lock on the
+target table during a full-table repack, to enforce this restriction.
 
 If you are using version 1.1.8 or earlier, you must not attempt to perform any
 DDL commands on the target table(s) while pg_repack is running. In many cases
@@ -457,8 +456,8 @@ To perform a full-table repack, pg_repack will:
 pg_repack will only hold an ACCESS EXCLUSIVE lock for a short period during
 initial setup (steps 1 and 2 above) and during the final swap-and-drop phase
 (steps 6 and 7). For the rest of its time, pg_repack only needs
-to hold an ACCESS SHARE lock on the original table, meaning INSERTs, UPDATEs,
-and DELETEs may proceed as usual.
+to hold an SHARE UPDATE EXCLUSIVE lock on the original table, meaning INSERTs,
+UPDATEs, and DELETEs may proceed as usual.
 
 
 Index Only Repacks
