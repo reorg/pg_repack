@@ -2,6 +2,7 @@
 *.o
 *.so
 *.bc
+*.dylib
 regress/regression.diffs
 regress/regression.out
 regress/results/

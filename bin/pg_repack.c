@@ -1412,12 +1412,12 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	/*
 	 * Not using lock_access_share() here since we know that
-	 * it's not possible to obtain the ACCESS SHARE lock right now
+	 * it's not possible to obtain the SHARE UPDATE EXCLUSIVE lock right now
 	 * in conn2, since the primary connection holds ACCESS EXCLUSIVE.
 	 */
-	printfStringInfo(&sql, "LOCK TABLE %s IN ACCESS SHARE MODE",
+	printfStringInfo(&sql, "LOCK TABLE %s IN SHARE UPDATE EXCLUSIVE MODE",
 					 table->target_name);
-	elog(DEBUG2, "LOCK TABLE %s IN ACCESS SHARE MODE", table->target_name);
+	elog(DEBUG2, "LOCK TABLE %s IN SHARE UPDATE EXCLUSIVE MODE", table->target_name);
 	if (PQsetnonblocking(conn2, 1))
 	{
 		elog(WARNING, "Unable to set conn2 nonblocking.");
@@ -1465,7 +1465,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	while ((res = PQgetResult(conn2)))
 	{
-		elog(DEBUG2, "Waiting on ACCESS SHARE lock...");
+		elog(DEBUG2, "Waiting on SHARE UPDATE EXCLUSIVE lock...");
 		if (PQresultStatus(res) != PGRES_COMMAND_OK)
 		{
 			elog(WARNING, "Error with LOCK TABLE: %s", PQerrorMessage(conn2));
@@ -1617,7 +1617,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	 *    AccessShare lock.
 	 */
 	elog(DEBUG2, "---- swap ----");
-	/* Bump our existing AccessShare lock to AccessExclusive */
+	/* Bump our existing ShareUpdateExclusive lock to AccessExclusive */
 
 	if (!(lock_exclusive(conn2, utoa(table->target_oid, buffer),
 						 table->lock_table, false)))
