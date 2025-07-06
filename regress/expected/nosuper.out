@@ -21,11 +21,7 @@ GRANT USAGE ON SCHEMA repack TO nosuper;
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
 INFO: repacking table "public.tbl_cluster"
-ERROR: query failed: ERROR:  current transaction is aborted, commands ignored until end of transaction block
-DETAIL: query was: RESET lock_timeout
-ERROR: query failed: ERROR:  current transaction is aborted, commands ignored until end of transaction block
-DETAIL: query was: RESET lock_timeout
-ERROR:  permission denied for table tbl_cluster
+WARNING: lock_exclusive() failed for public.tbl_cluster
 ERROR:  permission denied for table tbl_cluster
 REVOKE ALL ON ALL TABLES IN SCHEMA repack FROM nosuper;
 REVOKE USAGE ON SCHEMA repack FROM nosuper;

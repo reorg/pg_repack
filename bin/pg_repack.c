@@ -1799,6 +1799,8 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 	int				i;
 	bool			ret = true;
 
+	pgut_command(conn, "SAVEPOINT repack_sp1", 0, NULL);
+
 	initStringInfo(&sql);
 
 	for (i = 1; ; i++)
@@ -1806,8 +1808,6 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 		time_t		duration;
 		PGresult   *res;
 		int			wait_msec;
-
-		pgut_command(conn, "SAVEPOINT repack_sp1", 0, NULL);
 
 		duration = time(NULL) - start;
 
@@ -1856,6 +1856,13 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 	}
 
 	termStringInfo(&sql);
+
+	/*
+	 * Make sure that the current transaction isn't in failed state before
+	 * releasing the savepoint
+	 */
+	if (PQtransactionStatus(conn) == PQTRANS_INTRANS)
+		pgut_command(conn, "RELEASE SAVEPOINT repack_sp1", 0, NULL);
 	pgut_command(conn, "RESET lock_timeout", 0, NULL);
 	return ret;
 }
@@ -1904,9 +1911,10 @@ static bool advisory_lock(PGconn *conn, const char *relid)
  *  conn: connection to use
  *  relid: OID of relation
  *  lock_query: LOCK TABLE ... IN ACCESS EXCLUSIVE query to be executed
- *  start_xact: whether we will issue a BEGIN ourselves. If not, we will
- *              use a SAVEPOINT and ROLLBACK TO SAVEPOINT if our query
- *              times out, to avoid leaving the transaction in error state.
+ *  start_xact: whether we will issue a BEGIN ourselves. Regardless of the
+ *              value we will use a SAVEPOINT and ROLLBACK TO SAVEPOINT if our
+ *              query times out, to avoid leaving the transaction in error
+ *              state.
  */
 static bool
 lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool start_xact)
@@ -1915,17 +1923,16 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 	int			i;
 	bool		ret = true;
 
+	if (start_xact)
+		pgut_command(conn, "BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
+	pgut_command(conn, "SAVEPOINT repack_sp1", 0, NULL);
+
 	for (i = 1; ; i++)
 	{
 		time_t		duration;
 		char		sql[1024];
 		PGresult   *res;
 		int			wait_msec;
-
-		if (start_xact)
-			pgut_command(conn, "BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-		else
-			pgut_command(conn, "SAVEPOINT repack_sp1", 0, NULL);
 
 		duration = time(NULL) - start;
 		if (duration > wait_timeout)
@@ -1936,10 +1943,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 				ret = false;
 
 				/* Before exit the loop reset the transaction */
-				if (start_xact)
-					pgut_rollback(conn);
-				else
-					pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
+				pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
 				break;
 			}
 			else
@@ -1982,10 +1986,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		{
 			/* retry if lock conflicted */
 			CLEARPGRES(res);
-			if (start_xact)
-				pgut_rollback(conn);
-			else
-				pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
+			pgut_command(conn, "ROLLBACK TO SAVEPOINT repack_sp1", 0, NULL);
 			continue;
 		}
 		else
@@ -1998,6 +1999,14 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 		}
 	}
 
+	/*
+	 * Make sure that the current transaction isn't in failed state before
+	 * releasing the savepoint
+	 */
+	if (PQtransactionStatus(conn) == PQTRANS_INTRANS)
+		pgut_command(conn, "RELEASE SAVEPOINT repack_sp1", 0, NULL);
+	if (!ret && start_xact)
+		pgut_rollback(conn);
 	pgut_command(conn, "RESET lock_timeout", 0, NULL);
 	return ret;
 }
