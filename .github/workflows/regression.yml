@@ -32,7 +32,7 @@ jobs:
 
       - name: Install additional build-dependencies for 18+
         if: ${{ matrix.pg >= 18 }}
-        run: apt-get install -y libcurl4-openssl-dev
+        run: apt-get install -y libcurl4-openssl-dev libnuma-dev
 
       - name: Check out the repo
         uses: actions/checkout@v3
