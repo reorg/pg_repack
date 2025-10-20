@@ -41,7 +41,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16, 17.
+    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16, 17, 18.
 
     PostgreSQL 9.4 and before it are not supported.
 
@@ -476,6 +476,11 @@ Creating indexes concurrently comes with a few caveats, please see `the document
 
 Releases
 --------
+
+* pg_repack 1.5.3
+  * Cleanup temporary indexes on error when using --only-indexes to avoid artefacts after failures (issue #437, pull request #440)
+  * Acquire SHARE UPDATE EXCLUSIVE lock on the target table during a full-table repack instead of ACCESS SHARE (issue #420, pull request #452)
+  * Fix subtransactions cache overflow (issue #457, pull request #460)
 
 * pg_repack 1.5.2
 
