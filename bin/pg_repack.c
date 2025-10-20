@@ -1395,8 +1395,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	command(sql.data, 0, NULL);
 
 	/* While we are still holding an AccessExclusive lock on the table, submit
-	 * the request for an AccessShare lock asynchronously from conn2.
-	 * We want to submit this query in conn2 while connection's
+	 * the request for an ShareUpdateExclusiveLock lock asynchronously from
+	 * conn2. We want to submit this query in conn2 while connection's
 	 * transaction still holds its lock, so that no DDL may sneak in
 	 * between the time that connection commits and conn2 gets its lock.
 	 */
@@ -1434,7 +1434,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	 * look for and cancel any (potentially dangerous) DDL commands which
 	 * might also be waiting on our table lock at this point --
 	 * it's not safe to let them wait, because they may grab their
-	 * AccessExclusive lock before conn2 gets its AccessShare lock,
+	 * AccessExclusive lock before conn2 gets its ShareUpdateExclusiveLock lock,
 	 * and perform unsafe DDL on the table.
 	 *
 	 * Normally, lock_access_share() would take care of this for us,
@@ -1450,7 +1450,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	}
 
 	/* We're finished killing off any unsafe DDL. COMMIT in our main
-	 * connection, so that conn2 may get its AccessShare lock.
+	 * connection, so that conn2 may get its ShareUpdateExclusiveLock lock.
 	 */
 	command("COMMIT", 0, NULL);
 
@@ -1516,10 +1516,10 @@ repack_one_table(repack_table *table, const char *orderby)
 	 * for the create_table command to go through, so go ahead and obtain
 	 * the lock explicitly.
 	 *
-	 * Since conn2 has been diligently holding its AccessShare lock, it
-	 * is possible that another transaction has been waiting to acquire
-	 * an AccessExclusive lock on the table (e.g. a concurrent ALTER TABLE
-	 * or TRUNCATE which we must not allow). If there are any such
+	 * Since conn2 has been diligently holding its ShareUpdateExclusiveLock
+	 * lock, it is possible that another transaction has been waiting to
+	 * acquire an AccessExclusive lock on the table (e.g. a concurrent ALTER
+	 * TABLE or TRUNCATE which we must not allow). If there are any such
 	 * transactions, lock_access_share() will kill them so that our
 	 * CREATE TABLE ... AS SELECT does not deadlock waiting for an
 	 * AccessShare lock.
@@ -1614,7 +1614,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	/*
 	 * 5. Swap: will be done with conn2, since it already holds an
-	 *    AccessShare lock.
+	 *    ShareUpdateExclusiveLock lock.
 	 */
 	elog(DEBUG2, "---- swap ----");
 	/* Bump our existing ShareUpdateExclusive lock to AccessExclusive */
@@ -1815,8 +1815,8 @@ lock_access_share(PGconn *conn, Oid relid, const char *target_name)
 		 * wait_timeout as lock_exclusive() does -- the only queries we
 		 * should be killing are disallowed DDL commands hanging around
 		 * for an AccessExclusive lock, which must be deadlocked at
-		 * this point anyway since conn2 holds its AccessShare lock
-		 * already.
+		 * this point anyway since conn2 holds its ShareUpdateExclusiveLock
+		 * lock already.
 		 */
 		if (duration > (wait_timeout * 2))
 			ret = kill_ddl(conn, relid, true);
