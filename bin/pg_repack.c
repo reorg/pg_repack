@@ -10,18 +10,6 @@
  * @brief Client Modules
  */
 
-const char *PROGRAM_URL		= "https://reorg.github.io/pg_repack/";
-const char *PROGRAM_ISSUES	= "https://github.com/reorg/pg_repack/issues";
-
-#ifdef REPACK_VERSION
-/* macro trick to stringify a macro expansion */
-#define xstr(s) str(s)
-#define str(s) #s
-const char *PROGRAM_VERSION = xstr(REPACK_VERSION);
-#else
-const char *PROGRAM_VERSION = "unknown";
-#endif
-
 #include "pgut/pgut-fe.h"
 
 #include <errno.h>
@@ -41,6 +29,17 @@ const char *PROGRAM_VERSION = "unknown";
 #include <sys/select.h>
 #endif
 
+const char *PROGRAM_URL		= "https://reorg.github.io/pg_repack/";
+const char *PROGRAM_ISSUES	= "https://github.com/reorg/pg_repack/issues";
+
+#ifdef REPACK_VERSION
+/* macro trick to stringify a macro expansion */
+#define xstr(s) str(s)
+#define str(s) #s
+const char *PROGRAM_VERSION = xstr(REPACK_VERSION);
+#else
+const char *PROGRAM_VERSION = "unknown";
+#endif
 
 /*
  * APPLY_COUNT_DEFAULT: Number of applied logs per transaction. Larger values
