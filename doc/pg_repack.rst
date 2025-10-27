@@ -478,6 +478,7 @@ Releases
 --------
 
 * pg_repack 1.5.3
+
   * Cleanup temporary indexes on error when using --only-indexes to avoid artefacts after failures (issue #437, pull request #440)
   * Acquire SHARE UPDATE EXCLUSIVE lock on the target table during a full-table repack instead of ACCESS SHARE (issue #420, pull request #452)
   * Fix subtransactions cache overflow (issue #457, pull request #460)
