@@ -214,8 +214,8 @@ static bool is_superuser(void);
 static void check_tablespace(void);
 static bool preliminary_checks(char *errbuf, size_t errsize);
 static bool is_requested_relation_exists(char *errbuf, size_t errsize);
-static void repack_all_databases(const char *order_by);
-static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize);
+static void repack_all_databases(const char *order_by, const char *where_clause);
+static bool repack_one_database(const char *order_by, char *errbuf, size_t errsize, const char *where_clause);
 static void repack_one_table(repack_table *table, const char *order_by);
 static bool repack_table_indexes(PGresult *index_details);
 static bool repack_all_indexes(char *errbuf, size_t errsize);
@@ -223,6 +223,7 @@ static void repack_cleanup(bool fatal, const repack_table *table);
 static void repack_cleanup_callback(bool fatal, void *userdata);
 static void repack_cleanup_index(bool fatal, void *userdata);
 static bool rebuild_indexes(const repack_table *table);
+static bool validate_where_clause(PGconn *conn, const char *table_name, const char *where_clause, char *errbuf, size_t errsize);
 
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
@@ -247,6 +248,7 @@ static SimpleStringList	parent_table_list = {NULL, NULL};
 static SimpleStringList	table_list = {NULL, NULL};
 static SimpleStringList	schema_list = {NULL, NULL};
 static char				*orderby = NULL;
+static char				*where_clause = NULL;
 static char				*tablespace = NULL;
 static bool				moveidx = false;
 static SimpleStringList	r_index = {NULL, NULL};
@@ -281,6 +283,7 @@ static pgut_option options[] =
 	{ 'l', 'c', "schema", &schema_list },
 	{ 'b', 'n', "no-order", &noorder },
 	{ 'b', 'N', "dry-run", &dryrun },
+	{ 's', 'X', "where-clause", &where_clause },
 	{ 's', 'o', "order-by", &orderby },
 	{ 's', 's', "tablespace", &tablespace },
 	{ 'b', 'S', "moveidx", &moveidx },
@@ -396,11 +399,11 @@ main(int argc, char *argv[])
 				ereport(ERROR,
 					(errcode(EINVAL),
 					 errmsg("cannot repack specific schema(s) in all databases")));
-			repack_all_databases(orderby);
+			repack_all_databases(orderby, where_clause);
 		}
 		else
 		{
-			if (!repack_one_database(orderby, errbuf, sizeof(errbuf)))
+			if (!repack_one_database(orderby, errbuf, sizeof(errbuf), where_clause))
 				ereport(ERROR,
 					(errcode(ERROR), errmsg("%s failed with error: %s", PROGRAM_NAME, errbuf)));
 		}
@@ -690,7 +693,7 @@ cleanup:
  * Call repack_one_database for each database.
  */
 static void
-repack_all_databases(const char *orderby)
+repack_all_databases(const char *orderby, const char *where_clause)
 {
 	PGresult   *result;
 	int			i;
@@ -714,7 +717,7 @@ repack_all_databases(const char *orderby)
 		elog(INFO, "repacking database \"%s\"", dbname);
 		if (!dryrun)
 		{
-			ret = repack_one_database(orderby, errbuf, sizeof(errbuf));
+			ret = repack_one_database(orderby, errbuf, sizeof(errbuf), where_clause);
 			if (!ret)
 				elog(INFO, "database \"%s\" skipped: %s", dbname, errbuf);
 		}
@@ -746,7 +749,7 @@ getoid(PGresult *res, int row, int col)
  * Call repack_one_table for the target tables or each table in a database.
  */
 static bool
-repack_one_database(const char *orderby, char *errbuf, size_t errsize)
+repack_one_database(const char *orderby, char *errbuf, size_t errsize, const char *where_clause)
 {
 	bool					ret = false;
 	PGresult			   *res = NULL;
@@ -943,11 +946,34 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.sql_pop = getstr(res, i, c++);
 		table.dest_tablespace = getstr(res, i, c++);
 
+		/* Validate WHERE clause if provided */
+		if (where_clause && where_clause[0])
+		{
+			if (num > 1) {
+				ereport(ERROR,
+						(errcode(E_PG_COMMAND),
+						 errmsg("where-clause can only be used when repacking a single table.")));
+				continue;
+			}
+			if (!validate_where_clause(connection, table.target_name, where_clause, errbuf, errsize))
+			{
+				ereport(ERROR,
+						(errcode(E_PG_COMMAND),
+						 errmsg("%s", errbuf)));
+				continue;
+			}
+		}
+		
 		/* Craft Copy SQL */
 		initStringInfo(&copy_sql);
 		appendStringInfoString(&copy_sql, table.copy_data);
-		if (!orderby)
 
+		/* delete rows mode */
+		if (where_clause) {
+			appendStringInfoString(&copy_sql, " WHERE ");
+			appendStringInfoString(&copy_sql, where_clause);
+		}
+		if (!orderby)
 		{
 			if (ckey != NULL)
 			{
@@ -2447,8 +2473,97 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze                   don't analyze at end\n");
 	printf("  -k, --no-superuser-check           skip superuser checks in client\n");
 	printf("  -C, --exclude-extension            don't repack tables which belong to specific extension\n");
+	printf("  -X, --where=WHERE_CLAUSE           (delete rows mode) keep only specific rows in the table as per condition specified.\n");
+	printf("                                     Note: where-clause can only be used when repacking a single table\n");
 	printf("      --no-error-on-invalid-index    repack even though invalid index is found\n");
 	printf("      --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now\n");
 	printf("      --apply-count                  number of tuples to apply in one transaction during replay\n");
 	printf("      --switch-threshold             switch tables when that many tuples are left to catchup\n");
+}
+
+/* 
+ * Validate a WHERE clause by running EXPLAIN SELECT 1 with the clause 
+ * Returns true if the WHERE clause is valid, false otherwise
+ */
+static bool
+validate_where_clause(PGconn *conn, const char *table_name, const char *where_clause, char *errbuf, size_t errsize)
+{
+    bool valid = false;
+    PGresult *res = NULL;
+    StringInfoData sql;
+    
+    if (!where_clause || !where_clause[0])
+    {
+        if (errbuf)
+            snprintf(errbuf, errsize, "empty WHERE clause is not valid");
+        return false;  /* Empty where clause */
+    }
+    
+    initStringInfo(&sql);
+    
+    /* Build EXPLAIN query to validate the WHERE clause */
+    appendStringInfo(&sql, "EXPLAIN SELECT 1 FROM %s WHERE %s", 
+                     table_name, where_clause);
+    
+    res = PQexec(conn, sql.data);
+    
+    if (PQresultStatus(res) != PGRES_TUPLES_OK)
+	/* Clean up the error message. Remove duplicate ERROR: prefix as well as remove postgres LINE: error */
+    {
+        if (errbuf)
+        {
+            const char *pg_error = PQerrorMessage(conn);
+            char cleaned_error[1024] = {0}; // Buffer for cleaned error message
+            
+            if (strstr(pg_error, "ERROR:") != NULL)
+            {
+                const char *error_start = pg_error;
+                const char *error_prefix = "ERROR:  ";
+                const char *line_part;
+                
+                if (strncmp(error_start, error_prefix, strlen(error_prefix)) == 0)
+                    error_start += strlen(error_prefix);
+                
+                /* Grab the actual error message ends (before LINE: part) */
+                line_part = strstr(error_start, "LINE ");
+                if (line_part != NULL)
+                {
+                    size_t len = line_part - error_start;
+                    char *end;
+                    
+                    strncpy(cleaned_error, error_start, len);
+                    cleaned_error[len] = '\0'; 
+                    
+                    /* Trim text */
+                    end = cleaned_error + len - 1;
+                    while (end > cleaned_error && (*end == ' ' || *end == '\n' || *end == '\r'))
+                        *end-- = '\0';
+                }
+                else
+                {
+                    /* Edge case: No LINE: message from postgres */
+                    strncpy(cleaned_error, error_start, sizeof(cleaned_error) - 1);
+                    cleaned_error[sizeof(cleaned_error) - 1] = '\0';
+                }
+            }
+            else
+            {
+                /* Edge case: Unparsable error message, use the original message as it is*/
+                strncpy(cleaned_error, pg_error, sizeof(cleaned_error) - 1);
+                cleaned_error[sizeof(cleaned_error) - 1] = '\0';
+            }
+            
+            snprintf(errbuf, errsize, "invalid WHERE clause: %s", cleaned_error);
+        }
+        valid = false;
+    }
+    else
+    {
+        valid = true;
+    }
+    
+    CLEARPGRES(res);
+    termStringInfo(&sql);
+    
+    return valid;
 }

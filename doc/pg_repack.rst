@@ -130,6 +130,7 @@ Options:
       --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now
       --apply-count                  number of tuples to apply in one trasaction during replay
       --switch-threshold             switch tables when that many tuples are left to catchup
+  -X CONDITION, --where-clause=CONDITION       Remove certain live rows from the table. Use this option to clean up rows that are not needed anymore.
 
 Connection options:
   -d, --dbname=DBNAME                database to connect
@@ -169,6 +170,16 @@ Reorg Options
 
 ``-o COLUMNS [,...]``, ``--order-by=COLUMNS [,...]``
     Perform an online CLUSTER ordered by the specified columns.
+
+``-X CONDITION``, ``--where-clause=CONDITION``
+    Remove certain live rows from the table. Use this option to clean up rows that are not needed anymore.
+    table. The condition is a SQL where-clause that is applied to the table being 
+    repacked. Note that the condition specifies which rows WILL remain in the table 
+    after repacking, not which rows will be deleted.
+    --where-clause="deleted_at IS NOT NULL" will lead to the repacked table removing all 
+    rows where deleted_at is NULL at the time of repack start. 
+    This option can only be used when repacking a single table and will fail if multiple
+    tables would be repacked.
 
 ``-n``, ``--no-order``
     Perform an online VACUUM FULL.  Since version 1.2 this is the default for
@@ -330,6 +341,19 @@ Move all indexes of table ``foo`` to tablespace ``tbs``::
 Move the specified index to tablespace ``tbs``::
 
     $ pg_repack -d test --index idx --tablespace tbs
+
+Select only rows where id > 10 in table ``foo`` (note that the condition specifies
+which rows will remain in the table after repacking, not which rows will be deleted). This would delete all rows where id <= 10::
+
+    $ pg_repack -d test --table foo --where-clause="id > 10"
+
+Select only rows where value > 100 in table ``bar`` in column foo. This would delete all rows where foo <= 100::
+
+    $ pg_repack -d test --table bar --where-clause="foo > 100"
+
+Select only rows where create_date is within the last year::
+
+    $ pg_repack -d test --table baz --where-clause="create_date > (current_date - interval '1 year')"
 
 
 Diagnostics
