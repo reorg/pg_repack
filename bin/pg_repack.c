@@ -1613,7 +1613,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	/*
 	 * 5. Swap: will be done with conn2, since it already holds an
-	 *    ShareUpdateExclusiveLock lock.
+	 * ShareUpdateExclusiveLock lock.
 	 */
 	elog(DEBUG2, "---- swap ----");
 	/* Bump our existing ShareUpdateExclusive lock to AccessExclusive */
@@ -1646,22 +1646,16 @@ repack_one_table(repack_table *table, const char *orderby)
 	pgut_command(conn2, "COMMIT", 0, NULL);
 
 	/*
-	 * 6. Drop.
+	 * 6. Drop temporary objects. We don't need to acquire ACCESS EXCLUSIVE
+	 * lock here since repack_swap() already dropped the repack_trigger trigger.
 	 */
 	elog(DEBUG2, "---- drop ----");
 
 	command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
-	if (!(lock_exclusive(connection, utoa(table->target_oid, buffer),
-						 table->lock_table, false)))
-	{
-		elog(WARNING, "lock_exclusive() failed in connection for %s",
-			 table->target_name);
-		goto cleanup;
-	}
-
 	params[1] = utoa(temp_obj_num, indexbuffer);
 	command("SELECT repack.repack_drop($1, $2)", 2, params);
 	command("COMMIT", 0, NULL);
+
 	temp_obj_num = 0; /* reset temporary object counter after cleanup */
 
 	/*

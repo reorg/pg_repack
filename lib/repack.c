@@ -1056,6 +1056,7 @@ repack_drop(PG_FUNCTION_ARGS)
 	int			numobj = PG_GETARG_INT32(1);
 	const char *relname = get_quoted_relname(oid);
 	const char *nspname = get_quoted_nspname(oid);
+	bool		trigger_exists = true;
 
 	if (!(relname && nspname))
 	{
@@ -1068,6 +1069,22 @@ repack_drop(PG_FUNCTION_ARGS)
 
 	/* connect to SPI manager */
 	repack_init();
+
+	if (numobj > 0)
+	{
+		Oid			argtypes[1] = { OIDOID };
+		bool		nulls[1] = { 0 };
+		Datum		values[1];
+
+		values[0] = ObjectIdGetDatum(oid);
+		execute_with_args(SPI_OK_SELECT,
+			"SELECT tgname"
+			"  FROM pg_trigger"
+			" WHERE tgrelid = $1 AND tgname = 'repack_trigger'",
+			1, argtypes, values, nulls);
+
+		trigger_exists = SPI_processed > 0;
+	}
 
 	/*
 	 * To prevent concurrent lockers of the repack target table from causing
@@ -1086,14 +1103,9 @@ repack_drop(PG_FUNCTION_ARGS)
 	 *
 	 * Fixes deadlock mentioned in the Github issue #55.
 	 *
-	 * Skip the lock if we are not going to do anything.
-	 * Otherwise, if repack gets accidentally run twice for the same table
-	 * at the same time, the second repack, in order to perform
-	 * a pointless cleanup, has to wait until the first one completes.
-	 * This adds an ACCESS EXCLUSIVE lock request into the queue
-	 * making the table effectively inaccessible for any other backend.
+	 * Skip the lock if we are not going to drop the trigger.
 	 */
-	if (numobj > 0)
+	if (numobj > 0 && trigger_exists)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
@@ -1130,10 +1142,11 @@ repack_drop(PG_FUNCTION_ARGS)
 	 */
 	if (numobj > 0)
 	{
-		execute_with_format(
-			SPI_OK_UTILITY,
-			"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
-			nspname, relname);
+		if (trigger_exists)
+			execute_with_format(
+				SPI_OK_UTILITY,
+				"DROP TRIGGER IF EXISTS repack_trigger ON %s.%s CASCADE",
+				nspname, relname);
 		--numobj;
 	}
 
