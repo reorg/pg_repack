@@ -280,6 +280,7 @@ repack_apply(PG_FUNCTION_ARGS)
 		Oid				argtypes[3];	/* id, pk, row */
 		Datum			values[3];		/* id, pk, row */
 		bool			nulls[3];		/* id, pk, row */
+		char *pkid;
 
 		/* peek tuple in log */
 		if (count <= 0)
@@ -302,10 +303,15 @@ repack_apply(PG_FUNCTION_ARGS)
 		resetStringInfo(&sql_pop);
 		appendStringInfoString(&sql_pop, PG_GETARG_CSTRING(4));
 
+		pkid = NULL;
+
 		for (i = 0; i < ntuples; i++, n++)
 		{
 			HeapTuple	tuple;
-			char *pkid;
+
+			if (pkid != NULL) {
+				pfree(pkid);
+			}
 
 			tuple = tuptable->vals[i];
 			values[0] = SPI_getbinval(tuple, desc, 1, &nulls[0]);
@@ -336,23 +342,13 @@ repack_apply(PG_FUNCTION_ARGS)
 					plan_update = repack_prepare(sql_update, 2, &argtypes[1]);
 				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], (nulls[1] ? "n" : " "));
 			}
-
-			/* Add the primary key ID of each row from the log
-			 * table we have processed so far to this
-			 * DELETE ... IN (...) query string, so we
-			 * can delete all the rows we have processed at-once.
-			 */
-			if (i == 0)
-				appendStringInfoString(&sql_pop, pkid);
-			else
-				appendStringInfo(&sql_pop, ",%s", pkid);
-			pfree(pkid);
 		}
 		/* i must be > 0 (and hence we must have some rows to delete)
 		 * since SPI_processed > 0
 		 */
 		Assert(i > 0);
-		appendStringInfoString(&sql_pop, ");");
+		appendStringInfoString(&sql_pop, pkid);
+		pfree(pkid);
 
 		/* Bulk delete of processed rows from the log table */
 		execute(SPI_OK_DELETE, sql_pop.data);
