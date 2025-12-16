@@ -2329,7 +2329,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	else if (table_list.head || parent_table_list.head)
 	{
 		appendStringInfoString(&sql,
-			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
+			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, repack.oid2text(idx.indrelid), n.nspname"
 			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
