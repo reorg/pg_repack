@@ -380,3 +380,14 @@ LANGUAGE C STABLE STRICT;
 CREATE FUNCTION repack.get_table_and_inheritors(regclass) RETURNS regclass[] AS
 'MODULE_PATHNAME', 'repack_get_table_and_inheritors'
 LANGUAGE C STABLE STRICT;
+
+-- Grant minimum required permissions to PUBLIC for non-superuser usage
+-- These grants allow table owners to use pg_repack with --no-superuser-check
+GRANT USAGE ON SCHEMA repack TO PUBLIC;
+GRANT CREATE ON SCHEMA repack TO PUBLIC;
+
+-- Grant EXECUTE on all functions in the repack schema
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA repack TO PUBLIC;
+
+-- Grant SELECT on all tables and views in the repack schema
+GRANT SELECT ON ALL TABLES IN SCHEMA repack TO PUBLIC;

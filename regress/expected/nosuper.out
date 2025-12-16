@@ -13,16 +13,18 @@ INFO: repacking table "public.tbl_cluster"
 ERROR: pg_repack failed with error: You must be a superuser to use pg_repack
 -- => ERROR
 \! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
-ERROR: pg_repack failed with error: ERROR:  permission denied for schema repack
-LINE 1: select repack.version(), repack.version_sql()
-               ^
-GRANT ALL ON ALL TABLES IN SCHEMA repack TO nosuper;
-GRANT USAGE ON SCHEMA repack TO nosuper;
--- => ERROR
-\! pg_repack --dbname=contrib_regression --table=tbl_cluster --username=nosuper --no-superuser-check
 INFO: repacking table "public.tbl_cluster"
 WARNING: lock_exclusive() failed for public.tbl_cluster
 ERROR:  permission denied for table tbl_cluster
-REVOKE ALL ON ALL TABLES IN SCHEMA repack FROM nosuper;
-REVOKE USAGE ON SCHEMA repack FROM nosuper;
+CREATE SCHEMA nosuper;
+GRANT ALL ON SCHEMA nosuper TO nosuper;
+SET SESSION AUTHORIZATION nosuper;
+CREATE TABLE nosuper.nosuper_test (id SERIAL PRIMARY KEY, data TEXT);
+INSERT INTO nosuper.nosuper_test (data) VALUES ('row1'), ('row2');
+RESET SESSION AUTHORIZATION;
+-- => OK
+\! pg_repack --dbname=contrib_regression --table=nosuper.nosuper_test --username=nosuper --no-superuser-check
+INFO: repacking table "nosuper.nosuper_test"
+DROP TABLE IF EXISTS nosuper.nosuper_test;
+DROP SCHEMA IF EXISTS nosuper;
 DROP ROLE IF EXISTS nosuper;
