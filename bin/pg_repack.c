@@ -193,6 +193,7 @@ typedef struct repack_table
 	const char	   *create_log;		/* CREATE TABLE log */
 	const char	   *create_trigger;	/* CREATE TRIGGER repack_trigger */
 	const char	   *enable_trigger;	/* ALTER TABLE ENABLE ALWAYS TRIGGER repack_trigger */
+	const char     *create_sequence; /* CREATE SEQUENCE track_insert */
 	const char	   *create_table;	/* CREATE TABLE table AS SELECT WITH NO DATA*/
 	const char	   *dest_tablespace; /* Destination tablespace */
 	const char	   *copy_data;		/* INSERT INTO */
@@ -927,6 +928,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		table.create_log = getstr(res, i, c++);
 		table.create_trigger = getstr(res, i, c++);
 		table.enable_trigger = getstr(res, i, c++);
+		table.create_sequence = getstr(res, i, c++);
 
 		table.create_table = getstr(res, i, c++);
 		getstr(res, i, c++);	/* tablespace_orig is clobbered */
@@ -1265,6 +1267,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "create_log        : %s", table->create_log);
 	elog(DEBUG2, "create_trigger    : %s", table->create_trigger);
 	elog(DEBUG2, "enable_trigger    : %s", table->enable_trigger);
+	elog(DEBUG2, "create_sequence   : %s", table->create_sequence);
 	elog(DEBUG2, "create_table      : %s", table->create_table);
 	elog(DEBUG2, "dest_tablespace   : %s", table->dest_tablespace);
 	elog(DEBUG2, "copy_data         : %s", table->copy_data);
@@ -1390,6 +1393,9 @@ repack_one_table(repack_table *table, const char *orderby)
 	command(table->create_trigger, 0, NULL);
 	temp_obj_num++;
 	command(table->enable_trigger, 0, NULL);
+	command(table->create_sequence, 0, NULL);
+	temp_obj_num++;
+
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.log_%u')", table->target_oid);
 	command(sql.data, 0, NULL);
 
