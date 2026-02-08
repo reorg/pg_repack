@@ -970,6 +970,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			appendStringInfoString(&copy_sql, " ORDER BY ");
 			appendStringInfoString(&copy_sql, orderby);
 		}
+		appendStringInfo(&copy_sql, " RETURNING nextval('repack.track_insert_%u')", table.target_oid);
 		table.copy_data = copy_sql.data;
 
 		repack_one_table(&table, orderby);

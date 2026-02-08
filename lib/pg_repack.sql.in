@@ -302,7 +302,7 @@ CREATE VIEW repack.tables AS
          'CREATE SEQUENCE IF NOT EXISTS repack.track_insert_' || R.oid AS create_sequence,
          'SELECT repack.create_table($1, $2)'::text AS create_table,
          coalesce(S.spcname, S2.spcname) AS tablespace_orig,
-         'INSERT INTO repack.table_' || R.oid || ' SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) || ' RETURNING nextval(''repack.track_insert_' || R.oid || ''')',
+         'INSERT INTO repack.table_' || R.oid || ' SELECT ' || repack.get_columns_for_create_as(R.oid) || ' FROM ONLY ' || repack.oid2text(R.oid) AS copy_data,
          repack.get_alter_col_storage(R.oid) AS alter_col_storage,
          repack.get_drop_columns(R.oid, 'repack.table_' || R.oid) AS drop_columns,
          'DELETE FROM repack.log_' || R.oid AS delete_log,
