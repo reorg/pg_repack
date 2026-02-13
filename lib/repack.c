@@ -172,6 +172,9 @@ repack_trigger(PG_FUNCTION_ARGS)
 	Oid				argtypes[2];
 	Oid				relid;
 	StringInfo		sql;
+	char		   *relschema = trigdata->tg_trigger->tgargs[0];
+	char		  **columns = trigdata->tg_trigger->tgargs + 1;
+	int16			ncolumns = trigdata->tg_trigger->tgnargs - 1;
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
@@ -213,11 +216,12 @@ repack_trigger(PG_FUNCTION_ARGS)
 
 	/* prepare INSERT query */
 	sql = makeStringInfo();
-	appendStringInfo(sql, "INSERT INTO repack.log_%u(pk, row) "
-		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(", relid);
-	appendStringInfo(sql, "$1.%s", quote_identifier(trigdata->tg_trigger->tgargs[0]));
-	for (int i = 1; i < trigdata->tg_trigger->tgnargs; ++i)
-		appendStringInfo(sql, ", $1.%s", quote_identifier(trigdata->tg_trigger->tgargs[i]));
+	appendStringInfo(sql, "INSERT INTO %s.log_%u(pk, row) "
+		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(",
+		quote_identifier(relschema), relid);
+	appendStringInfo(sql, "$1.%s", quote_identifier(columns[0]));
+	for (int i = 1; i < ncolumns; ++i)
+		appendStringInfo(sql, ", $1.%s", quote_identifier(columns[i]));
 	appendStringInfo(sql, ")::repack.pk_%u) END, $2)", relid);
 
 	/* execute the INSERT query */
