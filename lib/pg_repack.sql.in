@@ -48,53 +48,65 @@ CREATE FUNCTION repack.get_order_by(oid) RETURNS text AS
 'MODULE_PATHNAME', 'repack_get_order_by'
 LANGUAGE C STABLE STRICT;
 
-CREATE FUNCTION repack.create_log_table(relid oid)
-RETURNS void AS
+CREATE FUNCTION repack.create_log_table(relid oid, schemaname name)
+RETURNS oid AS
 $$
+DECLARE
+    new_oid oid;
 BEGIN
     EXECUTE format(
         $fmt$
-        CREATE TABLE repack.log_%1$s (
+        CREATE TABLE %2$I.log_%1$s (
             id bigserial PRIMARY KEY,
-            pk repack.pk_%1$s,
-            row %2$s)
+            pk %2$I.pk_%1$s,
+            row %3$s)
         $fmt$,
         relid,
+        schemaname,
         repack.oid2text(relid)
     );
+
+    EXECUTE format('SELECT %L::regclass::oid', format('%I.log_%s', schemaname, relid)) INTO new_oid;
+    RETURN new_oid;
 END
 $$
 LANGUAGE plpgsql;
 
-CREATE FUNCTION repack.create_table(relid oid, reltablespace name)
-RETURNS void AS
+CREATE FUNCTION repack.create_table(relid oid, schemaname name, reltablespace name)
+RETURNS oid AS
 $$
+DECLARE
+    new_oid oid;
 BEGIN
     EXECUTE format(
         $fmt$
-        CREATE TABLE repack.table_%1$s
-            WITH (%2$s)
-            TABLESPACE %3$I
-            AS SELECT %4$s
-            FROM ONLY %5$s WITH NO DATA
+        CREATE TABLE %2$I.table_%1$s
+            WITH (%3$s)
+            TABLESPACE %4$I
+            AS SELECT %5$s
+            FROM ONLY %6$s WITH NO DATA
         $fmt$,
         relid,
+        schemaname,
         repack.get_storage_param(relid),
         reltablespace,
         repack.get_columns_for_create_as(relid),
         repack.oid2text(relid)
     );
+
+    EXECUTE format('SELECT %L::regclass::oid', format('%I.table_%s', schemaname, relid)) INTO new_oid;
+    RETURN new_oid;
 END
 $$
 LANGUAGE plpgsql;
 
-CREATE FUNCTION repack.create_index_type(relid oid, pkid oid)
+CREATE FUNCTION repack.create_index_type(relid oid, pkid oid, schemaname name)
 RETURNS void AS
 $$
 BEGIN
     EXECUTE format(
-        'CREATE TYPE repack.pk_%s AS (%s)',
-        relid,
+        'CREATE TYPE %s AS (%s)',
+        format('%I.pk_%s', schemaname, relid),
         coalesce(string_agg(
             format('%I %s',
                 attname,
@@ -115,8 +127,8 @@ END
 $$
 LANGUAGE plpgsql;
 
-CREATE FUNCTION repack.create_trigger(relid oid, pkid oid)
-RETURNS void AS
+CREATE FUNCTION repack.create_trigger(relid oid, pkid oid, schemaname name)
+  RETURNS void AS
 $$
 BEGIN
     EXECUTE format(
@@ -124,9 +136,11 @@ BEGIN
         CREATE TRIGGER repack_trigger
             AFTER INSERT OR DELETE OR UPDATE
             ON %s
-            FOR EACH ROW EXECUTE PROCEDURE repack.repack_trigger(%s)
+            FOR EACH ROW EXECUTE PROCEDURE repack.repack_trigger(%L, %s)
         $fmt$,
         repack.oid2text(relid),
+        -- Pass the schema name as string, it will be quoted as identifier by `repack_trigger()`
+        schemaname,
         repack.get_index_columns(pkid)
     );
 END
@@ -190,14 +204,15 @@ $$
 LANGUAGE sql STABLE STRICT;
 
 -- DROP dropped columns of the temporary table.
-CREATE FUNCTION repack.drop_columns(relid oid, relname text)
+CREATE FUNCTION repack.drop_columns(relid oid, schemaname name)
 RETURNS void AS
 $$
 DECLARE
     sql text;
 BEGIN
-    SELECT format('ALTER TABLE %s %s',
-        relname,
+    SELECT format('ALTER TABLE %I.table_%s %s',
+        schemaname,
+        relid,
         array_to_string(dropped_columns, ', '))
     INTO sql
     FROM (
@@ -255,13 +270,14 @@ $$
 LANGUAGE sql STABLE STRICT;
 
 -- ALTER the table to set column storage option.
-CREATE FUNCTION repack.alter_col_storage(relid oid)
+CREATE FUNCTION repack.alter_col_storage(relid oid, schemaname name)
 RETURNS void AS
 $$
 DECLARE
     sql text;
 BEGIN
-    SELECT format('ALTER TABLE repack.table_%s %s',
+    SELECT format('ALTER TABLE %I.table_%s %s',
+        schemaname,
         relid,
         array_to_string(column_storage, ','))
     INTO sql
@@ -339,75 +355,128 @@ END;
 $$;
 
 CREATE VIEW repack.tables AS
-  SELECT repack.oid2text(R.oid) AS relname,
-         R.oid AS relid,
-         R.reltoastrelid AS reltoastrelid,
-         CASE WHEN R.reltoastrelid = 0 THEN 0 ELSE (
-            SELECT indexrelid FROM pg_index
-            WHERE indrelid = R.reltoastrelid
-            AND indisvalid) END AS reltoastidxid,
-         N.nspname AS schemaname,
-         PK.indexrelid AS pkid,
-         CK.indexrelid AS ckid,
-         format('SELECT repack.create_index_type(%L, %L)',
-            R.oid, PK.indexrelid) AS create_pktype,
-         format('SELECT repack.create_log_table(%L)',
-            R.oid) AS create_log,
-         format('SELECT repack.create_trigger(%L, %L)',
-            R.oid, PK.indexrelid) AS create_trigger,
-         format('SELECT repack.enable_trigger(%L)',
-            R.oid) AS enable_trigger,
-         'SELECT repack.create_table($1, $2)'::text AS create_table,
-         coalesce(S.spcname, S2.spcname) AS tablespace_orig,
-         format('INSERT INTO repack.table_%s SELECT %s FROM ONLY %s',
-            R.oid,
-            repack.get_columns_for_create_as(R.oid),
-            repack.oid2text(R.oid)
-         ) AS copy_data,
-         format('SELECT repack.alter_col_storage(%L)',
-            R.oid) AS alter_col_storage,
-         format('SELECT repack.drop_columns(%L, %L)',
-            R.oid, 'repack.table_' || R.oid) AS drop_columns,
-         format('DELETE FROM repack.log_%s',
-            R.oid) AS delete_log,
-         format('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE',
-            repack.oid2text(R.oid)) AS lock_table,
-         repack.get_order_by(CK.indexrelid) AS ckey,
-         format('SELECT * FROM repack.log_%s ORDER BY id LIMIT $1',
-            R.oid) AS sql_peek,
-         format('INSERT INTO repack.table_%s VALUES($1.*)',
-            R.oid) AS sql_insert,
-         format('DELETE FROM repack.table_%s WHERE %s',
-            R.oid,
-            repack.get_compare_pkey(PK.indexrelid, '$1')
-         ) AS sql_delete,
-         format('UPDATE repack.table_%s SET %s WHERE %s',
-            R.oid,
-            repack.get_assign(R.oid, '$2'),
-            repack.get_compare_pkey(PK.indexrelid, '$1')
-         ) AS sql_update,
-         format('DELETE FROM repack.log_%s WHERE id IN (',
-            R.oid) AS sql_pop
+    SELECT repack.oid2text(R.oid) AS relname,
+        R.oid AS relid,
+        N.nspname AS schemaname,
+        PK.indexrelid AS pkid,
+        CK.indexrelid AS ckid,
+        coalesce(S.spcname, S2.spcname) AS tablespace
     FROM pg_class R
-         LEFT JOIN pg_class T ON R.reltoastrelid = T.oid
-         LEFT JOIN repack.primary_keys PK
-                ON R.oid = PK.indrelid
-         LEFT JOIN (SELECT CKI.* FROM pg_index CKI, pg_class CKT
-                     WHERE CKI.indisvalid
-                       AND CKI.indexrelid = CKT.oid
-                       AND CKI.indisclustered
-                       AND CKT.relam = 403) CK
-                ON R.oid = CK.indrelid
-         LEFT JOIN pg_namespace N ON N.oid = R.relnamespace
-         LEFT JOIN pg_tablespace S ON S.oid = R.reltablespace
-         CROSS JOIN (SELECT S2.spcname
+        LEFT JOIN repack.primary_keys PK
+            ON R.oid = PK.indrelid
+        LEFT JOIN (SELECT CKI.* FROM pg_index CKI, pg_class CKT
+                    WHERE CKI.indisvalid
+                        AND CKI.indexrelid = CKT.oid
+                        AND CKI.indisclustered
+                        AND CKT.relam = 403) CK
+            ON R.oid = CK.indrelid
+        LEFT JOIN pg_namespace N ON N.oid = R.relnamespace
+        LEFT JOIN pg_tablespace S ON S.oid = R.reltablespace
+        CROSS JOIN (SELECT S2.spcname
              FROM pg_catalog.pg_database D
              JOIN pg_catalog.pg_tablespace S2 ON S2.oid = D.dattablespace
              WHERE D.datname = current_database()) S2
-   WHERE R.relkind = 'r'
-     AND R.relpersistence = 'p'
-     AND N.nspname NOT IN ('pg_catalog', 'information_schema')
-     AND N.nspname NOT LIKE E'pg\\_temp\\_%';
+    WHERE R.relkind = 'r'
+        AND R.relpersistence = 'p'
+        AND N.nspname NOT IN ('pg_catalog', 'information_schema')
+        AND N.nspname !~ '^pg_temp_';
+
+CREATE FUNCTION repack.get_tables(dest_tablespace name, use_original_schema boolean)
+RETURNS TABLE (
+    relname text,
+    relid oid,
+    schemaname name,
+    temp_schemaname name,
+    pkid oid,
+    ckid oid,
+    create_pktype text,
+    create_log text,
+    create_trigger text,
+    enable_trigger text,
+    create_table text,
+    copy_data text,
+    alter_col_storage text,
+    drop_columns text,
+    delete_log text,
+    lock_table text,
+    lock_temp_table text,
+    ckey text,
+    sql_peek text,
+    sql_insert text,
+    sql_delete text,
+    sql_update text,
+    sql_pop text
+) AS $$
+    SELECT R.relname,
+        R.relid,
+        R.schemaname,
+        CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+        R.pkid,
+        R.ckid,
+        format('SELECT repack.create_index_type(%L, %L, %L)',
+            R.relid, R.pkid,
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END
+        ) AS create_pktype,
+        format('SELECT repack.create_log_table(%L, %L)',
+            R.relid,
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END
+        ) AS create_log,
+        format('SELECT repack.create_trigger(%L, %L, %L)',
+            R.relid, R.pkid,
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END
+        ) AS create_trigger,
+        format('ALTER TABLE %s ENABLE ALWAYS TRIGGER repack_trigger',
+            repack.oid2text(R.relid)) AS enable_trigger,
+        format('SELECT repack.create_table(%L, %L, %L)',
+            R.relid,
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            coalesce(dest_tablespace, R.tablespace)
+        ) AS create_table,
+        format('INSERT INTO %I.table_%s SELECT %s FROM ONLY %s',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid,
+            repack.get_columns_for_create_as(R.relid),
+            repack.oid2text(R.relid)
+        ) AS copy_data,
+        format('SELECT repack.alter_col_storage(%L, %L)',
+            R.relid,
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END
+        ) AS alter_col_storage,
+        format('SELECT repack.drop_columns(%L, %L)',
+            R.relid,
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END
+        ) AS drop_columns,
+        format('DELETE FROM %I.log_%s',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid) AS delete_log,
+        format('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE',
+            repack.oid2text(R.relid)) AS lock_table,
+        format('LOCK TABLE %I.table_%s IN ACCESS EXCLUSIVE MODE',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid) AS lock_temp_table,
+        repack.get_order_by(R.ckid) AS ckey,
+        format('SELECT * FROM %I.log_%s ORDER BY id LIMIT $1',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid) AS sql_peek,
+        format('INSERT INTO %I.table_%s VALUES($1.*)',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid) AS sql_insert,
+        format('DELETE FROM %I.table_%s WHERE %s',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid,
+            repack.get_compare_pkey(R.pkid, '$1')
+        ) AS sql_delete,
+        format('UPDATE %I.table_%s SET %s WHERE %s',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid,
+            repack.get_assign(R.relid, '$2'),
+            repack.get_compare_pkey(R.pkid, '$1')
+        ) AS sql_update,
+        format('DELETE FROM %I.log_%s WHERE id IN (',
+            CASE WHEN use_original_schema THEN R.schemaname ELSE 'repack' END,
+            R.relid) AS sql_pop
+    FROM repack.tables R;
+$$ LANGUAGE sql STABLE;
 
 CREATE FUNCTION repack.repack_indexdef(oid, text, name, bool) RETURNS text AS
 'MODULE_PATHNAME', 'repack_indexdef'
@@ -441,11 +510,11 @@ RETURNS integer AS
 'MODULE_PATHNAME', 'repack_apply'
 LANGUAGE C VOLATILE;
 
-CREATE FUNCTION repack.repack_swap(oid) RETURNS void AS
+CREATE FUNCTION repack.repack_swap(oid, oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_swap'
 LANGUAGE C VOLATILE STRICT;
 
-CREATE FUNCTION repack.repack_drop(oid, int) RETURNS void AS
+CREATE FUNCTION repack.repack_drop(oid, name, int) RETURNS void AS
 'MODULE_PATHNAME', 'repack_drop'
 LANGUAGE C VOLATILE STRICT;
 
