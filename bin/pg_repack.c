@@ -1059,7 +1059,7 @@ rebuild_indexes(const repack_table *table)
 			/* Assign available worker to build an index. */
 			index_jobs[i].status = INPROGRESS;
 			index_jobs[i].worker_idx = i;
-			elog(LOG, "Initial worker %d to build index: %s",
+			elog(INFO, "Initial worker %d to build index: %s",
 				 i, index_jobs[i].create_index);
 
 			if (!(PQsendQuery(workers.conns[i], index_jobs[i].create_index)))
@@ -1154,7 +1154,7 @@ rebuild_indexes(const repack_table *table)
 					}
 					if (!PQisBusy(workers.conns[index_jobs[i].worker_idx]))
 					{
-						elog(LOG, "Command finished in worker %d: %s",
+						elog(INFO, "Command finished in worker %d: %s",
 							 index_jobs[i].worker_idx,
 							 index_jobs[i].create_index);
 
@@ -1191,7 +1191,7 @@ rebuild_indexes(const repack_table *table)
 					{
 						index_jobs[i].status = INPROGRESS;
 						index_jobs[i].worker_idx = freed_worker;
-						elog(LOG, "Assigning worker %d to build index #%d: "
+						elog(INFO, "Assigning worker %d to build index #%d: "
 							 "%s", freed_worker, i,
 							 index_jobs[i].create_index);
 
