@@ -71,7 +71,7 @@ const char *PROGRAM_VERSION = "unknown";
  * based on pg_backend_pid() and application_name), but that shouldn't hurt
  * anything. Also, the test of application_name is not bulletproof -- for
  * instance, the application name when running installcheck will be
- * pg_regress.
+ * pg_regress/<testname>, or just pg_regress on PostgreSQL <10.
  */
 #define SQL_XID_SNAPSHOT_90200 \
 	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
@@ -1238,7 +1238,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	int             j;
 
 	/* appname will be "pg_repack" in normal use on 9.0+, or
-	 * "pg_regress" when run under `make installcheck`
+	 * "pg_regress/<testname>" when run under `make installcheck`
+	 * ("pg_regress" on PostgreSQL <10).
 	 */
 	const char     *appname = getenv("PGAPPNAME");
 
@@ -1593,7 +1594,9 @@ repack_one_table(repack_table *table, const char *orderby)
 			 * noise which would trip up pg_regress.
 			 */
 
-			if (!appname || strcmp(appname, "pg_regress") != 0)
+			if (!appname ||
+				(strncmp(appname, "pg_regress/", strlen("pg_regress/")) != 0 &&
+				 strcmp(appname, "pg_regress") != 0))
 			{
 				elog(NOTICE, "Waiting for %d transactions to finish. First PID: %s", num, PQgetvalue(res, 0, 0));
 			}
