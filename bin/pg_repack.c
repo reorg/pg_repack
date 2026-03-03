@@ -874,8 +874,13 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 		appendStringInfoString(&sql, ")");
 	}
 
-	/* Ensure the regression tests get a consistent ordering of tables */
-	appendStringInfoString(&sql, " ORDER BY t.relname, t.schemaname");
+	/* Ensure the regression tests get a consistent ordering of tables
+	 * Otherwise repack small objects first to free space on disk
+	 */
+	if (getenv("MAKELEVEL"))
+		appendStringInfoString(&sql, " ORDER BY t.relname, t.schemaname");
+	else
+		appendStringInfoString(&sql, " ORDER BY pg_relation_size(t.relid)");
 
 	/* double check the parameters array is sane */
 	if (iparam != num_params)
