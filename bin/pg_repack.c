@@ -258,6 +258,7 @@ static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
+static bool 			no_error_on_publication = false; /* repack even though publication FOR ALL TABLES is found */
 static bool 			no_error_on_invalid_index = false; /* repack even though invalid index is found */
 static bool 			error_on_invalid_index = false; /* don't repack when invalid index is found,
 								 * deprecated, this the default behavior now */
@@ -292,6 +293,7 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
+	{ 'b', 5, "no-error-on-publicationn", &no_error_on_publication },
 	{ 'b', 4, "no-error-on-invalid-index", &no_error_on_invalid_index },
 	{ 'b', 3, "error-on-invalid-index", &error_on_invalid_index },
 	{ 'i', 2, "apply-count", &apply_count },
@@ -558,6 +560,42 @@ preliminary_checks(char *errbuf, size_t errsize){
 		goto cleanup;
 	}
 	CLEARPGRES(res);
+
+    /*
+     * repack will be aborted with error like
+     *
+     * ERROR:  cannot update table "table_16388" because it does not
+     * have a replica identity and publishes updates
+     *
+     * if a publication FOR ALL TABLES exists and apply_log requires
+     * deleting or updating a row in a temp table. To make this works,
+     * we need to set NOT NULL on columns of primary key and command
+     *
+     * ALTER TABLE repack.table_' || R.oid || ' REPLICA IDENTITY USING INDEX index_' || PK.indexrelid
+     *
+     * In addition, repack might break subscribers of this publication.
+     * For now, we simply refuse to continue.
+     */
+    if (PQserverVersion(connection) >= 100000 && !no_error_on_publication) {
+        res = execute_elevel("SELECT pubname FROM pg_publication WHERE puballtables LIMIT 1",
+            0, NULL, DEBUG2);
+        if (PQresultStatus(res) == PGRES_TUPLES_OK)
+        {
+            if (PQntuples(res) > 0)
+            {
+                const char *pubname;
+                pubname = getstr(res, 0, 0);
+                snprintf(errbuf, errsize, "publication \"%s\" FOR ALL TABLES found: won't be able to apply concurrent UPDATE and DELETE", pubname);
+                goto cleanup;
+            }
+            /* no publications, continue to work */
+        } else {
+            if (errbuf)
+                    snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+            goto cleanup;
+        }
+        CLEARPGRES(res);
+    }
 
 	/* Disable statement timeout. */
 	command("SET statement_timeout = 0", 0, NULL);
@@ -2450,6 +2488,7 @@ pgut_help(bool details)
 	printf("  -Z, --no-analyze                   don't analyze at end\n");
 	printf("  -k, --no-superuser-check           skip superuser checks in client\n");
 	printf("  -C, --exclude-extension            don't repack tables which belong to specific extension\n");
+	printf("      --no-error-on-publication      repack even though a publication FOR ALL TABLES is found\n");
 	printf("      --no-error-on-invalid-index    repack even though invalid index is found\n");
 	printf("      --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now\n");
 	printf("      --apply-count                  number of tuples to apply in one transaction during replay\n");
