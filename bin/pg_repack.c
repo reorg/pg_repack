@@ -561,42 +561,42 @@ preliminary_checks(char *errbuf, size_t errsize){
 	}
 	CLEARPGRES(res);
 
-    /*
-     * repack will be aborted with error like
-     *
-     * ERROR:  cannot update table "table_16388" because it does not
-     * have a replica identity and publishes updates
-     *
-     * if a publication FOR ALL TABLES exists and apply_log requires
-     * deleting or updating a row in a temp table. To make this works,
-     * we need to set NOT NULL on columns of primary key and command
-     *
-     * ALTER TABLE repack.table_' || R.oid || ' REPLICA IDENTITY USING INDEX index_' || PK.indexrelid
-     *
-     * In addition, repack might break subscribers of this publication.
-     * For now, we simply refuse to continue.
-     */
-    if (PQserverVersion(connection) >= 100000 && !no_error_on_publication) {
-        res = execute_elevel("SELECT pubname FROM pg_publication WHERE puballtables LIMIT 1",
-            0, NULL, DEBUG2);
-        if (PQresultStatus(res) == PGRES_TUPLES_OK)
-        {
-            if (PQntuples(res) > 0)
-            {
-                const char *pubname;
-                pubname = getstr(res, 0, 0);
-                snprintf(errbuf, errsize, "publication \"%s\" FOR ALL TABLES found: won't be able to apply concurrent UPDATE and DELETE", pubname);
-                goto cleanup;
-            }
-            /* no publications, continue to work */
-        } else {
-            if (errbuf)
-                    snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
-            goto cleanup;
-        }
-        CLEARPGRES(res);
-    }
-
+	/*
+	 * repack will be aborted with error like
+	 *
+	 * ERROR:  cannot update table "table_16388" because it does not
+	 * have a replica identity and publishes updates
+	 *
+	 * if a publication FOR ALL TABLES exists and apply_log requires
+	 * deleting or updating a row in a temp table. To make this works,
+	 * we need to set NOT NULL on columns of primary key and command
+	 *
+	 * ALTER TABLE repack.table_' || R.oid || ' REPLICA IDENTITY USING INDEX index_' || PK.indexrelid
+	 *
+	 * In addition, repack might break subscribers of this publication.
+	 * For now, we simply refuse to continue.
+	 */
+	if (PQserverVersion(connection) >= 100000 && !no_error_on_publication)
+	{
+		res = execute_elevel("SELECT pubname FROM pg_publication WHERE puballtables LIMIT 1",
+			0, NULL, DEBUG2);
+		if (PQresultStatus(res) == PGRES_TUPLES_OK)
+		{
+			if (PQntuples(res) > 0)
+			{
+				const char *pubname;
+				pubname = getstr(res, 0, 0);
+				snprintf(errbuf, errsize, "publication \"%s\" FOR ALL TABLES found: won't be able to apply concurrent UPDATE and DELETE", pubname);
+				goto cleanup;
+			}
+			/* no publications, continue to work */
+		} else {
+			if (errbuf)
+				snprintf(errbuf, errsize, "%s", PQerrorMessage(connection));
+			goto cleanup;
+		}
+		CLEARPGRES(res);
+	}
 	/* Disable statement timeout. */
 	command("SET statement_timeout = 0", 0, NULL);
 
