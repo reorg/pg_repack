@@ -293,7 +293,7 @@ static pgut_option options[] =
 	{ 'b', 'D', "no-kill-backend", &no_kill_backend },
 	{ 'b', 'k', "no-superuser-check", &no_superuser_check },
 	{ 'l', 'C', "exclude-extension", &exclude_extension_list },
-	{ 'b', 5, "no-error-on-publicationn", &no_error_on_publication },
+	{ 'b', 5, "no-error-on-publication", &no_error_on_publication },
 	{ 'b', 4, "no-error-on-invalid-index", &no_error_on_invalid_index },
 	{ 'b', 3, "error-on-invalid-index", &error_on_invalid_index },
 	{ 'i', 2, "apply-count", &apply_count },
