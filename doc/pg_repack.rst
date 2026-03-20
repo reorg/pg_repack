@@ -126,6 +126,7 @@ Options:
   -Z, --no-analyze                   don't analyze at end
   -k, --no-superuser-check           skip superuser checks in client
   -C, --exclude-extension            don't repack tables which belong to specific extension
+      --no-error-on-publication      repack even though publication for all tables is found
       --no-error-on-invalid-index    repack even though invalid index is found
       --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now
       --apply-count                  number of tuples to apply in one trasaction during replay
