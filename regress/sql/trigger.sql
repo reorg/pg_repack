@@ -5,7 +5,8 @@
 CREATE TABLE trigger_t1 (a int, b int, primary key (a, b));
 CREATE INDEX trigger_t1_idx ON trigger_t1 (a, b);
 
-SELECT create_trigger FROM repack.tables WHERE relname = 'public.trigger_t1';
+SELECT regexp_replace(create_trigger, '[0-9]', 'X', 'g')
+FROM repack.tables WHERE relname = 'public.trigger_t1';
 
 SELECT oid AS t1_oid FROM pg_catalog.pg_class WHERE relname = 'trigger_t1'
 \gset

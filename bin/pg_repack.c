@@ -1572,13 +1572,11 @@ repack_one_table(repack_table *table, const char *orderby)
 	params[0] = utoa(table->target_oid, buffer);
 	params[1] = table->dest_tablespace;
 	command(table->create_table, 2, params);
-	if (table->alter_col_storage)
-		command(table->alter_col_storage, 0, NULL);
+	command(table->alter_col_storage, 0, NULL);
 	command(table->copy_data, 0, NULL);
 	temp_obj_num++;
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
-	if (table->drop_columns)
-		command(table->drop_columns, 0, NULL);
+	command(table->drop_columns, 0, NULL);
 	command(sql.data, 0, NULL);
 	command("COMMIT", 0, NULL);
 
