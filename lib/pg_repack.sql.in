@@ -44,7 +44,7 @@ $$
 $$
 LANGUAGE sql STABLE STRICT;
 
-CREATE FUNCTION repack.get_order_by(oid, oid) RETURNS text AS
+CREATE FUNCTION repack.get_order_by(oid) RETURNS text AS
 'MODULE_PATHNAME', 'repack_get_order_by'
 LANGUAGE C STABLE STRICT;
 
@@ -372,7 +372,7 @@ CREATE VIEW repack.tables AS
             R.oid) AS delete_log,
          format('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE',
             repack.oid2text(R.oid)) AS lock_table,
-         repack.get_order_by(CK.indexrelid, R.oid) AS ckey,
+         repack.get_order_by(CK.indexrelid) AS ckey,
          format('SELECT * FROM repack.log_%s ORDER BY id LIMIT $1',
             R.oid) AS sql_peek,
          format('INSERT INTO repack.table_%s VALUES($1.*)',
@@ -409,7 +409,7 @@ CREATE VIEW repack.tables AS
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
      AND N.nspname NOT LIKE E'pg\\_temp\\_%';
 
-CREATE FUNCTION repack.repack_indexdef(oid, oid, name, bool) RETURNS text AS
+CREATE FUNCTION repack.repack_indexdef(oid, text, name, bool) RETURNS text AS
 'MODULE_PATHNAME', 'repack_indexdef'
 LANGUAGE C STABLE;
 

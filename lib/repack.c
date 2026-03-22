@@ -374,7 +374,6 @@ typedef struct IndexDef
 {
 	char *create;	/* CREATE INDEX or CREATE UNIQUE INDEX */
 	char *index;	/* index name including schema */
-	char *table;	/* table name including schema */
 	char *type;		/* btree, hash, gist or gin */
 	char *columns;	/* column definition */
 	char *options;	/* options after columns, before TABLESPACE (e.g. COLLATE) */
@@ -569,11 +568,10 @@ skip_until(Oid index, char *sql, char end)
 }
 
 static void
-parse_indexdef(IndexDef *stmt, Oid index, Oid table)
+parse_indexdef(IndexDef *stmt, Oid index)
 {
 	char *sql = pg_get_indexdef_string(index);
 	const char *idxname = get_quoted_relname(index);
-	const char *tblname = get_relation_name(table);
 	const char *limit = strchr(sql, '\0');
 
 	/* CREATE [UNIQUE] INDEX */
@@ -584,9 +582,10 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 	sql = skip_const(index, sql, idxname, NULL);
 	/* ON */
 	sql = skip_const(index, sql, "ON", NULL);
+	/* schema */
+	sql = skip_ident(index, sql);
 	/* table */
-	stmt->table = sql;
-	sql = skip_const(index, sql, tblname, NULL);
+	sql = skip_ident(index, sql);
 	/* USING */
 	sql = skip_const(index, sql, "USING", NULL);
 	/* type */
@@ -623,7 +622,6 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 
 	elog(DEBUG2, "indexdef.create  = %s", stmt->create);
 	elog(DEBUG2, "indexdef.index   = %s", stmt->index);
-	elog(DEBUG2, "indexdef.table   = %s", stmt->table);
 	elog(DEBUG2, "indexdef.type    = %s", stmt->type);
 	elog(DEBUG2, "indexdef.columns = %s", stmt->columns);
 	elog(DEBUG2, "indexdef.options = %s", stmt->options);
@@ -671,14 +669,12 @@ parse_indexdef_col(char *token, char **desc, char **nulls, char **collate)
  * repack_get_order_by(index, table)
  *
  * @param	index	Oid of target index.
- * @param	table	Oid of table of the index.
  * @retval			Create index DDL for temp table.
  */
 Datum
 repack_get_order_by(PG_FUNCTION_ARGS)
 {
 	Oid				index = PG_GETARG_OID(0);
-	Oid				table = PG_GETARG_OID(1);
 	IndexDef		stmt;
 	char		   *token;
 	char		   *next;
@@ -686,7 +682,7 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 	Relation		indexRel = NULL;
 	int				nattr;
 
-	parse_indexdef(&stmt, index, table);
+	parse_indexdef(&stmt, index);
 
 	/*
 	 * FIXME: this is very unreliable implementation but I don't want to
@@ -774,7 +770,7 @@ repack_get_order_by(PG_FUNCTION_ARGS)
  * repack_indexdef(index, table)
  *
  * @param	index		Oid of target index.
- * @param	table		Oid of table of the index.
+ * @param	tablename	Name of table of the index.
  * @param	tablespace	Namespace for the index. If NULL keep the original.
  * @param   boolean		Whether to use CONCURRENTLY when creating the index.
  * @retval			Create index DDL for temp table.
@@ -783,7 +779,7 @@ Datum
 repack_indexdef(PG_FUNCTION_ARGS)
 {
 	Oid				index;
-	Oid				table;
+	const char	   *tablename;
 	Name			tablespace = NULL;
 	IndexDef		stmt;
 	StringInfoData	str;
@@ -793,20 +789,20 @@ repack_indexdef(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	index = PG_GETARG_OID(0);
-	table = PG_GETARG_OID(1);
+	tablename = text_to_cstring(PG_GETARG_TEXT_PP(1));
 
 	if (!PG_ARGISNULL(2))
 		tablespace = PG_GETARG_NAME(2);
 
-	parse_indexdef(&stmt, index, table);
+	parse_indexdef(&stmt, index);
 
 	initStringInfo(&str);
 	if (concurrent_index)
 		appendStringInfo(&str, "%s CONCURRENTLY index_%u ON %s USING %s (%s)%s",
-			stmt.create, index, stmt.table, stmt.type, stmt.columns, stmt.options);
+			stmt.create, index, tablename, stmt.type, stmt.columns, stmt.options);
 	else
-		appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)%s",
-			stmt.create, index, table, stmt.type, stmt.columns, stmt.options);
+		appendStringInfo(&str, "%s index_%u ON %s USING %s (%s)%s",
+			stmt.create, index, tablename, stmt.type, stmt.columns, stmt.options);
 
 	/* specify the new tablespace or the original one if any */
 	if (tablespace || stmt.tablespace)

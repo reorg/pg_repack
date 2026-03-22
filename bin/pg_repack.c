@@ -1375,7 +1375,7 @@ repack_one_table(repack_table *table, const char *orderby)
 
 	indexres = execute(
 		"SELECT indexrelid,"
-		" repack.repack_indexdef(indexrelid, indrelid, $2, FALSE) "
+		" repack.repack_indexdef(indexrelid, format('repack.table_%s', indrelid), $2, FALSE) "
 		" FROM pg_index WHERE indrelid = $1 AND indisvalid",
 		2, indexparams);
 
@@ -2236,7 +2236,7 @@ repack_table_indexes(PGresult *index_details)
 				continue;
 
 			params[0] = utoa(index, buffer[0]);
-			res = execute("SELECT repack.repack_indexdef($1, $2, $3, true)", 3,
+			res = execute("SELECT repack.repack_indexdef($1, repack.oid2text($2), $3, true)", 3,
 						  params);
 
 			if (PQntuples(res) < 1)
