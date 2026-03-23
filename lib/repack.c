@@ -155,8 +155,9 @@ repack_version(PG_FUNCTION_ARGS)
  * @fn      Datum repack_trigger(PG_FUNCTION_ARGS)
  * @brief   Insert a operation log into log-table.
  *
- * repack_trigger(column1, ..., columnN)
+ * repack_trigger(temp_schema, column1, ..., columnN)
  *
+ * @param	temp_schema	A schema where temporary objects are stored.
  * @param	column1		A column of the table in primary key/unique index.
  * ...
  * @param	columnN		A column of the table in primary key/unique index.
@@ -172,6 +173,9 @@ repack_trigger(PG_FUNCTION_ARGS)
 	Oid				argtypes[2];
 	Oid				relid;
 	StringInfo		sql;
+	char		   *temp_schema = trigdata->tg_trigger->tgargs[0];
+	char		  **columns = trigdata->tg_trigger->tgargs + 1;
+	int16			ncolumns = trigdata->tg_trigger->tgnargs - 1;
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
@@ -213,12 +217,14 @@ repack_trigger(PG_FUNCTION_ARGS)
 
 	/* prepare INSERT query */
 	sql = makeStringInfo();
-	appendStringInfo(sql, "INSERT INTO repack.log_%u(pk, row) "
-		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(", relid);
-	appendStringInfo(sql, "$1.%s", quote_identifier(trigdata->tg_trigger->tgargs[0]));
-	for (int i = 1; i < trigdata->tg_trigger->tgnargs; ++i)
-		appendStringInfo(sql, ", $1.%s", quote_identifier(trigdata->tg_trigger->tgargs[i]));
-	appendStringInfo(sql, ")::repack.pk_%u) END, $2)", relid);
+	appendStringInfo(sql, "INSERT INTO %s.log_%u(pk, row) "
+		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(",
+		quote_identifier(temp_schema), relid);
+	appendStringInfo(sql, "$1.%s", quote_identifier(columns[0]));
+	for (int i = 1; i < ncolumns; ++i)
+		appendStringInfo(sql, ", $1.%s", quote_identifier(columns[i]));
+	appendStringInfo(sql, ")::%s.pk_%u) END, $2)",
+		quote_identifier(temp_schema), relid);
 
 	/* execute the INSERT query */
 	execute_with_args(SPI_OK_INSERT, sql->data, 2, argtypes, values, nulls);
@@ -374,7 +380,6 @@ typedef struct IndexDef
 {
 	char *create;	/* CREATE INDEX or CREATE UNIQUE INDEX */
 	char *index;	/* index name including schema */
-	char *table;	/* table name including schema */
 	char *type;		/* btree, hash, gist or gin */
 	char *columns;	/* column definition */
 	char *options;	/* options after columns, before TABLESPACE (e.g. COLLATE) */
@@ -569,11 +574,10 @@ skip_until(Oid index, char *sql, char end)
 }
 
 static void
-parse_indexdef(IndexDef *stmt, Oid index, Oid table)
+parse_indexdef(IndexDef *stmt, Oid index)
 {
 	char *sql = pg_get_indexdef_string(index);
 	const char *idxname = get_quoted_relname(index);
-	const char *tblname = get_relation_name(table);
 	const char *limit = strchr(sql, '\0');
 
 	/* CREATE [UNIQUE] INDEX */
@@ -584,9 +588,10 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 	sql = skip_const(index, sql, idxname, NULL);
 	/* ON */
 	sql = skip_const(index, sql, "ON", NULL);
+	/* schema */
+	sql = skip_ident(index, sql);
 	/* table */
-	stmt->table = sql;
-	sql = skip_const(index, sql, tblname, NULL);
+	sql = skip_ident(index, sql);
 	/* USING */
 	sql = skip_const(index, sql, "USING", NULL);
 	/* type */
@@ -623,7 +628,6 @@ parse_indexdef(IndexDef *stmt, Oid index, Oid table)
 
 	elog(DEBUG2, "indexdef.create  = %s", stmt->create);
 	elog(DEBUG2, "indexdef.index   = %s", stmt->index);
-	elog(DEBUG2, "indexdef.table   = %s", stmt->table);
 	elog(DEBUG2, "indexdef.type    = %s", stmt->type);
 	elog(DEBUG2, "indexdef.columns = %s", stmt->columns);
 	elog(DEBUG2, "indexdef.options = %s", stmt->options);
@@ -671,14 +675,12 @@ parse_indexdef_col(char *token, char **desc, char **nulls, char **collate)
  * repack_get_order_by(index, table)
  *
  * @param	index	Oid of target index.
- * @param	table	Oid of table of the index.
  * @retval			Create index DDL for temp table.
  */
 Datum
 repack_get_order_by(PG_FUNCTION_ARGS)
 {
 	Oid				index = PG_GETARG_OID(0);
-	Oid				table = PG_GETARG_OID(1);
 	IndexDef		stmt;
 	char		   *token;
 	char		   *next;
@@ -686,7 +688,7 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 	Relation		indexRel = NULL;
 	int				nattr;
 
-	parse_indexdef(&stmt, index, table);
+	parse_indexdef(&stmt, index);
 
 	/*
 	 * FIXME: this is very unreliable implementation but I don't want to
@@ -771,10 +773,10 @@ repack_get_order_by(PG_FUNCTION_ARGS)
  * @fn      Datum repack_indexdef(PG_FUNCTION_ARGS)
  * @brief   Reproduce DDL that create index at the temp table.
  *
- * repack_indexdef(index, table)
+ * repack_indexdef(index, tablename, tablespace, concurrent_index)
  *
  * @param	index		Oid of target index.
- * @param	table		Oid of table of the index.
+ * @param	tablename	Full name of table of the index.
  * @param	tablespace	Namespace for the index. If NULL keep the original.
  * @param   boolean		Whether to use CONCURRENTLY when creating the index.
  * @retval			Create index DDL for temp table.
@@ -783,7 +785,7 @@ Datum
 repack_indexdef(PG_FUNCTION_ARGS)
 {
 	Oid				index;
-	Oid				table;
+	const char	   *tablename;
 	Name			tablespace = NULL;
 	IndexDef		stmt;
 	StringInfoData	str;
@@ -793,20 +795,20 @@ repack_indexdef(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	index = PG_GETARG_OID(0);
-	table = PG_GETARG_OID(1);
+	tablename = text_to_cstring(PG_GETARG_TEXT_PP(1));
 
 	if (!PG_ARGISNULL(2))
 		tablespace = PG_GETARG_NAME(2);
 
-	parse_indexdef(&stmt, index, table);
+	parse_indexdef(&stmt, index);
 
 	initStringInfo(&str);
 	if (concurrent_index)
 		appendStringInfo(&str, "%s CONCURRENTLY index_%u ON %s USING %s (%s)%s",
-			stmt.create, index, stmt.table, stmt.type, stmt.columns, stmt.options);
+			stmt.create, index, tablename, stmt.type, stmt.columns, stmt.options);
 	else
-		appendStringInfo(&str, "%s index_%u ON repack.table_%u USING %s (%s)%s",
-			stmt.create, index, table, stmt.type, stmt.columns, stmt.options);
+		appendStringInfo(&str, "%s index_%u ON %s USING %s (%s)%s",
+			stmt.create, index, tablename, stmt.type, stmt.columns, stmt.options);
 
 	/* specify the new tablespace or the original one if any */
 	if (tablespace || stmt.tablespace)
@@ -832,22 +834,24 @@ getoid(HeapTuple tuple, TupleDesc desc, int column)
  * @brief   Swapping relfilenode of tables and relation ids of toast tables
  *          and toast indexes.
  *
- * repack_swap(oid, relname)
+ * repack_swap(oid, oid)
  *
  * TODO: remove useless CommandCounterIncrement().
  *
  * @param	oid		Oid of table of target.
+ * @param	tempoid	Oid of temporary table.
  * @retval			None.
  */
 Datum
 repack_swap(PG_FUNCTION_ARGS)
 {
 	Oid				oid = PG_GETARG_OID(0);
+	Oid				tempoid = PG_GETARG_OID(1);
 	const char	   *relname = get_quoted_relname(oid);
 	const char	   *nspname = get_quoted_nspname(oid);
-	Oid 			argtypes[1] = { OIDOID };
-	bool	 		nulls[1] = { 0 };
-	Datum	 		values[1];
+	Oid 			argtypes[2] = { OIDOID, OIDOID };
+	bool	 		nulls[2] = { 0, 0 };
+	Datum	 		values[2];
 	SPITupleTable  *tuptable;
 	TupleDesc		desc;
 	HeapTuple		tuple;
@@ -870,6 +874,7 @@ repack_swap(PG_FUNCTION_ARGS)
 
 	/* swap relfilenode and dependencies for tables. */
 	values[0] = ObjectIdGetDatum(oid);
+	values[1] = ObjectIdGetDatum(tempoid);
 	execute_with_args(SPI_OK_SELECT,
 		"SELECT X.reltoastrelid, TX.indexrelid, X.relowner,"
 		"       Y.oid, Y.reltoastrelid, TY.indexrelid, Y.relowner"
@@ -878,8 +883,8 @@ repack_swap(PG_FUNCTION_ARGS)
 		"       pg_catalog.pg_class Y LEFT JOIN pg_catalog.pg_index TY"
 		"         ON Y.reltoastrelid = TY.indrelid AND TY.indisvalid"
 		" WHERE X.oid = $1"
-		"   AND Y.oid = ('repack.table_' || X.oid)::regclass",
-		1, argtypes, values, nulls);
+		"   AND Y.oid = $2",
+		2, argtypes, values, nulls);
 
 	tuptable = SPI_tuptable;
 	desc = tuptable->tupdesc;
@@ -934,16 +939,16 @@ repack_swap(PG_FUNCTION_ARGS)
 
 	/* swap indexes. */
 	values[0] = ObjectIdGetDatum(oid);
+	values[1] = ObjectIdGetDatum(tempoid);
 	execute_with_args(SPI_OK_SELECT,
-		"SELECT X.oid, Y.oid"
-		"  FROM pg_catalog.pg_index I,"
-		"       pg_catalog.pg_class X,"
-		"       pg_catalog.pg_class Y"
-		" WHERE I.indrelid = $1"
-		"   AND I.indexrelid = X.oid"
-		"   AND I.indisvalid"
-		"   AND Y.oid = ('repack.index_' || X.oid)::regclass",
-		1, argtypes, values, nulls);
+		"SELECT IX.indexrelid, Y.oid"
+		"  FROM pg_catalog.pg_index IX"
+		"  JOIN pg_catalog.pg_class Y ON Y.relname = 'index_' || IX.indexrelid"
+		"  JOIN pg_catalog.pg_index IY ON IY.indexrelid = Y.oid"
+		" WHERE IX.indrelid = $1"
+		"   AND IX.indisvalid"
+		"   AND IY.indrelid = $2",
+		2, argtypes, values, nulls);
 
 	tuptable = SPI_tuptable;
 	desc = tuptable->tupdesc;
@@ -1044,16 +1049,19 @@ repack_swap(PG_FUNCTION_ARGS)
  * @fn      Datum repack_drop(PG_FUNCTION_ARGS)
  * @brief   Delete temporarily objects.
  *
- * repack_drop(oid, relname)
+ * repack_drop(oid, temp_schemaname, numobj)
  *
- * @param	oid		Oid of target table.
- * @retval			None.
+ * @param	oid			Oid of target table.
+ * @param	temp_schema	A schema where temporary objects are stored.
+ * @param	numobj		Number of objects to drop.
+ * @retval				None.
  */
 Datum
 repack_drop(PG_FUNCTION_ARGS)
 {
 	Oid			oid = PG_GETARG_OID(0);
-	int			numobj = PG_GETARG_INT32(1);
+	Name		temp_schema = PG_GETARG_NAME(1);
+	int			numobj = PG_GETARG_INT32(2);
 	const char *relname = get_quoted_relname(oid);
 	const char *nspname = get_quoted_nspname(oid);
 	bool		trigger_exists = true;
@@ -1121,8 +1129,8 @@ repack_drop(PG_FUNCTION_ARGS)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
-			"DROP TABLE IF EXISTS repack.log_%u CASCADE",
-			oid);
+			"DROP TABLE IF EXISTS %s.log_%u CASCADE",
+			quote_identifier(NameStr(*temp_schema)), oid);
 		--numobj;
 	}
 
@@ -1131,8 +1139,8 @@ repack_drop(PG_FUNCTION_ARGS)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
-			"DROP TYPE IF EXISTS repack.pk_%u",
-			oid);
+			"DROP TYPE IF EXISTS %s.pk_%u",
+			quote_identifier(NameStr(*temp_schema)), oid);
 		--numobj;
 	}
 
@@ -1155,8 +1163,8 @@ repack_drop(PG_FUNCTION_ARGS)
 	{
 		execute_with_format(
 			SPI_OK_UTILITY,
-			"DROP TABLE IF EXISTS repack.table_%u CASCADE",
-			oid);
+			"DROP TABLE IF EXISTS %s.table_%u CASCADE",
+			quote_identifier(NameStr(*temp_schema)), oid);
 		--numobj;
 	}
 
