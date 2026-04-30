@@ -179,6 +179,13 @@ repack_trigger(PG_FUNCTION_ARGS)
 	Oid				argtypes[2];
 	Oid				relid;
 	StringInfo		sql;
+	Oid				log_owner;
+	HeapTuple		classtup;
+	Oid				save_userid;
+	int				save_sec_context;
+	int				save_nestlevel;
+	char			log_relname[NAMEDATALEN];
+	Oid				repack_nsid;
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
@@ -218,17 +225,57 @@ repack_trigger(PG_FUNCTION_ARGS)
 		values[1] = copy_tuple(tuple, desc);
 	}
 
+	/*
+	 * Look up the log table owner so we can switch to that user for the
+	 * INSERT.  This allows the trigger to write to the log table even when
+	 * fired by a user who doesn't own it without requiring SECURITY DEFINER on
+	 * the entire function.
+	 */
+	repack_nsid = get_namespace_oid("repack", false);
+	snprintf(log_relname, sizeof(log_relname), "log_%u", relid);
+	classtup = SearchSysCache2(RELNAMENSP,
+							   CStringGetDatum(log_relname),
+							   ObjectIdGetDatum(repack_nsid));
+	if (!HeapTupleIsValid(classtup))
+		elog(ERROR, "repack_trigger: log table repack.%s not found", log_relname);
+	log_owner = ((Form_pg_class) GETSTRUCT(classtup))->relowner;
+	ReleaseSysCache(classtup);
+
 	/* prepare INSERT query */
 	sql = makeStringInfo();
-	appendStringInfo(sql, "INSERT INTO repack.log_%u(pk, row) "
-		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(", relid);
+	appendStringInfo(sql, "INSERT INTO repack.%s(pk, row) "
+		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(", log_relname);
 	appendStringInfo(sql, "$1.%s", quote_identifier(trigdata->tg_trigger->tgargs[0]));
 	for (int i = 1; i < trigdata->tg_trigger->tgnargs; ++i)
 		appendStringInfo(sql, ", $1.%s", quote_identifier(trigdata->tg_trigger->tgargs[i]));
 	appendStringInfo(sql, ")::repack.pk_%u) END, $2)", relid);
 
-	/* execute the INSERT query */
-	execute_with_args(SPI_OK_INSERT, sql->data, 2, argtypes, values, nulls);
+	/* Switch to the repack.log_%u table owner, it gives enough privileges to INSERT */
+	GetUserIdAndSecContext(&save_userid, &save_sec_context);
+	SetUserIdAndSecContext(log_owner,
+						   save_sec_context |
+						   SECURITY_LOCAL_USERID_CHANGE |
+						   SECURITY_RESTRICTED_OPERATION);
+
+	save_nestlevel = NewGUCNestLevel();
+
+	PG_TRY();
+	{
+		/* execute the INSERT query */
+		execute_with_args(SPI_OK_INSERT, sql->data, 2, argtypes, values, nulls);
+	}
+	PG_CATCH();
+	{
+		AtEOXact_GUC(false, save_nestlevel);
+		SetUserIdAndSecContext(save_userid, save_sec_context);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
+
+	/* Roll back any GUC changes performed by rules during the INSERT */
+	AtEOXact_GUC(false, save_nestlevel);
+
+	SetUserIdAndSecContext(save_userid, save_sec_context);
 
 	SPI_finish();
 
