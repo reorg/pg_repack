@@ -444,7 +444,7 @@ is_superuser(void)
  * Raise an exception on error.
  */
 void
-check_tablespace()
+check_tablespace(void)
 {
 	PGresult		*res = NULL;
 	const char *params[1];
