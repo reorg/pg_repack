@@ -64,7 +64,23 @@
 #include "utils/ruleutils.h"
 #endif
 
+#ifdef REPACK_VERSION
+/* macro trick to stringify a macro expansion */
+#define xstr(s) str(s)
+#define str(s) #s
+#define LIBRARY_VERSION xstr(REPACK_VERSION)
+#else
+#define LIBRARY_VERSION "unknown"
+#endif
+
+#if PG_VERSION_NUM >= 180000
+PG_MODULE_MAGIC_EXT(
+	.name = "pg_repack",
+	.version = LIBRARY_VERSION
+);
+#else
 PG_MODULE_MAGIC;
+#endif
 
 extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_trigger(PG_FUNCTION_ARGS);
@@ -134,15 +150,6 @@ must_be_owner(Oid relId)
 #define RENAME_INDEX(relid, newrelname) RENAME_REL(relid, newrelname);
 #else
 #define RENAME_INDEX(relid, newrelname) RenameRelationInternal(relid, newrelname, true, true);
-#endif
-
-#ifdef REPACK_VERSION
-/* macro trick to stringify a macro expansion */
-#define xstr(s) str(s)
-#define str(s) #s
-#define LIBRARY_VERSION xstr(REPACK_VERSION)
-#else
-#define LIBRARY_VERSION "unknown"
 #endif
 
 Datum
