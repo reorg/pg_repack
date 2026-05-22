@@ -1157,6 +1157,16 @@ repack_drop(PG_FUNCTION_ARGS)
 		--numobj;
 	}
 
+    /* drop sequence for tracking insert progress */
+    if (numobj > 0)
+    {
+        execute_with_format(
+            SPI_OK_UTILITY,
+            "DROP SEQUENCE IF EXISTS repack.track_insert_%u",
+            oid);
+        --numobj;
+    }
+
 	/* drop temp table */
 	if (numobj > 0)
 	{
