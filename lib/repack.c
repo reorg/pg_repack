@@ -259,18 +259,8 @@ repack_trigger(PG_FUNCTION_ARGS)
 
 	save_nestlevel = NewGUCNestLevel();
 
-	PG_TRY();
-	{
-		/* execute the INSERT query */
-		execute_with_args(SPI_OK_INSERT, sql->data, 2, argtypes, values, nulls);
-	}
-	PG_CATCH();
-	{
-		AtEOXact_GUC(false, save_nestlevel);
-		SetUserIdAndSecContext(save_userid, save_sec_context);
-		PG_RE_THROW();
-	}
-	PG_END_TRY();
+	/* execute the INSERT query */
+	execute_with_args(SPI_OK_INSERT, sql->data, 2, argtypes, values, nulls);
 
 	/* Roll back any GUC changes performed by rules during the INSERT */
 	AtEOXact_GUC(false, save_nestlevel);
