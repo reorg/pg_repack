@@ -339,7 +339,7 @@ LANGUAGE C STABLE;
 
 CREATE FUNCTION repack.repack_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'repack_trigger'
-LANGUAGE C VOLATILE STRICT SECURITY DEFINER
+LANGUAGE C VOLATILE STRICT
 SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.conflicted_triggers(oid) RETURNS SETOF name AS
