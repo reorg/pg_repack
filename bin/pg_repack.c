@@ -615,7 +615,8 @@ cleanup:
 
 /*
  * Check the presence of tables specified by --parent-table and --table
- * otherwise format user-friendly message
+ * and of indexes specified by --index, otherwise format user-friendly
+ * message
  */
 static bool
 is_requested_relation_exists(char *errbuf, size_t errsize){
@@ -628,7 +629,8 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 	SimpleStringListCell   *cell;
 
 	num_relations = simple_string_list_size(parent_table_list) +
-					simple_string_list_size(table_list);
+					simple_string_list_size(table_list) +
+					simple_string_list_size(r_index);
 
 	/* nothing was implicitly requested, so nothing to do here */
 	if (num_relations == 0)
@@ -656,6 +658,13 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 		if (iparam < num_relations)
 			appendStringInfoChar(&sql, ',');
 	}
+	for (cell = r_index.head; cell; cell = cell->next)
+	{
+		appendStringInfo(&sql, "($%d, 'i')", iparam + 1);
+		params[iparam++] = cell->val;
+		if (iparam < num_relations)
+			appendStringInfoChar(&sql, ',');
+	}
 	appendStringInfoString(&sql,
 		") AS given_t(r,kind) WHERE"
 		/* regular --table relation or inherited --parent-table */
@@ -664,6 +673,8 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 		/* declarative partitioned --parent-table */
 		" AND NOT EXISTS("
 		"  SELECT FROM pg_catalog.pg_class c WHERE c.oid=to_regclass(given_t.r) AND c.relkind = given_t.kind AND given_t.kind = 'p')"
+		/* --index: the relation must exist, whether it is an index is checked later */
+		" AND NOT (given_t.kind = 'i' AND to_regclass(given_t.r) IS NOT NULL)"
 	);
 
 	/* double check the parameters array is sane */
@@ -2345,6 +2356,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	StringInfoData			sql;
 	SimpleStringListCell	*cell = NULL;
 	const char				*params[1];
+	int						nfailed = 0;
 
 	initStringInfo(&sql);
 	reconnect(ERROR);
@@ -2400,6 +2412,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			if (PQresultStatus(res) != PGRES_TUPLES_OK)
 			{
 				elog(WARNING, "%s", PQerrorMessage(connection));
+				nfailed++;
 				continue;
 			}
 
@@ -2408,6 +2421,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			if (nchildren == 0)
 			{
 				elog(WARNING, "relation \"%s\" does not exist", cell->val);
+				nfailed++;
 				continue;
 			}
 
@@ -2429,6 +2443,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 		if (PQresultStatus(res) != PGRES_TUPLES_OK)
 		{
 			elog(WARNING, "%s", PQerrorMessage(connection));
+			nfailed++;
 			continue;
 		}
 
@@ -2438,8 +2453,11 @@ repack_all_indexes(char *errbuf, size_t errsize)
 				elog(WARNING, "\"%s\" does not have any indexes",
 					cell->val);
 			else if(r_index.head)
+			{
 				elog(WARNING, "\"%s\" is not a valid index",
 					cell->val);
+				nfailed++;
+			}
 
 			continue;
 		}
@@ -2448,11 +2466,24 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			elog(INFO, "repacking indexes of \"%s\"", cell->val);
 
 		if (!repack_table_indexes(res))
+		{
 			elog(WARNING, "repack failed for \"%s\"", cell->val);
+			nfailed++;
+		}
 
 		CLEARPGRES(res);
 	}
-	ret = true;
+
+	/*
+	 * Warnings alone would leave the exit code at 0, which hides failures
+	 * from scripts; make sure the caller reports an error (issue #468).
+	 */
+	if (nfailed == 0)
+		ret = true;
+	else if (errbuf)
+		snprintf(errbuf, errsize,
+				 "failed to repack %d relation(s), see the warnings above",
+				 nfailed);
 
 cleanup:
 	disconnect();
