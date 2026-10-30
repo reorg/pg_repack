@@ -390,6 +390,7 @@ ERROR: pg_repack failed with error: ERROR:  relation "partitioned_a" does not ex
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=partitioned_a --only-indexes
 WARNING: ERROR:  relation "partitioned_a" does not exist
+ERROR: failed to repack 1 relation(s), see the warnings above
 -- => OK
 \! pg_repack --dbname=contrib_regression --parent-table=partitioned_a --parent-table=parent_a
 ERROR: pg_repack failed with error: ERROR:  relation "partitioned_a" does not exist
@@ -402,3 +403,4 @@ INFO: repacking indexes of "public.child_a_2"
 INFO: repacking index "public.child_a_2_pkey"
 INFO: repacking indexes of "public.parent_a"
 INFO: repacking index "public.parent_a_pkey"
+ERROR: failed to repack 1 relation(s), see the warnings above
