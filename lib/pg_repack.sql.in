@@ -307,11 +307,11 @@ CREATE VIEW repack.tables AS
          'DELETE FROM repack.log_' || R.oid AS delete_log,
          'LOCK TABLE ' || repack.oid2text(R.oid) || ' IN ACCESS EXCLUSIVE MODE' AS lock_table,
          repack.get_order_by(CK.indexrelid, R.oid) AS ckey,
-         'SELECT * FROM repack.log_' || R.oid || ' ORDER BY id LIMIT $1' AS sql_peek,
+         'WITH peek_data AS (SELECT * FROM repack.log_' || R.oid || ' LIMIT $1), non_inserts AS (SELECT max(id) as id FROM peek_data where pk is not null group by pk), inserts AS (SELECT id FROM peek_data WHERE pk is null), ids_to_process AS (Select id FROM non_inserts UNION Select id FROM inserts) SELECT pd.* FROM peek_data pd JOIN ids_to_process ids on pd.id = ids.id order by id' AS sql_peek,
          'INSERT INTO repack.table_' || R.oid || ' VALUES ($1.*)' AS sql_insert,
          'DELETE FROM repack.table_' || R.oid || ' WHERE ' || repack.get_compare_pkey(PK.indexrelid, '$1') AS sql_delete,
          'UPDATE repack.table_' || R.oid || ' SET ' || repack.get_assign(R.oid, '$2') || ' WHERE ' || repack.get_compare_pkey(PK.indexrelid, '$1') AS sql_update,
-         'DELETE FROM repack.log_' || R.oid || ' WHERE id IN (' AS sql_pop
+         'DELETE FROM repack.log_' || R.oid || ' WHERE id <= ' AS sql_pop
     FROM pg_class R
          LEFT JOIN pg_class T ON R.reltoastrelid = T.oid
          LEFT JOIN repack.primary_keys PK
