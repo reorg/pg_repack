@@ -344,7 +344,7 @@ pg_repack from the database and install it again: for PostgreSQL 9.1 and
 following execute ``DROP EXTENSION pg_repack CASCADE`` in the database where
 the error occurred, followed by ``CREATE EXTENSION pg_repack``; for previous
 version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
-database where the error occured and then load
+database where the error occurred and then load
 ``$SHAREDIR/contrib/pg_repack.sql`` again.
 
 .. class:: diag

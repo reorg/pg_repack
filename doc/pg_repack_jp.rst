@@ -585,7 +585,7 @@ PostgreSQLサーバに接続するためのオプションです。
   following execute ``DROP EXTENSION pg_repack CASCADE`` in the database where
   the error occurred, followed by ``CREATE EXTENSION pg_repack``; for previous
   version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
-  database where the error occured and then load
+  database where the error occurred and then load
   ``$SHAREDIR/contrib/pg_repack.sql`` again.
 
 pg_repackが失敗した場合、エラーメッセージが表示されます。
