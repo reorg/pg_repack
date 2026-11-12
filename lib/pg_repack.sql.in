@@ -16,13 +16,14 @@ CREATE FUNCTION repack.version_sql() RETURNS text AS
 $$SELECT 'pg_repack REPACK_VERSION'::text$$
 LANGUAGE SQL IMMUTABLE STRICT;
 
--- Always specify search_path to 'pg_catalog' so that we
+-- Always specify search_path as 'pg_catalog' so that we
 -- always can get schema-qualified relation name
 CREATE FUNCTION repack.oid2text(oid) RETURNS text AS
 $$
 	SELECT textin(regclassout($1));
 $$
-LANGUAGE sql STABLE STRICT SET search_path to 'pg_catalog';
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 -- Get a comma-separated column list of the index.
 --
@@ -42,11 +43,13 @@ $$
    WHERE attrelid = indrelid
      AND attnum = indkey[i];
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.get_order_by(oid, oid) RETURNS text AS
 'MODULE_PATHNAME', 'repack_get_order_by'
-LANGUAGE C STABLE STRICT;
+LANGUAGE C STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.create_log_table(oid) RETURNS void AS
 $$
@@ -59,7 +62,8 @@ BEGIN
         $1, $1, repack.oid2text($1));
 END
 $$
-LANGUAGE plpgsql;
+LANGUAGE plpgsql
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.create_table(oid, name) RETURNS void AS
 $$
@@ -74,7 +78,8 @@ BEGIN
         repack.oid2text($1));
 END
 $$
-LANGUAGE plpgsql;
+LANGUAGE plpgsql
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.create_index_type(oid, oid) RETURNS void AS
 $$
@@ -82,7 +87,8 @@ BEGIN
     EXECUTE repack.get_create_index_type($1, 'repack.pk_' || $2);
 END
 $$
-LANGUAGE plpgsql;
+LANGUAGE plpgsql
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.get_create_index_type(oid, name) RETURNS text AS
 $$
@@ -100,7 +106,8 @@ $$
    WHERE attrelid = indrelid
      AND attnum = indkey[i];
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.get_create_trigger(relid oid, pkid oid)
   RETURNS text AS
@@ -111,7 +118,8 @@ $$
          ' FOR EACH ROW EXECUTE PROCEDURE repack.repack_trigger(%s)',
          repack.oid2text($1), repack.get_index_columns($2));
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.get_enable_trigger(relid oid)
   RETURNS text AS
@@ -119,7 +127,8 @@ $$
   SELECT format('ALTER TABLE %s ENABLE ALWAYS TRIGGER repack_trigger',
                 repack.oid2text($1));
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.get_assign(oid, text) RETURNS text AS
 $$
@@ -131,7 +140,8 @@ $$
            WHERE attrelid = $1 AND attnum > 0 AND NOT attisdropped
            ORDER BY attnum) tmp;
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.get_compare_pkey(oid, text)
   RETURNS text AS
@@ -150,7 +160,8 @@ $$
    WHERE attrelid = indrelid
      AND attnum = indkey[i];
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 -- Get a column list for SELECT all columns including dropped ones.
 -- We use NULLs of integer types for dropped columns (types are not important).
@@ -166,7 +177,8 @@ FROM pg_catalog.pg_attribute
 WHERE attrelid = $1 AND attnum > 0 ORDER BY attnum
 ) AS COL
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 -- Get a SQL text to DROP dropped columns for the table,
 -- or NULL if it has no dropped columns.
@@ -187,7 +199,8 @@ FROM (
 WHERE
 	array_upper(dropped_columns, 1) > 0
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 -- Get a comma-separated storage parameter for the table including
 -- parameters for the corresponding TOAST table.
@@ -222,7 +235,8 @@ FROM (
 
     ) as t
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 -- GET a SQL text to set column storage option for the table.
 CREATE FUNCTION repack.get_alter_col_storage(oid)
@@ -253,7 +267,8 @@ $$
       ) T
 WHERE array_upper(column_storage , 1) > 0
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 -- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
 DO $$
@@ -354,7 +369,8 @@ CREATE VIEW repack.tables AS
 
 CREATE FUNCTION repack.repack_indexdef(oid, oid, name, bool) RETURNS text AS
 'MODULE_PATHNAME', 'repack_indexdef'
-LANGUAGE C STABLE;
+LANGUAGE C STABLE
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.repack_trigger() RETURNS trigger AS
 'MODULE_PATHNAME', 'repack_trigger'
@@ -367,11 +383,13 @@ SELECT tgname FROM pg_catalog.pg_trigger
  WHERE tgrelid = $1 AND tgname = 'repack_trigger'
  ORDER BY tgname;
 $$
-LANGUAGE sql STABLE STRICT;
+LANGUAGE sql STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.disable_autovacuum(regclass) RETURNS void AS
 'MODULE_PATHNAME', 'repack_disable_autovacuum'
-LANGUAGE C VOLATILE STRICT;
+LANGUAGE C VOLATILE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.repack_apply(
   sql_peek      cstring,
@@ -382,20 +400,25 @@ CREATE FUNCTION repack.repack_apply(
   count         integer)
 RETURNS integer AS
 'MODULE_PATHNAME', 'repack_apply'
-LANGUAGE C VOLATILE;
+LANGUAGE C VOLATILE
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.repack_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_swap'
-LANGUAGE C VOLATILE STRICT;
+LANGUAGE C VOLATILE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.repack_drop(oid, int) RETURNS void AS
 'MODULE_PATHNAME', 'repack_drop'
-LANGUAGE C VOLATILE STRICT;
+LANGUAGE C VOLATILE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.repack_index_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_index_swap'
-LANGUAGE C STABLE STRICT;
+LANGUAGE C STABLE STRICT
+SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.get_table_and_inheritors(regclass) RETURNS regclass[] AS
 'MODULE_PATHNAME', 'repack_get_table_and_inheritors'
-LANGUAGE C STABLE STRICT;
+LANGUAGE C STABLE STRICT
+SET search_path = pg_catalog, pg_temp;

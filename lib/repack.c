@@ -1482,7 +1482,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	initStringInfo(&str);
 
 	/* Find the OID of our new index. */
-	appendStringInfo(&str, "SELECT oid FROM pg_class "
+	appendStringInfo(&str, "SELECT oid FROM pg_catalog.pg_class "
 					 "WHERE relname = 'index_%u' AND relkind = 'i'",
 					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);
