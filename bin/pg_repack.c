@@ -1282,13 +1282,21 @@ cancel_index_builds(repack_index *index_jobs, int num_indexes)
 
 		errbuf[0] = '\0';
 		cancel = PQgetCancel(workers.conns[index_jobs[i].worker_idx]);
-		if (cancel != NULL && PQcancel(cancel, errbuf, sizeof(errbuf)))
-			elog(WARNING, "Cancel request sent to worker %d",
+		if (cancel == NULL)
+		{
+			elog(WARNING, "Could not allocate cancel request for worker %d",
 				 index_jobs[i].worker_idx);
+		}
 		else
-			elog(WARNING, "Could not send cancel request to worker %d: %s",
-				 index_jobs[i].worker_idx, errbuf);
-		PQfreeCancel(cancel);
+		{
+			if (PQcancel(cancel, errbuf, sizeof(errbuf)))
+				elog(WARNING, "Cancel request sent to worker %d",
+					 index_jobs[i].worker_idx);
+			else
+				elog(WARNING, "Could not send cancel request to worker %d: %s",
+					 index_jobs[i].worker_idx, errbuf);
+			PQfreeCancel(cancel);
+		}
 	}
 
 	for (i = 0; i < num_indexes; i++)
