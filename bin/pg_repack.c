@@ -223,6 +223,7 @@ static void repack_cleanup(bool fatal, const repack_table *table);
 static void repack_cleanup_callback(bool fatal, void *userdata);
 static void repack_cleanup_index(bool fatal, void *userdata);
 static bool rebuild_indexes(const repack_table *table);
+static void cancel_index_builds(repack_index *index_jobs, int num_indexes);
 
 static char *getstr(PGresult *res, int row, int col);
 static Oid getoid(PGresult *res, int row, int col);
@@ -1165,17 +1166,22 @@ rebuild_indexes(const repack_table *table)
 
 			ret = select(max_fd + 1, &input_mask, NULL, NULL, &timeout);
 #endif
-			/* XXX: the errno != EINTR check means we won't bail
-			 * out on SIGINT. We should probably just remove this
-			 * check, though it seems we also need to fix up
-			 * the on_interrupt handling for workers' index
-			 * builds (those PGconns don't seem to have c->cancel
-			 * set, so we don't cancel the in-progress builds).
-			 */
 			if (ret < 0 && errno != EINTR)
 				elog(ERROR, "poll() failed: %d, %d", ret, errno);
 
 			elog(DEBUG2, "Poll returned: %d", ret);
+
+			/* On SIGINT, cancel the index builds still running in the
+			 * workers and bail out, instead of handing the remaining
+			 * indexes to the freed workers. on_interrupt() can't do this
+			 * for us, since the worker connections are not registered in
+			 * pgut_connections.
+			 */
+			if (interrupted)
+			{
+				cancel_index_builds(index_jobs, num_indexes);
+				CHECK_FOR_INTERRUPTS();
+			}
 
 			for (i = 0; i < num_indexes; i++)
 			{
@@ -1254,6 +1260,54 @@ rebuild_indexes(const repack_table *table)
 cleanup:
 	CLEARPGRES(res);
 	return (!have_error);
+}
+
+/*
+ * Cancel the index builds in progress in the worker connections, and wait
+ * for every worker to finish, so that no CREATE INDEX is left running on
+ * the server (holding locks on the temp table) while we clean up.
+ */
+static void
+cancel_index_builds(repack_index *index_jobs, int num_indexes)
+{
+	PGresult	   *res;
+	PGcancel	   *cancel;
+	char			errbuf[256];
+	int				i;
+
+	for (i = 0; i < num_indexes; i++)
+	{
+		if (index_jobs[i].status != INPROGRESS)
+			continue;
+
+		errbuf[0] = '\0';
+		cancel = PQgetCancel(workers.conns[index_jobs[i].worker_idx]);
+		if (cancel == NULL)
+		{
+			elog(WARNING, "Could not allocate cancel request for worker %d",
+				 index_jobs[i].worker_idx);
+		}
+		else
+		{
+			if (PQcancel(cancel, errbuf, sizeof(errbuf)))
+				elog(WARNING, "Cancel request sent to worker %d",
+					 index_jobs[i].worker_idx);
+			else
+				elog(WARNING, "Could not send cancel request to worker %d: %s",
+					 index_jobs[i].worker_idx, errbuf);
+			PQfreeCancel(cancel);
+		}
+	}
+
+	for (i = 0; i < num_indexes; i++)
+	{
+		if (index_jobs[i].status != INPROGRESS)
+			continue;
+
+		while ((res = PQgetResult(workers.conns[index_jobs[i].worker_idx])))
+			CLEARPGRES(res);
+		index_jobs[i].status = FINISHED;
+	}
 }
 
 
