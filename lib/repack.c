@@ -40,7 +40,6 @@
 #include "catalog/pg_inherits_fn.h"
 #endif
 #include "catalog/pg_namespace.h"
-#include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
