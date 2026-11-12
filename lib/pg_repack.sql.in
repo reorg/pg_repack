@@ -273,9 +273,9 @@ SET search_path = pg_catalog, pg_temp;
 -- includes not only PRIMARY KEYS but also UNIQUE NOT NULL keys
 DO $$
 BEGIN
-    IF current_setting('server_version_num')::int >= 110000 THEN
+    IF pg_catalog.current_setting('server_version_num')::int >= 110000 THEN
         CREATE VIEW repack.primary_keys AS
-          SELECT indrelid, min(indexrelid) AS indexrelid
+          SELECT indrelid, pg_catalog.min(indexrelid) AS indexrelid
             FROM (SELECT indrelid, indexrelid FROM pg_catalog.pg_index
            WHERE indisunique
              AND indisvalid
@@ -291,7 +291,7 @@ BEGIN
            GROUP BY indrelid;
     ELSE
         CREATE VIEW repack.primary_keys AS
-          SELECT indrelid, min(indexrelid) AS indexrelid
+          SELECT indrelid, pg_catalog.min(indexrelid) AS indexrelid
             FROM (SELECT indrelid, indexrelid FROM pg_catalog.pg_index
            WHERE indisunique
              AND indisvalid
@@ -320,32 +320,32 @@ CREATE VIEW repack.tables AS
          PK.indexrelid AS pkid,
          CK.indexrelid AS ckid,
          CASE WHEN PK.indexrelid IS NOT NULL
-              THEN format('SELECT repack.create_index_type(%s,%s)', PK.indexrelid, R.oid)
+              THEN pg_catalog.format('SELECT repack.create_index_type(%s,%s)', PK.indexrelid, R.oid)
          END AS create_pktype,
-         format('SELECT repack.create_log_table(%s)', R.oid) AS create_log,
+         pg_catalog.format('SELECT repack.create_log_table(%s)', R.oid) AS create_log,
          repack.get_create_trigger(R.oid, PK.indexrelid) AS create_trigger,
          repack.get_enable_trigger(R.oid) as enable_trigger,
          'SELECT repack.create_table($1, $2)'::text AS create_table,
          coalesce(S.spcname, S2.spcname) AS tablespace_orig,
-         format('INSERT INTO repack.table_%s SELECT %s FROM ONLY %s',
+         pg_catalog.format('INSERT INTO repack.table_%s SELECT %s FROM ONLY %s',
                 R.oid, repack.get_columns_for_create_as(R.oid), repack.oid2text(R.oid)) AS copy_data,
          repack.get_alter_col_storage(R.oid) AS alter_col_storage,
-         repack.get_drop_columns(R.oid, format('repack.table_%s', R.oid)) AS drop_columns,
-         format('DELETE FROM repack.log_%s', R.oid) AS delete_log,
-         format('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE', repack.oid2text(R.oid)) AS lock_table,
+         repack.get_drop_columns(R.oid, pg_catalog.format('repack.table_%s', R.oid)) AS drop_columns,
+         pg_catalog.format('DELETE FROM repack.log_%s', R.oid) AS delete_log,
+         pg_catalog.format('LOCK TABLE %s IN ACCESS EXCLUSIVE MODE', repack.oid2text(R.oid)) AS lock_table,
          repack.get_order_by(CK.indexrelid, R.oid) AS ckey,
-         format('SELECT * FROM repack.log_%s ORDER BY id LIMIT $1', R.oid) AS sql_peek,
-         format('INSERT INTO repack.table_%s VALUES ($1.*)', R.oid) AS sql_insert,
+         pg_catalog.format('SELECT * FROM repack.log_%s ORDER BY id LIMIT $1', R.oid) AS sql_peek,
+         pg_catalog.format('INSERT INTO repack.table_%s VALUES ($1.*)', R.oid) AS sql_insert,
          CASE WHEN PK.indexrelid IS NOT NULL
-              THEN format('DELETE FROM repack.table_%s WHERE %s',
+              THEN pg_catalog.format('DELETE FROM repack.table_%s WHERE %s',
                           R.oid, repack.get_compare_pkey(PK.indexrelid, '$1'))
          END AS sql_delete,
          CASE WHEN PK.indexrelid IS NOT NULL
-              THEN format('UPDATE repack.table_%s SET %s WHERE %s',
+              THEN pg_catalog.format('UPDATE repack.table_%s SET %s WHERE %s',
                           R.oid, repack.get_assign(R.oid, '$2'),
                           repack.get_compare_pkey(PK.indexrelid, '$1'))
          END AS sql_update,
-         format('DELETE FROM repack.log_%s WHERE id IN (', R.oid) AS sql_pop
+         pg_catalog.format('DELETE FROM repack.log_%s WHERE id IN (', R.oid) AS sql_pop
     FROM pg_catalog.pg_class R
          LEFT JOIN pg_catalog.pg_class T ON R.reltoastrelid = T.oid
          LEFT JOIN repack.primary_keys PK
@@ -361,7 +361,7 @@ CREATE VIEW repack.tables AS
          CROSS JOIN (SELECT S2.spcname
              FROM pg_catalog.pg_database D
              JOIN pg_catalog.pg_tablespace S2 ON S2.oid = D.dattablespace
-             WHERE D.datname = current_database()) S2
+             WHERE D.datname = pg_catalog.current_database()) S2
    WHERE R.relkind = 'r'
      AND R.relpersistence = 'p'
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
