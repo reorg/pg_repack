@@ -33,3 +33,15 @@ CREATE TABLE issue321 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue321_idx ON issue321 (col1);
 SELECT repack.get_order_by('issue321_idx'::regclass::oid, 1);
 SELECT repack.get_order_by(1, 1);
+
+--
+-- A non-default operator class in a schema that is not in the function search_path
+--
+CREATE OPERATOR CLASS public.opclass_int4_ops FOR TYPE int4 USING btree AS
+  OPERATOR 1 <, OPERATOR 2 <=, OPERATOR 3 =, OPERATOR 4 >=, OPERATOR 5 >,
+  FUNCTION 1 btint4cmp(int4, int4);
+CREATE TABLE opclass_tbl (col1 int NOT NULL, col2 int NOT NULL);
+CREATE UNIQUE INDEX opclass_tbl_idx ON opclass_tbl (col1 public.opclass_int4_ops, col2 DESC);
+SELECT repack.get_order_by('opclass_tbl_idx'::regclass::oid, 'opclass_tbl'::regclass::oid);
+CLUSTER opclass_tbl USING opclass_tbl_idx;
+\! pg_repack --dbname=contrib_regression --table=opclass_tbl

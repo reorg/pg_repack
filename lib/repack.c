@@ -40,7 +40,6 @@
 #include "catalog/pg_inherits_fn.h"
 #endif
 #include "catalog/pg_namespace.h"
-#include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
@@ -760,30 +759,24 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 		{
 			/* lookup default operator name from operator class */
 
-			Oid				opclass;
 			Oid				oprid;
 			int16			strategy = BTLessStrategyNumber;
 			Oid				opcintype;
 			Oid				opfamily;
-			HeapTuple		tp;
-			Form_pg_opclass	opclassTup;
 
-			opclass = OpclassnameGetOpcid(BTREE_AM_OID, opcname);
-
-			/* Retrieve operator information. */
-			tp = SearchSysCache(CLAOID, ObjectIdGetDatum(opclass), 0, 0, 0);
-			if (!HeapTupleIsValid(tp))
-				elog(ERROR, "cache lookup failed for opclass %u", opclass);
-			opclassTup = (Form_pg_opclass) GETSTRUCT(tp);
-			opfamily = opclassTup->opcfamily;
-			opcintype = opclassTup->opcintype;
-			ReleaseSysCache(tp);
+			/*
+			 * Take the operator family and input type from the index itself.
+			 * The operator class name printed by pg_get_indexdef() may be
+			 * schema-qualified, depending on the search_path, so it cannot be
+			 * looked up reliably by name.
+			 */
+			if (indexRel == NULL)
+				indexRel = index_open(index, NoLock);
+			opfamily = indexRel->rd_opfamily[nattr];
+			opcintype = indexRel->rd_opcintype[nattr];
 
 			if (!OidIsValid(opcintype))
 			{
-				if (indexRel == NULL)
-					indexRel = index_open(index, NoLock);
-
 #if PG_VERSION_NUM >= 110000
 				opcintype = TupleDescAttr(RelationGetDescr(indexRel), nattr)->atttypid;
 #else
@@ -1482,7 +1475,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	initStringInfo(&str);
 
 	/* Find the OID of our new index. */
-	appendStringInfo(&str, "SELECT oid FROM pg_class "
+	appendStringInfo(&str, "SELECT oid FROM pg_catalog.pg_class "
 					 "WHERE relname = 'index_%u' AND relkind = 'i'",
 					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);

@@ -74,50 +74,50 @@ const char *PROGRAM_VERSION = "unknown";
  * pg_regress/<testname>, or just pg_regress on PostgreSQL <10.
  */
 #define SQL_XID_SNAPSHOT_90200 \
-	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
-	"  FROM pg_locks AS l " \
-	"  LEFT JOIN pg_stat_activity AS a " \
+	"SELECT coalesce(pg_catalog.array_agg(l.virtualtransaction), '{}') " \
+	"  FROM pg_catalog.pg_locks AS l " \
+	"  LEFT JOIN pg_catalog.pg_stat_activity AS a " \
 	"    ON l.pid = a.pid " \
-	"  LEFT JOIN pg_database AS d " \
+	"  LEFT JOIN pg_catalog.pg_database AS d " \
 	"    ON a.datid = d.oid " \
 	"  WHERE l.locktype = 'virtualxid' " \
-	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
+	"  AND l.pid NOT IN (pg_catalog.pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
 	"  AND a.query !~* E'^\\\\s*vacuum\\\\s+' " \
 	"  AND a.query !~ E'^autovacuum: ' " \
-	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
+	"  AND ((d.datname IS NULL OR d.datname = pg_catalog.current_database()) OR l.database = 0)"
 
 #define SQL_XID_SNAPSHOT_90000 \
-	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
-	"  FROM pg_locks AS l " \
-	"  LEFT JOIN pg_stat_activity AS a " \
+	"SELECT coalesce(pg_catalog.array_agg(l.virtualtransaction), '{}') " \
+	"  FROM pg_catalog.pg_locks AS l " \
+	"  LEFT JOIN pg_catalog.pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
-	"  LEFT JOIN pg_database AS d " \
+	"  LEFT JOIN pg_catalog.pg_database AS d " \
 	"    ON a.datid = d.oid " \
 	"  WHERE l.locktype = 'virtualxid' " \
-	"  AND l.pid NOT IN (pg_backend_pid(), $1) " \
+	"  AND l.pid NOT IN (pg_catalog.pg_backend_pid(), $1) " \
 	"  AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	"  AND (a.application_name IS NULL OR a.application_name <> $2)" \
 	"  AND a.current_query !~* E'^\\\\s*vacuum\\\\s+' " \
 	"  AND a.current_query !~ E'^autovacuum: ' " \
-	"  AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)"
+	"  AND ((d.datname IS NULL OR d.datname = pg_catalog.current_database()) OR l.database = 0)"
 
 /* application_name is not available before 9.0. The last clause of
  * the WHERE clause is just to eat the $2 parameter (application name).
  */
 #define SQL_XID_SNAPSHOT_80300 \
-	"SELECT coalesce(array_agg(l.virtualtransaction), '{}') " \
-	"  FROM pg_locks AS l" \
-	"  LEFT JOIN pg_stat_activity AS a " \
+	"SELECT coalesce(pg_catalog.array_agg(l.virtualtransaction), '{}') " \
+	"  FROM pg_catalog.pg_locks AS l" \
+	"  LEFT JOIN pg_catalog.pg_stat_activity AS a " \
 	"    ON l.pid = a.procpid " \
-	"  LEFT JOIN pg_database AS d " \
+	"  LEFT JOIN pg_catalog.pg_database AS d " \
 	"    ON a.datid = d.oid " \
-	" WHERE l.locktype = 'virtualxid' AND l.pid NOT IN (pg_backend_pid(), $1)" \
+	" WHERE l.locktype = 'virtualxid' AND l.pid NOT IN (pg_catalog.pg_backend_pid(), $1)" \
 	" AND (l.virtualxid, l.virtualtransaction) <> ('1/1', '-1/0') " \
 	" AND a.current_query !~* E'^\\\\s*vacuum\\\\s+' " \
 	" AND a.current_query !~ E'^autovacuum: ' " \
-	" AND ((d.datname IS NULL OR d.datname = current_database()) OR l.database = 0)" \
+	" AND ((d.datname IS NULL OR d.datname = pg_catalog.current_database()) OR l.database = 0)" \
 	" AND ($2::text IS NOT NULL)"
 
 #define SQL_XID_SNAPSHOT \
@@ -130,8 +130,8 @@ const char *PROGRAM_VERSION = "unknown";
  * alive, and wait for them to go away.
  */
 #define SQL_XID_ALIVE \
-	"SELECT pid FROM pg_locks WHERE locktype = 'virtualxid'"\
-	" AND pid <> pg_backend_pid() AND virtualtransaction = ANY($1)"
+	"SELECT pid FROM pg_catalog.pg_locks WHERE locktype = 'virtualxid'"\
+	" AND pid <> pg_catalog.pg_backend_pid() AND virtualtransaction = ANY($1)"
 
 /* To be run while our main connection holds an AccessExclusive lock on the
  * target table, and our secondary conn is attempting to grab an AccessShare
@@ -141,20 +141,21 @@ const char *PROGRAM_VERSION = "unknown";
  * trying to kill off disallowed DDL commands, e.g. ALTER TABLE or TRUNCATE.
  */
 #define CANCEL_COMPETING_LOCKS \
-	"SELECT pg_cancel_backend(pid) FROM pg_locks WHERE locktype = 'relation'"\
+	"SELECT pg_catalog.pg_cancel_backend(pid)"\
+	" FROM pg_catalog.pg_locks WHERE locktype = 'relation'"\
 	" AND granted = false AND relation = %u"\
-	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_catalog.pg_backend_pid()"
 
 #define KILL_COMPETING_LOCKS \
-	"SELECT pg_terminate_backend(pid) "\
-	"FROM pg_locks WHERE locktype = 'relation'"\
+	"SELECT pg_catalog.pg_terminate_backend(pid) "\
+	"FROM pg_catalog.pg_locks WHERE locktype = 'relation'"\
 	" AND granted = false AND relation = %u"\
-	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_catalog.pg_backend_pid()"
 
 #define COUNT_COMPETING_LOCKS \
-	"SELECT pid FROM pg_locks WHERE locktype = 'relation'" \
+	"SELECT pid FROM pg_catalog.pg_locks WHERE locktype = 'relation'" \
 	" AND granted = false AND relation = %u" \
-	" AND mode = 'AccessExclusiveLock' AND pid <> pg_backend_pid()"
+	" AND mode = 'AccessExclusiveLock' AND pid <> pg_catalog.pg_backend_pid()"
 
 /* Will be used as a unique prefix for advisory locks. */
 #define REPACK_LOCK_PREFIX_STR "16185446"
@@ -466,7 +467,7 @@ check_tablespace(void)
 	reconnect(ERROR);
 	params[0] = tablespace;
 	res = execute_elevel(
-		"select spcname from pg_tablespace where spcname = $1",
+		"select spcname from pg_catalog.pg_tablespace where spcname = $1",
 		1, params, DEBUG2);
 
 	if (PQresultStatus(res) == PGRES_TUPLES_OK)
@@ -579,7 +580,7 @@ preliminary_checks(char *errbuf, size_t errsize){
 	 */
 	if (PQserverVersion(connection) >= 100000 && !no_error_on_publication)
 	{
-		res = execute_elevel("SELECT pubname FROM pg_publication WHERE puballtables LIMIT 1",
+		res = execute_elevel("SELECT pubname FROM pg_catalog.pg_publication WHERE puballtables LIMIT 1",
 			0, NULL, DEBUG2);
 		if (PQresultStatus(res) == PGRES_TUPLES_OK)
 		{
@@ -661,10 +662,11 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 		") AS given_t(r,kind) WHERE"
 		/* regular --table relation or inherited --parent-table */
 		" NOT EXISTS("
-		"  SELECT FROM repack.tables WHERE relid=to_regclass(given_t.r))"
+		"  SELECT FROM repack.tables WHERE relid=pg_catalog.to_regclass(given_t.r))"
 		/* declarative partitioned --parent-table */
 		" AND NOT EXISTS("
-		"  SELECT FROM pg_catalog.pg_class c WHERE c.oid=to_regclass(given_t.r) AND c.relkind = given_t.kind AND given_t.kind = 'p')"
+		"  SELECT FROM pg_catalog.pg_class c"
+		"    WHERE c.oid=pg_catalog.to_regclass(given_t.r) AND c.relkind = given_t.kind AND given_t.kind = 'p')"
 	);
 
 	/* double check the parameters array is sane */
@@ -740,7 +742,8 @@ repack_all_databases(const char *orderby)
 	if (!is_superuser())
 		elog(ERROR, "You must be a superuser to use %s", PROGRAM_NAME);
 
-	result = execute("SELECT datname FROM pg_database WHERE datallowconn ORDER BY 1;", 0, NULL);
+	result = execute("SELECT datname FROM pg_catalog.pg_database WHERE datallowconn ORDER BY 1;",
+					 0, NULL);
 	disconnect();
 
 	for (i = 0; i < PQntuples(result); i++)
@@ -896,8 +899,9 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	{
 		appendStringInfoString(&sql, " AND t.relid NOT IN"
 									 "  (SELECT d.objid::regclass"
-									 "   FROM pg_depend d JOIN pg_extension e"
-									 "   ON d.refobjid = e.oid"
+									 "   FROM pg_catalog.pg_depend d"
+									 "   JOIN pg_catalog.pg_extension e"
+									 "     ON d.refobjid = e.oid"
 									 "   WHERE d.classid = 'pg_class'::regclass AND (");
 
 		/* List all excluded extensions */
@@ -1410,8 +1414,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	 * if --no-error-on-invalid-index is set
 	 */
 	indexres = execute(
-		"SELECT pg_get_indexdef(indexrelid)"
-		" FROM pg_index WHERE indrelid = $1 AND NOT indisvalid",
+		"SELECT pg_catalog.pg_get_indexdef(indexrelid)"
+		" FROM pg_catalog.pg_index WHERE indrelid = $1 AND NOT indisvalid",
 		1, indexparams);
 
 	for (j = 0; j < PQntuples(indexres); j++)
@@ -1430,7 +1434,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	indexres = execute(
 		"SELECT indexrelid,"
 		" repack.repack_indexdef(indexrelid, indrelid, $2, FALSE) "
-		" FROM pg_index WHERE indrelid = $1 AND indisvalid",
+		" FROM pg_catalog.pg_index WHERE indrelid = $1 AND indisvalid",
 		2, indexparams);
 
 	table->n_indexes = PQntuples(indexres);
@@ -1497,7 +1501,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	/* grab the backend PID of conn2; we'll need this when querying
 	 * pg_locks momentarily.
 	 */
-	res = pgut_execute(conn2, "SELECT pg_backend_pid()", 0, NULL);
+	res = pgut_execute(conn2, "SELECT pg_catalog.pg_backend_pid()", 0, NULL);
 	buffer[0] = '\0';
 	strncat(buffer, PQgetvalue(res, 0, 0), sizeof(buffer) - 1);
 	CLEARPGRES(res);
@@ -1584,7 +1588,8 @@ repack_one_table(repack_table *table, const char *orderby)
 	 */
 	command("BEGIN ISOLATION LEVEL SERIALIZABLE", 0, NULL);
 	/* SET work_mem = maintenance_work_mem */
-	command("SELECT set_config('work_mem', current_setting('maintenance_work_mem'), true)", 0, NULL);
+	command("SELECT pg_catalog.set_config('work_mem', pg_catalog.current_setting('maintenance_work_mem'), true)",
+			0, NULL);
 	if (orderby && !orderby[0])
 		command("SET LOCAL synchronize_seqscans = off", 0, NULL);
 
@@ -1772,7 +1777,7 @@ repack_one_table(repack_table *table, const char *orderby)
 	params[0] = REPACK_LOCK_PREFIX_STR;
 	params[1] = utoa(table->target_oid, buffer);
 
-	res = pgut_execute(connection, "SELECT pg_advisory_unlock($1, CAST(-2147483648 + $2::bigint AS integer))",
+	res = pgut_execute(connection, "SELECT pg_catalog.pg_advisory_unlock($1, CAST(-2147483648 + $2::bigint AS integer))",
 			   2, params);
 	ret = true;
 
@@ -1975,7 +1980,7 @@ static bool advisory_lock(PGconn *conn, const char *relid)
 	 * *unsigned* 4-byte integer. Add -2147483648 to that OID to make
 	 * it fit reliably into signed int space.
 	 */
-	res = pgut_execute(conn, "SELECT pg_try_advisory_lock($1, CAST(-2147483648 + $2::bigint AS integer))",
+	res = pgut_execute(conn, "SELECT pg_catalog.pg_try_advisory_lock($1, CAST(-2147483648 + $2::bigint AS integer))",
 			   2, params);
 
 	if (PQresultStatus(res) != PGRES_TUPLES_OK) {
@@ -2042,17 +2047,17 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 				{
 					elog(WARNING, "terminating conflicted backends");
 					cancel_query =
-						"SELECT pg_terminate_backend(pid) FROM pg_locks"
+						"SELECT pg_catalog.pg_terminate_backend(pid) FROM pg_locks"
 						" WHERE locktype = 'relation'"
-						"   AND relation = $1 AND pid <> pg_backend_pid()";
+						"   AND relation = $1 AND pid <> pg_catalog.pg_backend_pid()";
 				}
 				else
 				{
 					elog(WARNING, "canceling conflicted backends");
 					cancel_query =
-						"SELECT pg_cancel_backend(pid) FROM pg_locks"
+						"SELECT pg_catalog.pg_cancel_backend(pid) FROM pg_locks"
 						" WHERE locktype = 'relation'"
-						"   AND relation = $1 AND pid <> pg_backend_pid()";
+						"   AND relation = $1 AND pid <> pg_catalog.pg_backend_pid()";
 				}
 
 				pgut_command(conn, cancel_query, 1, &relid);
@@ -2261,10 +2266,11 @@ repack_table_indexes(PGresult *index_details)
 
 			resetStringInfo(&sql);
 			appendStringInfo(&sql, "SELECT pgc.relname, nsp.nspname "
-							 "FROM pg_class pgc INNER JOIN pg_namespace nsp "
-							 "ON nsp.oid = pgc.relnamespace "
+							 "FROM pg_catalog.pg_class pgc "
+							 "INNER JOIN pg_catalog.pg_namespace nsp "
+							 "  ON nsp.oid = pgc.relnamespace "
 							 "WHERE pgc.relname = 'index_%u' "
-							 "AND nsp.nspname = $1", index);
+							 "  AND nsp.nspname = $1", index);
 			params[0] = schema_name;
 			elog(INFO, "repacking index \"%s\"", idx_name);
 			res = execute(sql.data, 1, params);
@@ -2415,8 +2421,9 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	{
 		appendStringInfoString(&sql,
 			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, repack.oid2text(idx.indrelid), n.nspname"
-			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
-			" JOIN pg_namespace n ON n.oid = i.relnamespace"
+			" FROM pg_catalog.pg_index idx"
+			" JOIN pg_catalog.pg_class i ON i.oid = idx.indexrelid"
+			" JOIN pg_catalog.pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indexrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
 
 		cell = r_index.head;
@@ -2425,8 +2432,9 @@ repack_all_indexes(char *errbuf, size_t errsize)
 	{
 		appendStringInfoString(&sql,
 			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
-			" FROM pg_index idx JOIN pg_class i ON i.oid = idx.indexrelid"
-			" JOIN pg_namespace n ON n.oid = i.relnamespace"
+			" FROM pg_catalog.pg_index idx"
+			" JOIN pg_catalog.pg_class i ON i.oid = idx.indexrelid"
+			" JOIN pg_catalog.pg_namespace n ON n.oid = i.relnamespace"
 			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
 
 		for (cell = parent_table_list.head; cell; cell = cell->next)
@@ -2444,8 +2452,9 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			 * doesn't make sense to repack indexes of a declaratively partitioned
 			 * table.
 			 */
-			res = execute_elevel("SELECT quote_ident(n.nspname) || '.' || quote_ident(c.relname)"
-								 " FROM pg_class c JOIN pg_namespace n on n.oid = c.relnamespace"
+			res = execute_elevel("SELECT pg_catalog.quote_ident(n.nspname) || '.' || pg_catalog.quote_ident(c.relname)"
+								 " FROM pg_catalog.pg_class c"
+								 " JOIN pg_catalog.pg_namespace n on n.oid = c.relnamespace"
 								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
 								 "   AND c.relkind = 'r'"
 								 " ORDER BY n.nspname, c.relname",
