@@ -40,7 +40,6 @@
 #include "catalog/pg_inherits_fn.h"
 #endif
 #include "catalog/pg_namespace.h"
-#include "catalog/pg_opclass.h"
 #include "catalog/pg_type.h"
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
@@ -64,7 +63,23 @@
 #include "utils/ruleutils.h"
 #endif
 
+#ifdef REPACK_VERSION
+/* macro trick to stringify a macro expansion */
+#define xstr(s) str(s)
+#define str(s) #s
+#define LIBRARY_VERSION xstr(REPACK_VERSION)
+#else
+#define LIBRARY_VERSION "unknown"
+#endif
+
+#if PG_VERSION_NUM >= 180000
+PG_MODULE_MAGIC_EXT(
+	.name = "pg_repack",
+	.version = LIBRARY_VERSION
+);
+#else
 PG_MODULE_MAGIC;
+#endif
 
 extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_trigger(PG_FUNCTION_ARGS);
@@ -136,15 +151,6 @@ must_be_owner(Oid relId)
 #define RENAME_INDEX(relid, newrelname) RenameRelationInternal(relid, newrelname, true, true);
 #endif
 
-#ifdef REPACK_VERSION
-/* macro trick to stringify a macro expansion */
-#define xstr(s) str(s)
-#define str(s) #s
-#define LIBRARY_VERSION xstr(REPACK_VERSION)
-#else
-#define LIBRARY_VERSION "unknown"
-#endif
-
 Datum
 repack_version(PG_FUNCTION_ARGS)
 {
@@ -172,6 +178,13 @@ repack_trigger(PG_FUNCTION_ARGS)
 	Oid				argtypes[2];
 	Oid				relid;
 	StringInfo		sql;
+	Oid				log_owner;
+	HeapTuple		classtup;
+	Oid				save_userid;
+	int				save_sec_context;
+	int				save_nestlevel;
+	char			log_relname[NAMEDATALEN];
+	Oid				repack_nsid;
 
 	/* make sure it's called as a trigger at all */
 	if (!CALLED_AS_TRIGGER(fcinfo) ||
@@ -211,17 +224,47 @@ repack_trigger(PG_FUNCTION_ARGS)
 		values[1] = copy_tuple(tuple, desc);
 	}
 
+	/*
+	 * Look up the log table owner so we can switch to that user for the
+	 * INSERT.  This allows the trigger to write to the log table even when
+	 * fired by a user who doesn't own it without requiring SECURITY DEFINER on
+	 * the entire function.
+	 */
+	repack_nsid = get_namespace_oid("repack", false);
+	snprintf(log_relname, sizeof(log_relname), "log_%u", relid);
+	classtup = SearchSysCache2(RELNAMENSP,
+							   CStringGetDatum(log_relname),
+							   ObjectIdGetDatum(repack_nsid));
+	if (!HeapTupleIsValid(classtup))
+		elog(ERROR, "repack_trigger: log table repack.%s not found", log_relname);
+	log_owner = ((Form_pg_class) GETSTRUCT(classtup))->relowner;
+	ReleaseSysCache(classtup);
+
 	/* prepare INSERT query */
 	sql = makeStringInfo();
-	appendStringInfo(sql, "INSERT INTO repack.log_%u(pk, row) "
-		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(", relid);
+	appendStringInfo(sql, "INSERT INTO repack.%s(pk, row) "
+		"VALUES(CASE WHEN $1 IS NULL THEN NULL ELSE (ROW(", log_relname);
 	appendStringInfo(sql, "$1.%s", quote_identifier(trigdata->tg_trigger->tgargs[0]));
 	for (int i = 1; i < trigdata->tg_trigger->tgnargs; ++i)
 		appendStringInfo(sql, ", $1.%s", quote_identifier(trigdata->tg_trigger->tgargs[i]));
 	appendStringInfo(sql, ")::repack.pk_%u) END, $2)", relid);
 
+	/* Switch to the repack.log_%u table owner, it gives enough privileges to INSERT */
+	GetUserIdAndSecContext(&save_userid, &save_sec_context);
+	SetUserIdAndSecContext(log_owner,
+						   save_sec_context |
+						   SECURITY_LOCAL_USERID_CHANGE |
+						   SECURITY_RESTRICTED_OPERATION);
+
+	save_nestlevel = NewGUCNestLevel();
+
 	/* execute the INSERT query */
 	execute_with_args(SPI_OK_INSERT, sql->data, 2, argtypes, values, nulls);
+
+	/* Roll back any GUC changes performed by rules during the INSERT */
+	AtEOXact_GUC(false, save_nestlevel);
+
+	SetUserIdAndSecContext(save_userid, save_sec_context);
 
 	SPI_finish();
 
@@ -716,30 +759,24 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 		{
 			/* lookup default operator name from operator class */
 
-			Oid				opclass;
 			Oid				oprid;
 			int16			strategy = BTLessStrategyNumber;
 			Oid				opcintype;
 			Oid				opfamily;
-			HeapTuple		tp;
-			Form_pg_opclass	opclassTup;
 
-			opclass = OpclassnameGetOpcid(BTREE_AM_OID, opcname);
-
-			/* Retrieve operator information. */
-			tp = SearchSysCache(CLAOID, ObjectIdGetDatum(opclass), 0, 0, 0);
-			if (!HeapTupleIsValid(tp))
-				elog(ERROR, "cache lookup failed for opclass %u", opclass);
-			opclassTup = (Form_pg_opclass) GETSTRUCT(tp);
-			opfamily = opclassTup->opcfamily;
-			opcintype = opclassTup->opcintype;
-			ReleaseSysCache(tp);
+			/*
+			 * Take the operator family and input type from the index itself.
+			 * The operator class name printed by pg_get_indexdef() may be
+			 * schema-qualified, depending on the search_path, so it cannot be
+			 * looked up reliably by name.
+			 */
+			if (indexRel == NULL)
+				indexRel = index_open(index, NoLock);
+			opfamily = indexRel->rd_opfamily[nattr];
+			opcintype = indexRel->rd_opcintype[nattr];
 
 			if (!OidIsValid(opcintype))
 			{
-				if (indexRel == NULL)
-					indexRel = index_open(index, NoLock);
-
 #if PG_VERSION_NUM >= 110000
 				opcintype = TupleDescAttr(RelationGetDescr(indexRel), nattr)->atttypid;
 #else
@@ -1448,7 +1485,7 @@ repack_index_swap(PG_FUNCTION_ARGS)
 	initStringInfo(&str);
 
 	/* Find the OID of our new index. */
-	appendStringInfo(&str, "SELECT oid FROM pg_class "
+	appendStringInfo(&str, "SELECT oid FROM pg_catalog.pg_class "
 					 "WHERE relname = 'index_%u' AND relkind = 'i'",
 					 orig_idx_oid);
 	execute(SPI_OK_SELECT, str.data);

@@ -1,0 +1,15 @@
+--
+-- repack will conflict with publication FOR ALL TABLES
+--
+create publication test for all tables ;
+ERROR:  syntax error at or near "publication"
+LINE 1: create publication test for all tables ;
+               ^
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster
+INFO: repacking table "public.tbl_cluster"
+\! pg_repack --dbname=contrib_regression --table=tbl_cluster --no-error-on-publication
+INFO: repacking table "public.tbl_cluster"
+drop publication test;
+ERROR:  syntax error at or near "publication"
+LINE 1: drop publication test;
+             ^

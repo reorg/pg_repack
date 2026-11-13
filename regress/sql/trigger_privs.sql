@@ -1,0 +1,126 @@
+--
+-- repack.repack_trigger privilege handling tests
+--
+\set VERBOSITY terse
+
+SELECT session_user AS orig_user
+\gset
+
+SET client_min_messages = error;
+DROP ROLE IF EXISTS trigger_dml_user;
+DROP ROLE IF EXISTS trigger_log_owner;
+SET client_min_messages = warning;
+CREATE ROLE trigger_dml_user;
+CREATE ROLE trigger_log_owner;
+
+CREATE TABLE trigger_privs_t1 (a int, b int, primary key (a, b));
+GRANT INSERT, UPDATE, DELETE ON trigger_privs_t1 TO trigger_dml_user;
+
+SELECT oid AS p1_oid FROM pg_catalog.pg_class WHERE relname = 'trigger_privs_t1'
+\gset
+
+CREATE TYPE repack.pk_:p1_oid AS (a int, b int);
+CREATE TABLE repack.log_:p1_oid (id bigserial PRIMARY KEY, pk repack.pk_:p1_oid, row public.trigger_privs_t1);
+CREATE TRIGGER repack_trigger AFTER INSERT OR DELETE OR UPDATE ON trigger_privs_t1
+    FOR EACH ROW EXECUTE PROCEDURE repack.repack_trigger('a', 'b');
+
+-- The log table is owned by a role that has no other privileges on the
+-- table being modified
+ALTER TABLE repack.log_:p1_oid OWNER TO trigger_log_owner;
+\set log_seq 'log_' :p1_oid '_id_seq'
+ALTER SEQUENCE repack.:"log_seq" OWNER TO trigger_log_owner;
+GRANT USAGE ON SCHEMA repack TO trigger_log_owner;
+
+-- 1. The DML role has no privileges on repack objects, but DML works and
+-- rows are logged
+SELECT has_schema_privilege('trigger_dml_user', 'repack', 'USAGE') AS schema_usage,
+       has_table_privilege('trigger_dml_user', 'repack.log_' || :p1_oid, 'INSERT') AS log_insert;
+SET ROLE trigger_dml_user;
+INSERT INTO trigger_privs_t1 VALUES (1, 2);
+UPDATE trigger_privs_t1 SET a = 3, b = 4;
+DELETE FROM trigger_privs_t1;
+RESET ROLE;
+SELECT pk, row FROM repack.log_:p1_oid ORDER BY id;
+TRUNCATE repack.log_:p1_oid;
+
+-- Trigger on the log table; its behavior is selected by a setting
+CREATE FUNCTION trigger_log_fn() RETURNS trigger LANGUAGE plpgsql AS $$
+DECLARE
+    mode text := current_setting('trigger_privs.mode');
+BEGIN
+    IF mode = 'set_role' THEN
+        EXECUTE 'SET ROLE trigger_dml_user';
+    ELSIF mode = 'set_session_auth' THEN
+        EXECUTE 'SET SESSION AUTHORIZATION trigger_dml_user';
+    ELSIF mode = 'guc' THEN
+        PERFORM set_config('search_path', 'pg_catalog', false);
+        PERFORM set_config('work_mem', '123456kB', false);
+        RAISE NOTICE 'inside: search_path=% work_mem=%',
+            current_setting('search_path'), current_setting('work_mem');
+    END IF;
+    RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trigger_log_trg BEFORE INSERT ON repack.log_:p1_oid
+    FOR EACH ROW EXECUTE PROCEDURE trigger_log_fn();
+
+-- 2. Role changes inside the log table trigger fail
+SET trigger_privs.mode = 'set_role';
+INSERT INTO trigger_privs_t1 VALUES (12, 22);
+SET ROLE trigger_dml_user;
+INSERT INTO trigger_privs_t1 VALUES (12, 22);
+RESET ROLE;
+SET trigger_privs.mode = 'set_session_auth';
+INSERT INTO trigger_privs_t1 VALUES (12, 22);
+SET ROLE trigger_dml_user;
+INSERT INTO trigger_privs_t1 VALUES (12, 22);
+RESET ROLE;
+
+-- 3. Setting changes made inside the log table trigger are reverted
+SET client_min_messages = notice;
+SET search_path = public;
+SET work_mem = '4MB';
+SET trigger_privs.mode = 'guc';
+INSERT INTO trigger_privs_t1 VALUES (14, 24);
+SHOW search_path;
+SHOW work_mem;
+SET ROLE trigger_dml_user;
+INSERT INTO trigger_privs_t1 VALUES (15, 25);
+RESET ROLE;
+SHOW search_path;
+SHOW work_mem;
+RESET search_path;
+RESET work_mem;
+
+-- 4. Users are correct after DML
+SET trigger_privs.mode = 'none';
+SET ROLE trigger_dml_user;
+INSERT INTO trigger_privs_t1 VALUES (17, 27);
+SELECT current_user AS cu, session_user = :'orig_user' AS session_is_orig;
+RESET ROLE;
+SELECT current_user = :'orig_user' AS current_is_orig, session_user = :'orig_user' AS session_is_orig;
+SELECT pk, row FROM repack.log_:p1_oid ORDER BY id;
+
+-- 5. A missing log table is reported
+DROP TRIGGER trigger_log_trg ON repack.log_:p1_oid;
+ALTER TABLE repack.log_:p1_oid RENAME TO log_renamed;
+DO $$
+BEGIN
+    INSERT INTO trigger_privs_t1 VALUES (18, 28);
+EXCEPTION WHEN OTHERS THEN
+    RAISE NOTICE '%', regexp_replace(SQLERRM, '[0-9]+', '<oid>');
+END;
+$$;
+ALTER TABLE repack.log_renamed RENAME TO log_:p1_oid;
+
+-- cleanup
+DROP TABLE repack.log_:p1_oid;
+DROP TYPE repack.pk_:p1_oid;
+DROP TABLE trigger_privs_t1;
+DROP FUNCTION trigger_log_fn();
+RESET trigger_privs.mode;
+SET client_min_messages = warning;
+DROP OWNED BY trigger_dml_user;
+DROP OWNED BY trigger_log_owner;
+DROP ROLE trigger_dml_user;
+DROP ROLE trigger_log_owner;

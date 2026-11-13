@@ -41,7 +41,7 @@ Requirements
 ------------
 
 PostgreSQL versions
-    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16, 17, 18.
+    PostgreSQL 9.5, 9.6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19.
 
     PostgreSQL 9.4 and before it are not supported.
 
@@ -126,6 +126,7 @@ Options:
   -Z, --no-analyze                   don't analyze at end
   -k, --no-superuser-check           skip superuser checks in client
   -C, --exclude-extension            don't repack tables which belong to specific extension
+      --no-error-on-publication      repack even though publication for all tables is found
       --no-error-on-invalid-index    repack even though invalid index is found
       --error-on-invalid-index       don't repack when invalid index is found, deprecated, as this is the default behavior now
       --apply-count                  number of tuples to apply in one trasaction during replay
@@ -343,7 +344,7 @@ pg_repack from the database and install it again: for PostgreSQL 9.1 and
 following execute ``DROP EXTENSION pg_repack CASCADE`` in the database where
 the error occurred, followed by ``CREATE EXTENSION pg_repack``; for previous
 version load the script ``$SHAREDIR/contrib/uninstall_pg_repack.sql`` into the
-database where the error occured and then load
+database where the error occurred and then load
 ``$SHAREDIR/contrib/pg_repack.sql`` again.
 
 .. class:: diag

@@ -613,11 +613,11 @@ echo_query(const char *query, int nParams, const char **params)
 	int		i;
 
 	if (strchr(query, '\n'))
-		elog(LOG, "(query)\n%s", query);
+		elog(INFO, "(query)\n%s", query);
 	else
-		elog(LOG, "(query) %s", query);
+		elog(INFO, "(query) %s", query);
 	for (i = 0; i < nParams; i++)
-		elog(LOG, "\t(param:%d) = %s", i, params[i] ? params[i] : "(null)");
+		elog(INFO, "\t(param:%d) = %s", i, params[i] ? params[i] : "(null)");
 }
 
 PGresult *
