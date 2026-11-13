@@ -380,3 +380,15 @@ LANGUAGE C STABLE STRICT;
 CREATE FUNCTION repack.get_table_and_inheritors(regclass) RETURNS regclass[] AS
 'MODULE_PATHNAME', 'repack_get_table_and_inheritors'
 LANGUAGE C STABLE STRICT;
+
+-- discussion of the security model is in https://github.com/reorg/pg_repack/pull/475
+--
+-- non-superusers need to be granted CREATE on the repack schema
+-- after this grant, they can repack their own tables with --no-superuser-check
+--
+-- pg_repack is not compatible with pg_maintain for allowing non-superusers 
+-- to repack tables they don't own
+--
+GRANT USAGE ON SCHEMA repack TO PUBLIC;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA repack TO PUBLIC;
+GRANT SELECT ON ALL TABLES IN SCHEMA repack TO PUBLIC;
