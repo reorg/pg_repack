@@ -312,7 +312,7 @@ CREATE VIEW repack.tables AS
   SELECT repack.oid2text(R.oid) AS relname,
          R.oid AS relid,
          R.reltoastrelid AS reltoastrelid,
-         CASE WHEN R.reltoastrelid = 0 THEN 0 ELSE (
+         CASE WHEN R.reltoastrelid = 0::pg_catalog.oid THEN 0 ELSE (
             SELECT indexrelid FROM pg_catalog.pg_index
             WHERE indrelid = R.reltoastrelid
             AND indisvalid) END AS reltoastidxid,
@@ -354,7 +354,7 @@ CREATE VIEW repack.tables AS
                      WHERE CKI.indisvalid
                        AND CKI.indexrelid = CKT.oid
                        AND CKI.indisclustered
-                       AND CKT.relam = 403) CK
+                       AND CKT.relam = 403::pg_catalog.oid) CK
                 ON R.oid = CK.indrelid
          LEFT JOIN pg_catalog.pg_namespace N ON N.oid = R.relnamespace
          LEFT JOIN pg_catalog.pg_tablespace S ON S.oid = R.reltablespace
@@ -365,7 +365,7 @@ CREATE VIEW repack.tables AS
    WHERE R.relkind = 'r'
      AND R.relpersistence = 'p'
      AND N.nspname NOT IN ('pg_catalog', 'information_schema')
-     AND N.nspname NOT LIKE E'pg\\_temp\\_%';
+     AND N.nspname OPERATOR(pg_catalog.!~~) E'pg\\_temp\\_%';
 
 CREATE FUNCTION repack.repack_indexdef(oid, oid, name, bool) RETURNS text AS
 'MODULE_PATHNAME', 'repack_indexdef'
