@@ -258,6 +258,7 @@ static int				jobs = 0;	/* number of concurrent worker conns. */
 static bool				dryrun = false;
 static unsigned int		temp_obj_num = 0; /* temporary objects counter */
 static bool				no_kill_backend = false; /* abandon when timed-out */
+static int				own_pids[2] = {0, 0};	/* backend PIDs of connection and conn2 */
 static bool				no_superuser_check = false;
 static SimpleStringList	exclude_extension_list = {NULL, NULL}; /* don't repack tables of these extensions */
 static bool 			no_error_on_publication = false; /* repack even though publication FOR ALL TABLES is found */
@@ -1383,6 +1384,13 @@ repack_one_table(repack_table *table, const char *orderby)
 	pgut_atexit_push(repack_cleanup_callback, table);
 
 	/*
+	 * Remember our own backend PIDs now: once a connection is lost,
+	 * PQbackendPID() returns 0 for it.
+	 */
+	own_pids[0] = PQbackendPID(connection);
+	own_pids[1] = PQbackendPID(conn2);
+
+	/*
 	 * 1. Setup advisory lock and trigger on main table.
 	 */
 	elog(DEBUG2, "---- setup ----");
@@ -2115,6 +2123,7 @@ repack_cleanup_callback(bool fatal, void *userdata)
 	const char *params[2];
 	char		buffer[12];
 	char		num_buff[12];
+	int			i;
 
 	if(fatal)
 	{
@@ -2126,6 +2135,29 @@ repack_cleanup_callback(bool fatal, void *userdata)
 		 * so just use an unconditional reconnect().
 		 */
 		reconnect(ERROR);
+
+		/*
+		 * The old backends belong to this pg_repack run, which is being
+		 * abandoned. If the connection was lost while a long query (such as
+		 * the data copy) was running, such a backend may still be busy and
+		 * would block the ACCESS EXCLUSIVE lock needed below, so terminate
+		 * them even with --no-kill-backend.
+		 */
+		for (i = 0; i < 2; i++)
+		{
+			char		pidbuf[12];
+			const char *pidparams[1];
+			PGresult   *res;
+
+			if (own_pids[i] <= 0)
+				continue;
+			pidparams[0] = utoa(own_pids[i], pidbuf);
+			res = pgut_execute_elevel(connection,
+				"SELECT pg_terminate_backend(pid) FROM pg_stat_activity"
+				" WHERE pid = $1::int AND pid <> pg_backend_pid()",
+				1, pidparams, DEBUG2);
+			CLEARPGRES(res);
+		}
 
 		command("BEGIN ISOLATION LEVEL READ COMMITTED", 0, NULL);
 		if (!(lock_exclusive(connection, params[0], table->lock_table, false)))
