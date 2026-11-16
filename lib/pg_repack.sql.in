@@ -146,19 +146,29 @@ SET search_path = pg_catalog, pg_temp;
 CREATE FUNCTION repack.get_compare_pkey(oid, text)
   RETURNS text AS
 $$
-  SELECT format('(%s) = (%s.%s)',
-         coalesce(string_agg(quote_ident(attname), ', '), ''),
-         $2,
-         coalesce(string_agg(quote_ident(attname), format(', %s.', $2)), ''))
-    FROM pg_catalog.pg_attribute,
-         (SELECT indrelid,
+  -- Use the schema-qualified btree equality operator of each key column's
+  -- operator class, so that the comparison does not depend on search_path.
+  SELECT coalesce(string_agg(
+           format('%s OPERATOR(%s.%s) %s.%s',
+                  quote_ident(a.attname), quote_ident(opnsp.nspname),
+                  op.oprname, $2, quote_ident(a.attname)),
+           ' AND ' ORDER BY keys.i), '')
+    FROM (SELECT indrelid,
                  indkey,
+                 indclass,
                  generate_series(0, indnatts-1) AS i
             FROM pg_catalog.pg_index
            WHERE indexrelid = $1
          ) AS keys
-   WHERE attrelid = indrelid
-     AND attnum = indkey[i];
+    JOIN pg_catalog.pg_attribute a
+        ON a.attrelid = keys.indrelid AND a.attnum = keys.indkey[keys.i]
+    JOIN pg_catalog.pg_opclass opc ON opc.oid = keys.indclass[keys.i]
+    JOIN pg_catalog.pg_amop amop ON amop.amopfamily = opc.opcfamily
+        AND amop.amoplefttype = opc.opcintype
+        AND amop.amoprighttype = opc.opcintype
+        AND amop.amopstrategy = 3
+    JOIN pg_catalog.pg_operator op ON op.oid = amop.amopopr
+    JOIN pg_catalog.pg_namespace opnsp ON opnsp.oid = op.oprnamespace;
 $$
 LANGUAGE sql STABLE STRICT
 SET search_path = pg_catalog, pg_temp;
