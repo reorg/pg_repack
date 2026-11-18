@@ -662,11 +662,11 @@ is_requested_relation_exists(char *errbuf, size_t errsize){
 		") AS given_t(r,kind) WHERE"
 		/* regular --table relation or inherited --parent-table */
 		" NOT EXISTS("
-		"  SELECT FROM repack.tables WHERE relid=pg_catalog.to_regclass(given_t.r))"
+		"  SELECT FROM repack.tables WHERE relid=pg_catalog.to_regclass(given_t.r)::oid)"
 		/* declarative partitioned --parent-table */
 		" AND NOT EXISTS("
 		"  SELECT FROM pg_catalog.pg_class c"
-		"    WHERE c.oid=pg_catalog.to_regclass(given_t.r) AND c.relkind = given_t.kind AND given_t.kind = 'p')"
+		"    WHERE c.oid=pg_catalog.to_regclass(given_t.r)::oid AND c.relkind = given_t.kind AND given_t.kind = 'p')"
 	);
 
 	/* double check the parameters array is sane */
@@ -848,7 +848,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			for (cell = table_list.head; cell; cell = cell->next)
 			{
 				/* Construct table name placeholders to be used by PQexecParams */
-				appendStringInfo(&sql, "relid = $%d::regclass", iparam + 1);
+				appendStringInfo(&sql, "relid = $%d::regclass::oid", iparam + 1);
 				params[iparam++] = cell->val;
 				if (cell->next)
 					appendStringInfoString(&sql, " OR ");
@@ -867,7 +867,7 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 			{
 				/* Construct table name placeholders to be used by PQexecParams */
 				appendStringInfo(&sql,
-								 "relid = ANY(repack.get_table_and_inheritors($%d::regclass))",
+								 "relid = ANY(repack.get_table_and_inheritors($%d::regclass)::oid[])",
 								 iparam + 1);
 				params[iparam++] = cell->val;
 				if (cell->next)
@@ -898,11 +898,11 @@ repack_one_database(const char *orderby, char *errbuf, size_t errsize)
 	if (exclude_extension_list.head)
 	{
 		appendStringInfoString(&sql, " AND t.relid NOT IN"
-									 "  (SELECT d.objid::regclass"
+									 "  (SELECT d.objid"
 									 "   FROM pg_catalog.pg_depend d"
 									 "   JOIN pg_catalog.pg_extension e"
 									 "     ON d.refobjid = e.oid"
-									 "   WHERE d.classid = 'pg_class'::regclass AND (");
+									 "   WHERE d.classid = 'pg_class'::regclass::oid AND (");
 
 		/* List all excluded extensions */
 		for (cell = exclude_extension_list.head; cell; cell = cell->next)
@@ -2047,7 +2047,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 				{
 					elog(WARNING, "terminating conflicted backends");
 					cancel_query =
-						"SELECT pg_catalog.pg_terminate_backend(pid) FROM pg_locks"
+						"SELECT pg_catalog.pg_terminate_backend(pid) FROM pg_catalog.pg_locks"
 						" WHERE locktype = 'relation'"
 						"   AND relation = $1 AND pid <> pg_catalog.pg_backend_pid()";
 				}
@@ -2055,7 +2055,7 @@ lock_exclusive(PGconn *conn, const char *relid, const char *lock_query, bool sta
 				{
 					elog(WARNING, "canceling conflicted backends");
 					cancel_query =
-						"SELECT pg_catalog.pg_cancel_backend(pid) FROM pg_locks"
+						"SELECT pg_catalog.pg_cancel_backend(pid) FROM pg_catalog.pg_locks"
 						" WHERE locktype = 'relation'"
 						"   AND relation = $1 AND pid <> pg_catalog.pg_backend_pid()";
 				}
@@ -2236,7 +2236,7 @@ repack_table_indexes(PGresult *index_details)
 	params[1] = utoa(table, buffer[1]);
 	params[2] = tablespace;
 	schema_name = getstr(index_details, 0, 5);
-	/* table_name is schema-qualified */
+	/* table_name is quoted and schema-qualified (repack.oid2text) */
 	table_name = getstr(index_details, 0, 4);
 
 	/* Keep track of which of the table's indexes we have successfully
@@ -2424,18 +2424,18 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			" FROM pg_catalog.pg_index idx"
 			" JOIN pg_catalog.pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_catalog.pg_namespace n ON n.oid = i.relnamespace"
-			" WHERE idx.indexrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
+			" WHERE idx.indexrelid = $1::regclass::oid ORDER BY indisvalid DESC, i.relname, n.nspname");
 
 		cell = r_index.head;
 	}
 	else if (table_list.head || parent_table_list.head)
 	{
 		appendStringInfoString(&sql,
-			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, $1::text, n.nspname"
+			"SELECT repack.oid2text(i.oid), idx.indexrelid, idx.indisvalid, idx.indrelid, repack.oid2text(idx.indrelid), n.nspname"
 			" FROM pg_catalog.pg_index idx"
 			" JOIN pg_catalog.pg_class i ON i.oid = idx.indexrelid"
 			" JOIN pg_catalog.pg_namespace n ON n.oid = i.relnamespace"
-			" WHERE idx.indrelid = $1::regclass ORDER BY indisvalid DESC, i.relname, n.nspname");
+			" WHERE idx.indrelid = $1::regclass::oid ORDER BY indisvalid DESC, i.relname, n.nspname");
 
 		for (cell = parent_table_list.head; cell; cell = cell->next)
 		{
@@ -2455,7 +2455,7 @@ repack_all_indexes(char *errbuf, size_t errsize)
 			res = execute_elevel("SELECT pg_catalog.quote_ident(n.nspname) || '.' || pg_catalog.quote_ident(c.relname)"
 								 " FROM pg_catalog.pg_class c"
 								 " JOIN pg_catalog.pg_namespace n on n.oid = c.relnamespace"
-								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass))"
+								 " WHERE c.oid = ANY (repack.get_table_and_inheritors($1::regclass)::oid[])"
 								 "   AND c.relkind = 'r'"
 								 " ORDER BY n.nspname, c.relname",
 								 1, params, DEBUG2);
