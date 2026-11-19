@@ -2191,16 +2191,25 @@ repack_cleanup_index(bool fatal, void *userdata)
 	StringInfoData sql, sql_drop;
 	PGresult   *index_details = (PGresult *) userdata;
 	char	   *schema_name;
+	char	   *quoted_schema;
 	int			num;
 
 	schema_name = getstr(index_details, 0, 5);
 	num = PQntuples(index_details);
 
+	quoted_schema = PQescapeIdentifier(connection, schema_name,
+									   strlen(schema_name));
+	if (quoted_schema == NULL)
+		elog(ERROR, "Unable to quote schema name \"%s\": %s",
+			 schema_name, PQerrorMessage(connection));
+
 	initStringInfo(&sql);
 	initStringInfo(&sql_drop);
 
 	appendStringInfoString(&sql, "DROP INDEX CONCURRENTLY IF EXISTS ");
-	appendStringInfo(&sql, "\"%s\".",  schema_name);
+	appendStringInfo(&sql, "%s.", quoted_schema);
+
+	PQfreemem(quoted_schema);
 
 	for (int i = 0; i < num; i++)
 	{
@@ -2281,6 +2290,9 @@ repack_table_indexes(PGresult *index_details)
 			}
 			if (PQntuples(res) > 0)
 			{
+				char	   *quoted_schema = PQescapeIdentifier(connection,
+															   schema_name,
+															   strlen(schema_name));
 				ereport(WARNING,
 						(errcode(E_PG_COMMAND),
 						 errmsg("Cannot create index \"%s\".\"index_%u\", "
@@ -2288,9 +2300,12 @@ repack_table_indexes(PGresult *index_details)
 						 errdetail("An invalid index may have been left behind"
 								   " by a previous pg_repack on the table"
 								   " which was interrupted. Please use DROP "
-								   "INDEX \"%s\".\"index_%u\""
+								   "INDEX %s.\"index_%u\""
 								   " to remove this index and try again.",
-								   schema_name, index)));
+								   quoted_schema ? quoted_schema : schema_name,
+								   index)));
+				if (quoted_schema)
+					PQfreemem(quoted_schema);
 				continue;
 			}
 
