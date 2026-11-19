@@ -45,3 +45,14 @@ CREATE UNIQUE INDEX opclass_tbl_idx ON opclass_tbl (col1 public.opclass_int4_ops
 SELECT repack.get_order_by('opclass_tbl_idx'::regclass::oid, 'opclass_tbl'::regclass::oid);
 CLUSTER opclass_tbl USING opclass_tbl_idx;
 \! pg_repack --dbname=contrib_regression --table=opclass_tbl
+
+--
+-- DESC with a non-default operator class must not produce "DESC USING"
+--
+CREATE TABLE desc_opclass_tbl (col1 int NOT NULL, col2 text NOT NULL);
+CREATE UNIQUE INDEX desc_opclass_tbl_idx ON desc_opclass_tbl (col1, col2 text_pattern_ops DESC NULLS LAST);
+INSERT INTO desc_opclass_tbl VALUES (2, 'a'), (1, 'b'), (1, 'c');
+CLUSTER desc_opclass_tbl USING desc_opclass_tbl_idx;
+SELECT repack.get_order_by('desc_opclass_tbl_idx'::regclass::oid, 'desc_opclass_tbl'::regclass::oid);
+\! pg_repack --dbname=contrib_regression --table=desc_opclass_tbl
+SELECT col1, col2 FROM desc_opclass_tbl ORDER BY ctid;
