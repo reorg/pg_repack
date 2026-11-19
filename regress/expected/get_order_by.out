@@ -100,3 +100,24 @@ SELECT col1, col2 FROM desc_opclass_tbl ORDER BY ctid;
     2 | a
 (3 rows)
 
+-- Quoted schema name in generated SQL
+CREATE SCHEMA "q""s";
+CREATE TABLE "q""s".qt (id int PRIMARY KEY, v text) WITH (fillfactor = 70, toast.autovacuum_enabled = false);
+CREATE INDEX qt_idx ON "q""s".qt (v);
+INSERT INTO "q""s".qt SELECT i, 'v' || i FROM generate_series(1, 5) i;
+\! pg_repack --dbname=contrib_regression --table='"q""s".qt'
+INFO: repacking table ""q""s".qt"
+\! pg_repack --dbname=contrib_regression --only-indexes --table='"q""s".qt'
+INFO: repacking indexes of ""q""s".qt"
+INFO: repacking index ""q""s".qt_idx"
+INFO: repacking index ""q""s".qt_pkey"
+SELECT (SELECT count(*) FROM pg_class WHERE relnamespace = '"q""s"'::regnamespace AND relname LIKE 'index\_%') AS leftover,
+       c.reloptions, t.reloptions AS toast_reloptions, (SELECT count(*) FROM "q""s".qt) AS n
+FROM pg_class c JOIN pg_class t ON t.oid = c.reltoastrelid WHERE c.oid = '"q""s".qt'::regclass;
+ leftover |   reloptions    |      toast_reloptions      | n 
+----------+-----------------+----------------------------+---
+        0 | {fillfactor=70} | {autovacuum_enabled=false} | 5
+(1 row)
+
+DROP SCHEMA "q""s" CASCADE;
+NOTICE:  drop cascades to table "q""s".qt
