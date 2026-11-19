@@ -40,6 +40,7 @@
 #include "catalog/pg_inherits_fn.h"
 #endif
 #include "catalog/pg_namespace.h"
+#include "catalog/pg_operator.h"
 #include "catalog/pg_type.h"
 #include "commands/tablecmds.h"
 #include "commands/trigger.h"
@@ -707,6 +708,26 @@ parse_indexdef_col(char *token, char **desc, char **nulls, char **collate)
 	}
 }
 
+/*
+ * Append the operator as OPERATOR(schema.name), so that it does not depend on
+ * the search_path of whoever executes the generated ORDER BY.
+ */
+static void
+append_qualified_opname(StringInfo str, Oid oprid)
+{
+	HeapTuple		tuple;
+	Form_pg_operator opr;
+
+	tuple = SearchSysCache1(OPEROID, ObjectIdGetDatum(oprid));
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for operator %u", oprid);
+	opr = (Form_pg_operator) GETSTRUCT(tuple);
+	appendStringInfo(str, "OPERATOR(%s.%s)",
+					 quote_identifier(get_namespace_name(opr->oprnamespace)),
+					 NameStr(opr->oprname));
+	ReleaseSysCache(tuple);
+}
+
 /**
  * @fn      Datum repack_get_order_by(PG_FUNCTION_ARGS)
  * @brief   Get key definition of the index.
@@ -753,14 +774,18 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 		appendStringInfoString(&str, token);
 		if (colcollate)
 			appendStringInfo(&str, " %s", colcollate);
-		if (coldesc)
+		/*
+		 * DESC cannot be combined with USING; for a DESC column with an
+		 * operator class we emit USING <greater-than operator> instead.
+		 */
+		if (coldesc && !opcname)
 			appendStringInfo(&str, " %s", coldesc);
 		if (opcname)
 		{
 			/* lookup default operator name from operator class */
 
 			Oid				oprid;
-			int16			strategy = BTLessStrategyNumber;
+			int16			strategy = coldesc ? BTGreaterStrategyNumber : BTLessStrategyNumber;
 			Oid				opcintype;
 			Oid				opfamily;
 
@@ -790,7 +815,8 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 					 strategy, opcintype, opcintype, opfamily);
 
 			opcname[-1] = '\0';
-			appendStringInfo(&str, " USING %s", get_opname(oprid));
+			appendStringInfoString(&str, " USING ");
+			append_qualified_opname(&str, oprid);
 		}
 		if (colnulls)
 			appendStringInfo(&str, " %s", colnulls);

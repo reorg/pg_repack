@@ -14,9 +14,9 @@ INFO: repacking table "public.issue3_1"
 CREATE TABLE issue3_2 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_2_idx ON issue3_2 (col1 DESC, col2 text_pattern_ops);
 SELECT repack.get_order_by('issue3_2_idx'::regclass::oid, 'issue3_2'::regclass::oid);
-       get_order_by        
----------------------------
- col1 DESC, col2 USING ~<~
+                  get_order_by                  
+------------------------------------------------
+ col1 DESC, col2 USING OPERATOR(pg_catalog.~<~)
 (1 row)
 
 \! pg_repack --dbname=contrib_regression --table=issue3_2
@@ -34,9 +34,9 @@ INFO: repacking table "public.issue3_3"
 CREATE TABLE issue3_4 (col1 int NOT NULL, col2 text NOT NULL);
 CREATE UNIQUE INDEX issue3_4_idx ON issue3_4 (col1 NULLS FIRST, col2 text_pattern_ops DESC NULLS LAST);
 SELECT repack.get_order_by('issue3_4_idx'::regclass::oid, 'issue3_4'::regclass::oid);
-                   get_order_by                   
---------------------------------------------------
- col1 NULLS FIRST, col2 DESC USING ~<~ NULLS LAST
+                           get_order_by                           
+------------------------------------------------------------------
+ col1 NULLS FIRST, col2 USING OPERATOR(pg_catalog.~>~) NULLS LAST
 (1 row)
 
 \! pg_repack --dbname=contrib_regression --table=issue3_4
@@ -69,11 +69,34 @@ CREATE OPERATOR CLASS public.opclass_int4_ops FOR TYPE int4 USING btree AS
 CREATE TABLE opclass_tbl (col1 int NOT NULL, col2 int NOT NULL);
 CREATE UNIQUE INDEX opclass_tbl_idx ON opclass_tbl (col1 public.opclass_int4_ops, col2 DESC);
 SELECT repack.get_order_by('opclass_tbl_idx'::regclass::oid, 'opclass_tbl'::regclass::oid);
-      get_order_by       
--------------------------
- col1 USING <, col2 DESC
+                 get_order_by                 
+----------------------------------------------
+ col1 USING OPERATOR(pg_catalog.<), col2 DESC
 (1 row)
 
 CLUSTER opclass_tbl USING opclass_tbl_idx;
 \! pg_repack --dbname=contrib_regression --table=opclass_tbl
 INFO: repacking table "public.opclass_tbl"
+--
+-- DESC with a non-default operator class must not produce "DESC USING"
+--
+CREATE TABLE desc_opclass_tbl (col1 int NOT NULL, col2 text NOT NULL);
+CREATE UNIQUE INDEX desc_opclass_tbl_idx ON desc_opclass_tbl (col1, col2 text_pattern_ops DESC NULLS LAST);
+INSERT INTO desc_opclass_tbl VALUES (2, 'a'), (1, 'b'), (1, 'c');
+CLUSTER desc_opclass_tbl USING desc_opclass_tbl_idx;
+SELECT repack.get_order_by('desc_opclass_tbl_idx'::regclass::oid, 'desc_opclass_tbl'::regclass::oid);
+                     get_order_by                     
+------------------------------------------------------
+ col1, col2 USING OPERATOR(pg_catalog.~>~) NULLS LAST
+(1 row)
+
+\! pg_repack --dbname=contrib_regression --table=desc_opclass_tbl
+INFO: repacking table "public.desc_opclass_tbl"
+SELECT col1, col2 FROM desc_opclass_tbl ORDER BY ctid;
+ col1 | col2 
+------+------
+    1 | c
+    1 | b
+    2 | a
+(3 rows)
+
