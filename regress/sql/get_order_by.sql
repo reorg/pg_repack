@@ -45,3 +45,26 @@ CREATE UNIQUE INDEX opclass_tbl_idx ON opclass_tbl (col1 public.opclass_int4_ops
 SELECT repack.get_order_by('opclass_tbl_idx'::regclass::oid, 'opclass_tbl'::regclass::oid);
 CLUSTER opclass_tbl USING opclass_tbl_idx;
 \! pg_repack --dbname=contrib_regression --table=opclass_tbl
+
+--
+-- DESC with a non-default operator class must not produce "DESC USING"
+--
+CREATE TABLE desc_opclass_tbl (col1 int NOT NULL, col2 text NOT NULL);
+CREATE UNIQUE INDEX desc_opclass_tbl_idx ON desc_opclass_tbl (col1, col2 text_pattern_ops DESC NULLS LAST);
+INSERT INTO desc_opclass_tbl VALUES (2, 'a'), (1, 'b'), (1, 'c');
+CLUSTER desc_opclass_tbl USING desc_opclass_tbl_idx;
+SELECT repack.get_order_by('desc_opclass_tbl_idx'::regclass::oid, 'desc_opclass_tbl'::regclass::oid);
+\! pg_repack --dbname=contrib_regression --table=desc_opclass_tbl
+SELECT col1, col2 FROM desc_opclass_tbl ORDER BY ctid;
+
+-- Quoted schema name in generated SQL
+CREATE SCHEMA "q""s";
+CREATE TABLE "q""s".qt (id int PRIMARY KEY, v text) WITH (fillfactor = 70, toast.autovacuum_enabled = false);
+CREATE INDEX qt_idx ON "q""s".qt (v);
+INSERT INTO "q""s".qt SELECT i, 'v' || i FROM generate_series(1, 5) i;
+\! pg_repack --dbname=contrib_regression --table='"q""s".qt'
+\! pg_repack --dbname=contrib_regression --only-indexes --table='"q""s".qt'
+SELECT (SELECT count(*) FROM pg_class WHERE relnamespace = '"q""s"'::regnamespace AND relname LIKE 'index\_%') AS leftover,
+       c.reloptions, t.reloptions AS toast_reloptions, (SELECT count(*) FROM "q""s".qt) AS n
+FROM pg_class c JOIN pg_class t ON t.oid = c.reltoastrelid WHERE c.oid = '"q""s".qt'::regclass;
+DROP SCHEMA "q""s" CASCADE;
