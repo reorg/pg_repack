@@ -85,6 +85,7 @@ PG_MODULE_MAGIC;
 extern Datum PGUT_EXPORT repack_version(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_trigger(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_apply(PG_FUNCTION_ARGS);
+extern Datum PGUT_EXPORT repack_copy_data(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_get_order_by(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_indexdef(PG_FUNCTION_ARGS);
 extern Datum PGUT_EXPORT repack_swap(PG_FUNCTION_ARGS);
@@ -96,6 +97,7 @@ extern Datum PGUT_EXPORT repack_get_table_and_inheritors(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(repack_version);
 PG_FUNCTION_INFO_V1(repack_trigger);
 PG_FUNCTION_INFO_V1(repack_apply);
+PG_FUNCTION_INFO_V1(repack_copy_data);
 PG_FUNCTION_INFO_V1(repack_get_order_by);
 PG_FUNCTION_INFO_V1(repack_indexdef);
 PG_FUNCTION_INFO_V1(repack_swap);
@@ -134,6 +136,118 @@ must_be_owner(Oid relId)
 #endif
 }
 
+
+/*
+ * Run SQL as the owner of a user table.
+ *
+ * The caller must be allowed to act as the owner, which is checked by
+ * must_be_owner(); switching to the owner can only lower the privileges of
+ * the superuser who runs pg_repack.
+ * Statements must be prepared before the switch, as the caller: the owner
+ * has no access to schema "repack".
+ */
+typedef struct OwnerSwitch
+{
+	Oid			save_userid;
+	int			save_sec_context;
+	int			save_nestlevel;
+	bool		active;
+} OwnerSwitch;
+
+static void
+owner_switch_begin(OwnerSwitch *sw, Oid owner, bool disable_rls)
+{
+	GetUserIdAndSecContext(&sw->save_userid, &sw->save_sec_context);
+
+	/* Only a superuser switches */
+	sw->active = (owner != sw->save_userid && superuser_arg(sw->save_userid));
+	if (!sw->active)
+		return;
+
+	SetUserIdAndSecContext(owner,
+						   sw->save_sec_context |
+						   SECURITY_LOCAL_USERID_CHANGE |
+						   SECURITY_RESTRICTED_OPERATION);
+	sw->save_nestlevel = NewGUCNestLevel();
+
+	/*
+	 * Fail instead of silently skipping the rows hidden from the owner by
+	 * row-level security: they would be lost when the new table is swapped in.
+	 */
+	if (disable_rls)
+		(void) set_config_option("row_security", "off",
+								 PGC_USERSET, PGC_S_SESSION,
+								 GUC_ACTION_SAVE, true, 0, false);
+}
+
+static void
+owner_switch_end(OwnerSwitch *sw)
+{
+	if (!sw->active)
+		return;
+
+	/* Roll back any GUC changes performed by the statements */
+	AtEOXact_GUC(false, sw->save_nestlevel);
+	SetUserIdAndSecContext(sw->save_userid, sw->save_sec_context);
+}
+
+/* Owner of the relation; the caller must be allowed to act as the owner */
+static Oid
+get_checked_owner(Oid relid)
+{
+	HeapTuple	tup;
+	Oid			owner;
+
+	must_be_owner(relid);
+
+	tup = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
+	if (!HeapTupleIsValid(tup))
+		elog(ERROR, "cache lookup failed for relation %u", relid);
+	owner = ((Form_pg_class) GETSTRUCT(tup))->relowner;
+	ReleaseSysCache(tup);
+
+	return owner;
+}
+
+/*
+ * Check that a prepared plan is exactly one INSERT INTO repack.table_<relid>
+ * (without WITH), before anything is executed as the table owner.
+ */
+static void
+check_copy_plan(SPIPlanPtr plan, Oid relid)
+{
+	List		   *sources = SPI_plan_get_plan_sources(plan);
+	CachedPlanSource *source;
+	Node		   *stmt;
+	char			relname[NAMEDATALEN];
+
+	snprintf(relname, sizeof(relname), "table_%u", relid);
+
+	if (list_length(sources) == 1)
+	{
+		source = (CachedPlanSource *) linitial(sources);
+#if PG_VERSION_NUM >= 100000
+		stmt = source->raw_parse_tree->stmt;
+#else
+		stmt = source->raw_parse_tree;
+#endif
+		if (stmt != NULL && IsA(stmt, InsertStmt))
+		{
+			InsertStmt *insert = (InsertStmt *) stmt;
+			RangeVar   *rv = insert->relation;
+
+			if (insert->withClause == NULL &&
+				rv->schemaname != NULL &&
+				strcmp(rv->schemaname, "repack") == 0 &&
+				strcmp(rv->relname, relname) == 0)
+				return;
+		}
+	}
+
+	ereport(ERROR,
+			(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+			 errmsg("repack.copy_data accepts only a single INSERT into the new repack table")));
+}
 
 /* The API of RenameRelationInternal() was changed in 9.2.
  * Use the RENAME_REL macro for compatibility across versions.
@@ -276,7 +390,7 @@ repack_trigger(PG_FUNCTION_ARGS)
  * @fn      Datum repack_apply(PG_FUNCTION_ARGS)
  * @brief   Apply operations in log table into temp table.
  *
- * repack_apply(sql_peek, sql_insert, sql_delete, sql_update, sql_pop,  count)
+ * repack_apply(sql_peek, sql_insert, sql_delete, sql_update, sql_pop, count, relid)
  *
  * @param	sql_peek	SQL to pop tuple from log table.
  * @param	sql_insert	SQL to insert into temp table.
@@ -284,6 +398,8 @@ repack_trigger(PG_FUNCTION_ARGS)
  * @param	sql_update	SQL to update temp table.
  * @param	sql_pop	SQL to bulk-delete tuples from log table.
  * @param	count		Max number of operations, or no count iff <=0.
+ * @param	relid		OID of the table being repacked; INSERT, DELETE and UPDATE
+ *						run as its owner.
  * @retval				Number of performed operations.
  */
 Datum
@@ -297,6 +413,9 @@ repack_apply(PG_FUNCTION_ARGS)
 	const char *sql_update = PG_GETARG_CSTRING(3);
 	/* sql_pop, the fourth arg, will be used in the loop below */
 	int32		count = PG_GETARG_INT32(5);
+	Oid			relid;
+	Oid			owner;
+	OwnerSwitch	sw;
 
 	SPIPlanPtr		plan_peek = NULL;
 	SPIPlanPtr		plan_insert = NULL;
@@ -307,6 +426,11 @@ repack_apply(PG_FUNCTION_ARGS)
 	Datum			values_peek[1];
 	const char			nulls_peek[1] = { 0 };
 	StringInfoData		sql_pop;
+
+	if (PG_ARGISNULL(6))
+		elog(ERROR, "repack_apply: relid must not be NULL");
+	relid = PG_GETARG_OID(6);
+	owner = get_checked_owner(relid);
 
 	initStringInfo(&sql_pop);
 
@@ -359,26 +483,37 @@ repack_apply(PG_FUNCTION_ARGS)
 			pkid = SPI_getvalue(tuple, desc, 1);
 			Assert(pkid != NULL);
 
+			/*
+			 * Plans are prepared as the caller, as the table owner might not
+			 * have access to schema repack; only their execution runs as the
+			 * table owner.
+			 */
 			if (nulls[1])
 			{
 				/* INSERT */
 				if (plan_insert == NULL)
 					plan_insert = repack_prepare(sql_insert, 1, &argtypes[2]);
+				owner_switch_begin(&sw, owner, false);
 				execute_plan(SPI_OK_INSERT, plan_insert, &values[2], (nulls[2] ? "n" : " "));
+				owner_switch_end(&sw);
 			}
 			else if (nulls[2])
 			{
 				/* DELETE */
 				if (plan_delete == NULL)
 					plan_delete = repack_prepare(sql_delete, 1, &argtypes[1]);
+				owner_switch_begin(&sw, owner, false);
 				execute_plan(SPI_OK_DELETE, plan_delete, &values[1], (nulls[1] ? "n" : " "));
+				owner_switch_end(&sw);
 			}
 			else
 			{
 				/* UPDATE */
 				if (plan_update == NULL)
 					plan_update = repack_prepare(sql_update, 2, &argtypes[1]);
+				owner_switch_begin(&sw, owner, false);
 				execute_plan(SPI_OK_UPDATE, plan_update, &values[1], (nulls[1] ? "n" : " "));
+				owner_switch_end(&sw);
 			}
 
 			/* Add the primary key ID of each row from the log
@@ -392,6 +527,7 @@ repack_apply(PG_FUNCTION_ARGS)
 				appendStringInfo(&sql_pop, ",%s", pkid);
 			pfree(pkid);
 		}
+
 		/* i must be > 0 (and hence we must have some rows to delete)
 		 * since SPI_processed > 0
 		 */
@@ -407,6 +543,45 @@ repack_apply(PG_FUNCTION_ARGS)
 	SPI_finish();
 
 	PG_RETURN_INT32(n);
+}
+
+/**
+ * @fn      Datum repack_copy_data(PG_FUNCTION_ARGS)
+ * @brief   Copy the data of a table into the new table as the table owner.
+ *
+ * repack_copy_data(relid, sql)
+ *
+ * @param	relid	OID of the table being repacked.
+ * @param	sql		INSERT INTO repack.table_X SELECT ... FROM ONLY <table> ...
+ * @retval			Number of copied rows.
+ */
+Datum
+repack_copy_data(PG_FUNCTION_ARGS)
+{
+	Oid			relid = PG_GETARG_OID(0);
+	char	   *sql = text_to_cstring(PG_GETARG_TEXT_PP(1));
+	Oid			owner = get_checked_owner(relid);
+	OwnerSwitch	sw;
+	SPIPlanPtr	plan;
+	int			ret;
+	int64		processed;
+
+	repack_init();
+
+	/* prepare as the caller, see owner_switch_begin() */
+	plan = repack_prepare(sql, 0, NULL);
+	check_copy_plan(plan, relid);
+
+	owner_switch_begin(&sw, owner, true);
+	ret = SPI_execute_plan(plan, NULL, NULL, false, 0);
+	owner_switch_end(&sw);
+	if (ret != SPI_OK_INSERT)
+		elog(ERROR, "pg_repack: copy failed (code=%d, query=%s)", ret, sql);
+	processed = SPI_processed;
+
+	SPI_finish();
+
+	PG_RETURN_INT64(processed);
 }
 
 /*

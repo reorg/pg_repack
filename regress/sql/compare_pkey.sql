@@ -50,7 +50,7 @@ INSERT INTO repack.log_:oid (pk, row) VALUES
 -- Replay the log under the pinned search_path
 -- Without the schema-qualified operator this fails with:
 -- ERROR:  operator does not exist: public.cmpt = public.cmpt
-SELECT repack.repack_apply(:'sql_peek', :'sql_insert', :'sql_delete', :'sql_update', :'sql_pop', 100);
+SELECT repack.repack_apply(:'sql_peek', :'sql_insert', :'sql_delete', :'sql_update', :'sql_pop', 100, :oid);
 -- Row 2 is updated, row 3 is deleted, and the log is drained
 SELECT * FROM repack.table_:oid ORDER BY id::text;
 SELECT count(*) AS remaining_log_rows FROM repack.log_:oid;

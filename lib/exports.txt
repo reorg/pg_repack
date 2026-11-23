@@ -19,3 +19,5 @@ repack_trigger                            18
 repack_version                            19
 repack_index_swap                         20
 repack_get_table_and_inheritors           21
+pg_finfo_repack_copy_data                 22
+repack_copy_data                          23

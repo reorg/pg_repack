@@ -605,6 +605,13 @@ preliminary_checks(char *errbuf, size_t errsize){
 	/* Restrict search_path to system catalog. */
 	command("SET search_path = pg_catalog, pg_temp, public", 0, NULL);
 
+	/*
+	 * Fail instead of silently copying only the rows visible under row-level
+	 * security (FORCE ROW LEVEL SECURITY, or a role without BYPASSRLS): the
+	 * missing rows would be lost when the new table is swapped in.
+	 */
+	command("SET row_security = off", 0, NULL);
+
 	/* To avoid annoying "create implicit ..." messages. */
 	command("SET client_min_messages = warning", 0, NULL);
 
@@ -1030,8 +1037,9 @@ apply_log(PGconn *conn, const repack_table *table, int count)
 {
 	int			result;
 	PGresult   *res;
-	const char *params[6];
+	const char *params[7];
 	char		buffer[12];
+	char		relid_buffer[12];
 
 	params[0] = table->sql_peek;
 	params[1] = table->sql_insert;
@@ -1039,10 +1047,11 @@ apply_log(PGconn *conn, const repack_table *table, int count)
 	params[3] = table->sql_update;
 	params[4] = table->sql_pop;
 	params[5] = utoa(count, buffer);
+	params[6] = utoa(table->target_oid, relid_buffer);
 
 	res = pgut_execute(conn,
-					   "SELECT repack.repack_apply($1, $2, $3, $4, $5, $6)",
-					   6, params);
+					   "SELECT repack.repack_apply($1, $2, $3, $4, $5, $6, $7)",
+					   7, params);
 	result = atoi(PQgetvalue(res, 0, 0));
 	CLEARPGRES(res);
 
@@ -1376,6 +1385,25 @@ repack_one_table(repack_table *table, const char *orderby)
 	elog(DEBUG2, "sql_update        : %s", table->sql_update);
 	elog(DEBUG2, "sql_pop           : %s", table->sql_pop);
 
+	/*
+	 * Fail early, before creating any temporary object, if the user cannot
+	 * act as the owner of the table.
+	 */
+	params[0] = utoa(table->target_oid, buffer);
+	res = execute("SELECT pg_catalog.pg_has_role(relowner, 'USAGE')"
+				  "  FROM pg_catalog.pg_class WHERE oid = $1::pg_catalog.oid",
+				  1, params);
+	if (PQntuples(res) != 1 || strcmp(PQgetvalue(res, 0, 0), "t") != 0)
+	{
+		ereport(WARNING,
+				(errcode(E_PG_COMMAND),
+				 errmsg("permission denied for table \"%s\"",
+						table->target_name),
+				 errdetail("You must be the owner of the table or a member of its owner role.")));
+		goto cleanup;
+	}
+	CLEARPGRES(res);
+
 	if (dryrun)
 		return;
 
@@ -1633,7 +1661,10 @@ repack_one_table(repack_table *table, const char *orderby)
 	command(table->create_table, 2, params);
 	if (table->alter_col_storage)
 		command(table->alter_col_storage, 0, NULL);
-	command(table->copy_data, 0, NULL);
+	/* Copy as the table owner, see repack.copy_data() */
+	params[0] = utoa(table->target_oid, buffer);
+	params[1] = table->copy_data;
+	command("SELECT repack.copy_data($1, $2)", 2, params);
 	temp_obj_num++;
 	printfStringInfo(&sql, "SELECT repack.disable_autovacuum('repack.table_%u')", table->target_oid);
 	if (table->drop_columns)
