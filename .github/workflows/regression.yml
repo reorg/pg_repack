@@ -50,3 +50,81 @@ jobs:
       - name: Show regression.diffs
         if: ${{ failure() }}
         run: cat regress/regression.diffs
+
+  cassert:
+    name: PostgreSQL with assertions
+    runs-on: ubuntu-latest
+    env:
+      # PostgreSQL built from source with --enable-cassert. Update both
+      # values together; the checksum is the content of
+      # https://ftp.postgresql.org/pub/source/v<version>/postgresql-<version>.tar.bz2.sha256
+      PG_VERSION: "19.0"
+      PG_SHA256: a89fd70efbad6a08c7dbed8d4872e3af30170d9e5ca9dc7906523be95b4e692d
+    steps:
+
+      - name: Install build-dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bison flex curl ca-certificates bzip2 libreadline-dev zlib1g-dev
+
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Cache PostgreSQL ${{ env.PG_VERSION }}
+        id: cache-pg
+        uses: actions/cache@v4
+        with:
+          path: ~/pg-cassert
+          key: pg-cassert-${{ env.PG_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Build PostgreSQL ${{ env.PG_VERSION }} with --enable-cassert
+        if: steps.cache-pg.outputs.cache-hit != 'true'
+        run: |
+          cd "$RUNNER_TEMP"
+          curl -fsSLO "https://ftp.postgresql.org/pub/source/v$PG_VERSION/postgresql-$PG_VERSION.tar.bz2"
+          echo "$PG_SHA256  postgresql-$PG_VERSION.tar.bz2" | sha256sum -c -
+          tar xjf "postgresql-$PG_VERSION.tar.bz2"
+          cd "postgresql-$PG_VERSION"
+          ./configure --prefix="$HOME/pg-cassert" --enable-cassert --enable-debug --without-icu
+          make -j"$(nproc)"
+          make install
+
+      - name: Start PostgreSQL ${{ env.PG_VERSION }}
+        run: |
+          export PATH="$HOME/pg-cassert/bin:$PATH" PGDATA="$GITHUB_WORKSPACE/pgdata" PGHOST="$GITHUB_WORKSPACE/pgsocket"
+          echo "$HOME/pg-cassert/bin" >> "$GITHUB_PATH"
+          echo "PGDATA=$PGDATA" >> "$GITHUB_ENV"
+          echo "PGHOST=$PGHOST" >> "$GITHUB_ENV"
+          echo "PGUSER=postgres" >> "$GITHUB_ENV"
+          mkdir -p "$PGHOST"
+          initdb -U postgres -A trust -D "$PGDATA"
+          cat >> "$PGDATA/postgresql.conf" <<CONF
+          listen_addresses = ''
+          unix_socket_directories = '$PGHOST'
+          wal_level = logical
+          CONF
+          pg_ctl -D "$PGDATA" -l "$GITHUB_WORKSPACE/postgres.log" -w start
+          test "$(psql -U postgres -Atc 'SHOW debug_assertions')" = on
+
+      - name: Put pg_repack on PATH
+        run: echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Create tablespaces
+        run: |
+          mkdir /tmp/testts /tmp/1testts /tmp/test\ ts /tmp/test\"ts
+          psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
+          psql -c "CREATE TABLESPACE \"1testts\" LOCATION '/tmp/1testts'"
+          psql -c "CREATE TABLESPACE \"test ts\" LOCATION '/tmp/test ts'"
+          psql -c "CREATE TABLESPACE \"test\"\"ts\" LOCATION '/tmp/test\"ts'"
+
+      - name: Test on PostgreSQL ${{ env.PG_VERSION }} with assertions
+        run: |
+          make
+          make install
+          make installcheck
+
+      - name: Show regression.diffs and the server log
+        if: ${{ failure() }}
+        run: |
+          cat regress/regression.diffs || true
+          cat postgres.log || true
