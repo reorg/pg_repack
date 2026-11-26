@@ -47,7 +47,7 @@ jobs:
 
       - name: Cache PostgreSQL
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/pg
           key: pg-assert-${{ runner.os }}-${{ steps.pg.outputs.tag }}
@@ -64,7 +64,7 @@ jobs:
           make -s -j$(nproc) install
 
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Put PostgreSQL and pg_repack on PATH
         run: |
