@@ -59,7 +59,7 @@ CREATE UNIQUE INDEX issue321_idx ON issue321 (col1);
 SELECT repack.get_order_by('issue321_idx'::regclass::oid, 1);
 ERROR:  table name not found for OID 1
 SELECT repack.get_order_by(1, 1);
-ERROR:  cache lookup failed for index 1
+ERROR:  could not open relation with OID 1
 --
 -- A non-default operator class in a schema that is not in the function search_path
 --
