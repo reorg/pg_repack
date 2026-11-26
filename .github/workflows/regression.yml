@@ -22,109 +22,64 @@ jobs:
 
     name: PostgreSQL ${{ matrix.pg }}
     runs-on: ubuntu-latest
-    container: pgxn/pgxn-tools
-    steps:
-
-      - name: Start PostgreSQL ${{ matrix.pg }}
-        run: CREATE_OPTIONS="--pgoption wal_level=logical" pg-start ${{ matrix.pg }}
-
-      - name: Install build-dependencies
-        run: apt-get install -y liblz4-dev libreadline-dev zlib1g-dev libzstd-dev
-
-      - name: Install additional build-dependencies for 18+
-        if: ${{ matrix.pg >= 18 }}
-        run: apt-get install -y libcurl4-openssl-dev libnuma-dev
-
-      - name: Check out the repo
-        uses: actions/checkout@v3
-
-      - name: Put pg_repack on PATH
-        run: echo "$PWD/bin" >> $GITHUB_PATH
-
-      - name: Create tablespaces
-        run: bash regress/create_tablespaces.sh
-
-      - name: Test on PostgreSQL ${{ matrix.pg }}
-        run: pg-build-test
-
-      - name: Show regression.diffs
-        if: ${{ failure() }}
-        run: cat regress/regression.diffs
-
-  cassert:
-    name: PostgreSQL with assertions
-    runs-on: ubuntu-latest
     env:
-      # PostgreSQL built from source with --enable-cassert. Update both
-      # values together; the checksum is the content of
-      # https://ftp.postgresql.org/pub/source/v<version>/postgresql-<version>.tar.bz2.sha256
-      PG_VERSION: "19.0"
-      PG_SHA256: a89fd70efbad6a08c7dbed8d4872e3af30170d9e5ca9dc7906523be95b4e692d
+      PGUSER: postgres
     steps:
 
-      - name: Install build-dependencies
+      - name: Resolve the latest PostgreSQL release tag
+        id: pg
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential bison flex curl ca-certificates bzip2 libreadline-dev zlib1g-dev
+          version=${{ matrix.pg }}
+
+          # Release tags look like REL_17_12 (PG 10+) and REL9_6_24 (PG 9.x).
+          if [[ $version == 9.* ]]; then
+            pattern="REL${version//./_}_[0-9]*"
+          else
+            pattern="REL_${version}_[0-9]*"
+          fi
+
+          # Newest tag first; refs/tags/REL_17_12 -> REL_17_12
+          tag=$(git ls-remote --tags --refs --sort=-v:refname \
+                  https://github.com/postgres/postgres.git "$pattern" |
+                head -n 1 | cut -d/ -f3)
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Cache PostgreSQL
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/pg
+          key: pg-assert-${{ runner.os }}-${{ steps.pg.outputs.tag }}
+
+      - name: Build PostgreSQL ${{ matrix.pg }} with --enable-cassert
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y bison flex
+          git clone -q --depth 1 --branch ${{ steps.pg.outputs.tag }} https://github.com/postgres/postgres.git ~/src
+          cd ~/src
+          ./configure --prefix=$HOME/pg --enable-cassert --without-icu --without-readline --without-zlib
+          make -s -j$(nproc) install
 
       - name: Check out the repo
         uses: actions/checkout@v4
 
-      - name: Cache PostgreSQL ${{ env.PG_VERSION }}
-        id: cache-pg
-        uses: actions/cache@v4
-        with:
-          path: ~/pg-cassert
-          key: pg-cassert-${{ env.PG_VERSION }}-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Build PostgreSQL ${{ env.PG_VERSION }} with --enable-cassert
-        if: steps.cache-pg.outputs.cache-hit != 'true'
+      - name: Put PostgreSQL and pg_repack on PATH
         run: |
-          cd "$RUNNER_TEMP"
-          curl -fsSLO "https://ftp.postgresql.org/pub/source/v$PG_VERSION/postgresql-$PG_VERSION.tar.bz2"
-          echo "$PG_SHA256  postgresql-$PG_VERSION.tar.bz2" | sha256sum -c -
-          tar xjf "postgresql-$PG_VERSION.tar.bz2"
-          cd "postgresql-$PG_VERSION"
-          ./configure --prefix="$HOME/pg-cassert" --enable-cassert --enable-debug --without-icu
-          make -j"$(nproc)"
-          make install
+          echo "$HOME/pg/bin" >> $GITHUB_PATH
+          echo "$PWD/bin" >> $GITHUB_PATH
 
-      - name: Start PostgreSQL ${{ env.PG_VERSION }}
+      - name: Start PostgreSQL
         run: |
-          export PATH="$HOME/pg-cassert/bin:$PATH" PGDATA="$GITHUB_WORKSPACE/pgdata" PGHOST="$GITHUB_WORKSPACE/pgsocket"
-          echo "$HOME/pg-cassert/bin" >> "$GITHUB_PATH"
-          echo "PGDATA=$PGDATA" >> "$GITHUB_ENV"
-          echo "PGHOST=$PGHOST" >> "$GITHUB_ENV"
-          echo "PGUSER=postgres" >> "$GITHUB_ENV"
-          mkdir -p "$PGHOST"
-          initdb -U postgres -A trust -D "$PGDATA"
-          cat >> "$PGDATA/postgresql.conf" <<CONF
-          listen_addresses = ''
-          unix_socket_directories = '$PGHOST'
-          wal_level = logical
-          CONF
-          pg_ctl -D "$PGDATA" -l "$GITHUB_WORKSPACE/postgres.log" -w start
-          test "$(psql -U postgres -Atc 'SHOW debug_assertions')" = on
+          initdb -U postgres -A trust -D ~/data
+          echo "wal_level = logical" >> ~/data/postgresql.conf
+          pg_ctl -D ~/data -l ~/postgres.log -w start
+          test "$(psql -Atc 'SHOW debug_assertions')" = on
+          bash regress/create_tablespaces.sh
 
-      - name: Put pg_repack on PATH
-        run: echo "$PWD/bin" >> $GITHUB_PATH
-
-      - name: Create tablespaces
-        run: |
-          mkdir /tmp/testts /tmp/1testts /tmp/test\ ts /tmp/test\"ts
-          psql -c "CREATE TABLESPACE testts LOCATION '/tmp/testts'"
-          psql -c "CREATE TABLESPACE \"1testts\" LOCATION '/tmp/1testts'"
-          psql -c "CREATE TABLESPACE \"test ts\" LOCATION '/tmp/test ts'"
-          psql -c "CREATE TABLESPACE \"test\"\"ts\" LOCATION '/tmp/test\"ts'"
-
-      - name: Test on PostgreSQL ${{ env.PG_VERSION }} with assertions
-        run: |
-          make
-          make install
-          make installcheck
+      - name: Test on PostgreSQL ${{ matrix.pg }}
+        run: make && make install && make installcheck
 
       - name: Show regression.diffs and the server log
         if: ${{ failure() }}
-        run: |
-          cat regress/regression.diffs || true
-          cat postgres.log || true
+        run: cat regress/regression.diffs ~/postgres.log
