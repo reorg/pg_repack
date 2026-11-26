@@ -58,7 +58,9 @@ jobs:
           sudo apt-get install -y bison flex
           git clone -q --depth 1 --branch ${{ steps.pg.outputs.tag }} https://github.com/postgres/postgres.git ~/src
           cd ~/src
-          ./configure --prefix=$HOME/pg --enable-cassert --without-icu --without-readline --without-zlib
+          # GCC 15 defaults to C23, which PostgreSQL 9.5 - 12 do not compile with
+          ./configure --prefix=$HOME/pg --enable-cassert --without-icu --without-readline --without-zlib \
+                      CC="gcc -std=gnu17"
           make -s -j$(nproc) install
 
       - name: Check out the repo
