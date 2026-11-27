@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
 
 mkdir /tmp/testts /tmp/1testts /tmp/test\ ts /tmp/test\"ts
 

@@ -26,10 +26,15 @@ jobs:
       PGUSER: postgres
     steps:
 
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
       - name: Resolve the latest PostgreSQL release tag
         id: pg
+        env:
+          PG_VERSION: ${{ matrix.pg }}
         run: |
-          version=${{ matrix.pg }}
+          version=$PG_VERSION
 
           # Release tags look like REL_17_12 (PG 10+) and REL9_6_24 (PG 9.x).
           if [[ $version == 9.* ]]; then
@@ -50,7 +55,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/pg
-          key: pg-assert-${{ runner.os }}-${{ steps.pg.outputs.tag }}
+          key: pg-assert-${{ runner.os }}-${{ runner.arch }}-${{ steps.pg.outputs.tag }}-${{ hashFiles('.github/workflows/regression.yml') }}
 
       - name: Build PostgreSQL ${{ matrix.pg }} with --enable-cassert
         if: steps.cache.outputs.cache-hit != 'true'
@@ -62,9 +67,6 @@ jobs:
           ./configure --prefix=$HOME/pg --enable-cassert --without-icu --without-readline --without-zlib \
                       CC="gcc -std=gnu17"
           make -s -j$(nproc) install
-
-      - name: Check out the repo
-        uses: actions/checkout@v7
 
       - name: Put PostgreSQL and pg_repack on PATH
         run: |
