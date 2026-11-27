@@ -747,8 +747,11 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 	char		   *token;
 	char		   *next;
 	StringInfoData	str;
-	Relation		indexRel = NULL;
+	Relation		indexRel;
 	int				nattr;
+
+	/* Lock the index before reading its definition to avoid race conditions */
+	indexRel = index_open(index, AccessShareLock);
 
 	parse_indexdef(&stmt, index, table);
 
@@ -795,8 +798,6 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 			 * schema-qualified, depending on the search_path, so it cannot be
 			 * looked up reliably by name.
 			 */
-			if (indexRel == NULL)
-				indexRel = index_open(index, NoLock);
 			opfamily = indexRel->rd_opfamily[nattr];
 			opcintype = indexRel->rd_opcintype[nattr];
 
@@ -824,8 +825,7 @@ repack_get_order_by(PG_FUNCTION_ARGS)
 			appendStringInfoString(&str, ", ");
 	}
 
-	if (indexRel != NULL)
-		index_close(indexRel, NoLock);
+	index_close(indexRel, AccessShareLock);
 
 	PG_RETURN_TEXT_P(cstring_to_text(str.data));
 }

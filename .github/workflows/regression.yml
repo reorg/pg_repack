@@ -22,31 +22,68 @@ jobs:
 
     name: PostgreSQL ${{ matrix.pg }}
     runs-on: ubuntu-latest
-    container: pgxn/pgxn-tools
+    env:
+      PGUSER: postgres
     steps:
 
-      - name: Start PostgreSQL ${{ matrix.pg }}
-        run: CREATE_OPTIONS="--pgoption wal_level=logical" pg-start ${{ matrix.pg }}
-
-      - name: Install build-dependencies
-        run: apt-get install -y liblz4-dev libreadline-dev zlib1g-dev libzstd-dev
-
-      - name: Install additional build-dependencies for 18+
-        if: ${{ matrix.pg >= 18 }}
-        run: apt-get install -y libcurl4-openssl-dev libnuma-dev
-
       - name: Check out the repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
-      - name: Put pg_repack on PATH
-        run: echo "$PWD/bin" >> $GITHUB_PATH
+      - name: Resolve the latest PostgreSQL release tag
+        id: pg
+        env:
+          PG_VERSION: ${{ matrix.pg }}
+        run: |
+          version=$PG_VERSION
 
-      - name: Create tablespaces
-        run: bash regress/create_tablespaces.sh
+          # Release tags look like REL_17_12 (PG 10+) and REL9_6_24 (PG 9.x).
+          if [[ $version == 9.* ]]; then
+            pattern="REL${version//./_}_[0-9]*"
+          else
+            pattern="REL_${version}_[0-9]*"
+          fi
+
+          # Newest tag first; refs/tags/REL_17_12 -> REL_17_12
+          tag=$(git ls-remote --tags --refs --sort=-v:refname \
+                  https://github.com/postgres/postgres.git "$pattern" |
+                head -n 1 | cut -d/ -f3)
+
+          echo "tag=$tag" >> $GITHUB_OUTPUT
+
+      - name: Cache PostgreSQL
+        id: cache
+        uses: actions/cache@v6
+        with:
+          path: ~/pg
+          key: pg-assert-${{ runner.os }}-${{ runner.arch }}-${{ steps.pg.outputs.tag }}-${{ hashFiles('.github/workflows/regression.yml') }}
+
+      - name: Build PostgreSQL ${{ matrix.pg }} with --enable-cassert
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y bison flex
+          git clone -q --depth 1 --branch ${{ steps.pg.outputs.tag }} https://github.com/postgres/postgres.git ~/src
+          cd ~/src
+          # GCC 15 defaults to C23, which PostgreSQL 9.5 - 12 do not compile with
+          ./configure --prefix=$HOME/pg --enable-cassert --without-icu --without-readline --without-zlib \
+                      CC="gcc -std=gnu17"
+          make -s -j$(nproc) install
+
+      - name: Put PostgreSQL and pg_repack on PATH
+        run: |
+          echo "$HOME/pg/bin" >> $GITHUB_PATH
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: Start PostgreSQL
+        run: |
+          initdb -U postgres -A trust -D ~/data
+          echo "wal_level = logical" >> ~/data/postgresql.conf
+          pg_ctl -D ~/data -l ~/postgres.log -w start
+          test "$(psql -Atc 'SHOW debug_assertions')" = on
+          bash regress/create_tablespaces.sh
 
       - name: Test on PostgreSQL ${{ matrix.pg }}
-        run: pg-build-test
+        run: make && make install && make installcheck
 
-      - name: Show regression.diffs
+      - name: Show regression.diffs and the server log
         if: ${{ failure() }}
-        run: cat regress/regression.diffs
+        run: cat regress/regression.diffs ~/postgres.log
