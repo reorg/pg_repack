@@ -19,7 +19,8 @@ INTVERSION := $(shell echo $$(($$(echo $(VERSION).0 | sed 's/\([[:digit:]]\{1,\}
 
 REGRESS := init-extension repack-setup repack-run error-on-invalid-idx \
 		   no-error-on-invalid-idx after-schema repack-check nosuper \
-		   tablespace get_order_by trigger trigger_privs publication compare_pkey
+		   tablespace get_order_by trigger trigger_privs publication \
+		   compare_pkey owner_identity
 
 USE_PGXS = 1	# use pgxs if not in contrib directory
 PGXS := $(shell $(PG_CONFIG) --pgxs)

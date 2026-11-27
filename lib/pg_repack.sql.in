@@ -67,6 +67,8 @@ SET search_path = pg_catalog, pg_temp;
 
 CREATE FUNCTION repack.create_table(oid, name) RETURNS void AS
 $$
+DECLARE
+    orig_owner name;
 BEGIN
     EXECUTE format(
         'CREATE TABLE repack.table_%s WITH (%s) TABLESPACE %I '
@@ -76,6 +78,18 @@ BEGIN
         $2,
         repack.get_columns_for_create_as($1),
         repack.oid2text($1));
+
+    -- A superuser creates the table; hand it over to the owner of the
+    -- original table right away, so that the index builds run as that owner
+    -- and not as the superuser.
+    IF pg_catalog.current_setting('is_superuser') = 'on' THEN
+        SELECT pg_catalog.pg_get_userbyid(relowner) INTO orig_owner
+          FROM pg_catalog.pg_class WHERE oid = $1;
+        IF orig_owner <> current_user THEN
+            EXECUTE format('ALTER TABLE repack.table_%s OWNER TO %I',
+                           $1, orig_owner);
+        END IF;
+    END IF;
 END
 $$
 LANGUAGE plpgsql
@@ -407,11 +421,16 @@ CREATE FUNCTION repack.repack_apply(
   sql_delete    cstring,
   sql_update    cstring,
   sql_pop       cstring,
-  count         integer)
+  count         integer,
+  relid         oid)
 RETURNS integer AS
 'MODULE_PATHNAME', 'repack_apply'
 LANGUAGE C VOLATILE
 SET search_path = pg_catalog, pg_temp;
+
+CREATE FUNCTION repack.copy_data(relid oid, sql text) RETURNS bigint AS
+'MODULE_PATHNAME', 'repack_copy_data'
+LANGUAGE C VOLATILE STRICT;
 
 CREATE FUNCTION repack.repack_swap(oid) RETURNS void AS
 'MODULE_PATHNAME', 'repack_swap'
